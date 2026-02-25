@@ -42,6 +42,9 @@ require_once STM_PLUGIN_DIR . 'includes/class-database.php';
 require_once STM_PLUGIN_DIR . 'includes/class-cache.php';
 require_once STM_PLUGIN_DIR . 'includes/class-admin.php';
 require_once STM_PLUGIN_DIR . 'includes/class-api.php';
+require_once STM_PLUGIN_DIR . 'includes/class-post-editor.php';
+require_once STM_PLUGIN_DIR . 'includes/class-frontend.php';
+require_once STM_PLUGIN_DIR . 'includes/class-language-switcher.php';
 
 /**
  * Plugin activation
@@ -125,5 +128,8 @@ function stm_init() {
     // Initialize components
     STM\Admin::init();
     STM\API::init();
+    STM\PostEditor::init();
+    STM\Frontend::init();
+    STM\LanguageSwitcher::init();
 }
 add_action('plugins_loaded', 'stm_init');

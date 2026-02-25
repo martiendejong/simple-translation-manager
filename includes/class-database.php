@@ -6,7 +6,9 @@
  * - stm_languages: Available languages (en, nl, fr, etc.)
  * - stm_strings: Translatable strings with context
  * - stm_translations: Actual translations per language
- * - stm_post_translations: Dynamic content translations (posts/pages)
+ * - stm_post_translations: Dynamic content translations (posts/pages/CPT fields)
+ * - stm_post_associations: Links translated post versions (translation groups)
+ * - stm_term_translations: Category/tag translations
  */
 
 namespace STM;
@@ -88,11 +90,46 @@ class Database {
                 KEY language_code (language_code)
             ) {$charset_collate};";
 
+            // Table 5: Post Associations (links translated versions)
+            $table_post_associations = $wpdb->prefix . 'stm_post_associations';
+            $sql_post_associations = "CREATE TABLE IF NOT EXISTS {$table_post_associations} (
+                id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+                post_id bigint(20) unsigned NOT NULL,
+                language_code varchar(10) NOT NULL,
+                translation_group varchar(32) NOT NULL,
+                is_original tinyint(1) NOT NULL DEFAULT 0,
+                created_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (id),
+                UNIQUE KEY post_lang (post_id, language_code),
+                KEY translation_group (translation_group),
+                KEY language_code (language_code),
+                KEY post_id (post_id)
+            ) {$charset_collate};";
+
+            // Table 6: Taxonomy Term Translations
+            $table_term_translations = $wpdb->prefix . 'stm_term_translations';
+            $sql_term_translations = "CREATE TABLE IF NOT EXISTS {$table_term_translations} (
+                id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+                term_id bigint(20) unsigned NOT NULL,
+                language_code varchar(10) NOT NULL,
+                name varchar(200) NOT NULL,
+                slug varchar(200) NOT NULL,
+                description text DEFAULT NULL,
+                created_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                PRIMARY KEY (id),
+                UNIQUE KEY term_lang (term_id, language_code),
+                KEY language_code (language_code),
+                KEY term_id (term_id)
+            ) {$charset_collate};";
+
             require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
             dbDelta($sql_languages);
             dbDelta($sql_strings);
             dbDelta($sql_translations);
             dbDelta($sql_post_translations);
+            dbDelta($sql_post_associations);
+            dbDelta($sql_term_translations);
         } catch (\Exception $e) {
             error_log('[STM] Error creating tables: ' . $e->getMessage());
         }
