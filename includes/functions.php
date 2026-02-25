@@ -124,6 +124,8 @@ if (!function_exists('stm_get_post_translation')) {
                 return get_the_excerpt($post_id);
             case 'content':
                 return get_post_field('post_content', $post_id);
+            case 'description':
+                return wp_strip_all_tags(get_post_field('post_content', $post_id));
             default:
                 return get_post_meta($post_id, $field, true);
         }
@@ -176,6 +178,18 @@ if (!function_exists('stm_language_switcher')) {
                     $active = ($lang->code === $current_lang) ? 'active' : '';
                     echo '<a href="' . esc_url($url) . '" class="' . $active . '" title="' . esc_attr($lang->name) . '">';
                     echo esc_html($lang->flag_emoji);
+                    echo '</a>';
+                }
+                echo '</div>';
+                break;
+
+            case 'buttons':
+                echo '<div class="language-switcher">';
+                foreach ($languages as $lang) {
+                    $url = '/' . $lang->code . $clean_url;
+                    $active = ($lang->code === $current_lang) ? 'active' : '';
+                    echo '<a href="' . esc_url($url) . '" class="lang-btn ' . $active . '">';
+                    echo esc_html(strtoupper($lang->code));
                     echo '</a>';
                 }
                 echo '</div>';

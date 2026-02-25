@@ -15,8 +15,15 @@ if (!defined('ABSPATH')) exit;
     <?php endif; ?>
 
     <div class="tablenav top">
-        <form method="get" action="">
+        <form method="get" action="" style="display: flex; gap: 10px; align-items: center;">
             <input type="hidden" name="page" value="stm-translations">
+
+            <label>Search:</label>
+            <input type="text"
+                   name="search"
+                   value="<?php echo esc_attr($search ?? ''); ?>"
+                   placeholder="e.g. services.datadriven"
+                   style="width: 250px;">
 
             <label>Context:</label>
             <select name="context">
@@ -29,6 +36,14 @@ if (!defined('ABSPATH')) exit;
             </select>
 
             <input type="submit" class="button" value="Filter">
+
+            <?php if (!empty($search) || !empty($context_filter)): ?>
+                <a href="<?php echo admin_url('admin.php?page=stm-translations'); ?>" class="button">Clear</a>
+            <?php endif; ?>
+
+            <span style="margin-left: auto;">
+                Showing <?php echo count($strings); ?> of <?php echo $total_items; ?> strings
+            </span>
         </form>
     </div>
 
@@ -100,6 +115,42 @@ if (!defined('ABSPATH')) exit;
             <?php endif; ?>
         </tbody>
     </table>
+
+    <?php if ($total_pages > 1): ?>
+        <div class="tablenav bottom">
+            <div class="tablenav-pages">
+                <span class="displaying-num"><?php echo $total_items; ?> items</span>
+                <?php
+                $base_url = add_query_arg([
+                    'page' => 'stm-translations',
+                    'context' => $context_filter,
+                    'search' => $search ?? '',
+                ], admin_url('admin.php'));
+
+                // First page
+                if ($current_page > 1) {
+                    echo '<a class="first-page button" href="' . esc_url(add_query_arg('paged', 1, $base_url)) . '">«</a>';
+                    echo '<a class="prev-page button" href="' . esc_url(add_query_arg('paged', $current_page - 1, $base_url)) . '">‹</a>';
+                }
+
+                // Page numbers
+                echo '<span class="paging-input">';
+                echo '<label for="current-page-selector" class="screen-reader-text">Current Page</label>';
+                echo '<input class="current-page" id="current-page-selector" type="text"
+                      name="paged" value="' . $current_page . '" size="' . strlen($total_pages) . '"
+                      aria-describedby="table-paging" readonly>';
+                echo '<span class="tablenav-paging-text"> of <span class="total-pages">' . $total_pages . '</span></span>';
+                echo '</span>';
+
+                // Last page
+                if ($current_page < $total_pages) {
+                    echo '<a class="next-page button" href="' . esc_url(add_query_arg('paged', $current_page + 1, $base_url)) . '">›</a>';
+                    echo '<a class="last-page button" href="' . esc_url(add_query_arg('paged', $total_pages, $base_url)) . '">»</a>';
+                }
+                ?>
+            </div>
+        </div>
+    <?php endif; ?>
 
     <h2 style="margin-top: 40px;">Add New String</h2>
     <form method="post" action="<?php echo admin_url('admin-post.php'); ?>">

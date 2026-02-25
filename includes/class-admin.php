@@ -119,6 +119,12 @@ class Admin {
         $lang_filter = $_GET['lang'] ?? '';
         $context_filter = $_GET['context'] ?? '';
         $status_filter = $_GET['status'] ?? '';
+        $search = $_GET['search'] ?? '';
+
+        // Pagination
+        $per_page = 50;
+        $current_page = max(1, intval($_GET['paged'] ?? 1));
+        $offset = ($current_page - 1) * $per_page;
 
         // Get languages
         $languages = Database::get_languages();
@@ -131,9 +137,20 @@ class Admin {
         if ($context_filter) {
             $where[] = $wpdb->prepare('s.context = %s', $context_filter);
         }
+        if ($search) {
+            $where[] = $wpdb->prepare('s.string_key LIKE %s', '%' . $wpdb->esc_like($search) . '%');
+        }
 
         $where_sql = implode(' AND ', $where);
 
+        // Get total count for pagination
+        $total_items = $wpdb->get_var("
+            SELECT COUNT(*) FROM {$table_strings} s WHERE {$where_sql}
+        ");
+
+        $total_pages = ceil($total_items / $per_page);
+
+        // Get paginated results
         $strings = $wpdb->get_results("
             SELECT s.*,
                 (SELECT COUNT(*) FROM {$table_translations} t
@@ -141,6 +158,7 @@ class Admin {
             FROM {$table_strings} s
             WHERE {$where_sql}
             ORDER BY s.context ASC, s.string_key ASC
+            LIMIT {$per_page} OFFSET {$offset}
         ");
 
         // Get unique contexts for filter

@@ -60,6 +60,58 @@ function stm_deactivate() {
 register_deactivation_hook(__FILE__, 'stm_deactivate');
 
 /**
+ * Handle language URL redirects
+ */
+function stm_template_redirect() {
+    $request_uri = $_SERVER['REQUEST_URI'];
+
+    // Check if URL starts with language code
+    if (preg_match('#^/([a-z]{2})(/.*)?$#', $request_uri, $matches)) {
+        $lang_code = $matches[1];
+        $path = isset($matches[2]) ? $matches[2] : '/';
+
+        // Get valid language codes from database
+        $languages = STM\Database::get_languages();
+        $valid_codes = array_map(function($lang) {
+            return $lang->code;
+        }, $languages);
+
+        if (in_array($lang_code, $valid_codes)) {
+            // Special handling for homepage (/?lang= causes 502 error)
+            if ($path === '/') {
+                // Set language in session and cookie
+                if (session_status() === PHP_SESSION_NONE) {
+                    session_start();
+                }
+                $_SESSION['stm_lang'] = $lang_code;
+                setcookie('stm_lang', $lang_code, time() + (86400 * 30), '/');
+
+                // Redirect to homepage without query parameter
+                // Language will be picked up from session/cookie
+                $redirect_url = home_url('/');
+            } else {
+                // Build redirect URL with lang parameter
+                $redirect_url = home_url($path . '?lang=' . $lang_code);
+            }
+
+            // Redirect
+            wp_safe_redirect($redirect_url, 301);
+            exit;
+        }
+    }
+}
+add_action('template_redirect', 'stm_template_redirect', 1);
+
+/**
+ * Register query vars
+ */
+function stm_query_vars($vars) {
+    $vars[] = 'lang';
+    return $vars;
+}
+add_filter('query_vars', 'stm_query_vars');
+
+/**
  * Initialize plugin
  */
 function stm_init() {

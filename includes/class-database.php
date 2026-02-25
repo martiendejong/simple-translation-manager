@@ -95,15 +95,29 @@ class Database {
 
     /**
      * Seed default languages
+     *
+     * Can be customized via filter 'stm_default_languages'
+     * Example:
+     * add_filter('stm_default_languages', function($languages) {
+     *     return [
+     *         ['code' => 'es', 'name' => 'Spanish', 'native_name' => 'Español', 'is_default' => 1, 'flag_emoji' => '🇪🇸', 'order_index' => 1],
+     *         ['code' => 'fr', 'name' => 'French', 'native_name' => 'Français', 'is_default' => 0, 'flag_emoji' => '🇫🇷', 'order_index' => 2],
+     *     ];
+     * });
      */
     public static function seed_default_languages() {
         global $wpdb;
         $table = $wpdb->prefix . 'stm_languages';
 
-        $languages = [
+        // Default languages - English and Dutch
+        // Can be overridden via 'stm_default_languages' filter
+        $default_languages = [
             ['code' => 'en', 'name' => 'English', 'native_name' => 'English', 'is_default' => 1, 'flag_emoji' => '🇬🇧', 'order_index' => 1],
             ['code' => 'nl', 'name' => 'Dutch', 'native_name' => 'Nederlands', 'is_default' => 0, 'flag_emoji' => '🇳🇱', 'order_index' => 2],
         ];
+
+        // Allow customization via filter
+        $languages = apply_filters('stm_default_languages', $default_languages);
 
         foreach ($languages as $lang) {
             $exists = $wpdb->get_var($wpdb->prepare(

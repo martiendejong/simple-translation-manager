@@ -60,13 +60,13 @@ POST /wp-json/stm/v1/translations/bulk
 
     <div class="card" style="margin-top: 20px;">
         <h2>Migration from Existing Theme</h2>
-        <p>If you have existing JSON files (like martiendejong theme), use this:</p>
+        <p>If you have existing JSON translation files, use this:</p>
 
         <pre style="background: #f5f5f5; padding: 15px; border-radius: 4px;">
-# Convert nl.json to STM format
+# Convert your JSON file to STM format
 python convert-theme-translations.py \
-  --input themes/martiendejong/languages/nl.json \
-  --lang nl \
+  --input path/to/your/translations.json \
+  --lang en \
   --context general \
   --output stm-import.json
 
@@ -75,7 +75,8 @@ curl -X POST \
   -u "username:APP_PASSWORD" \
   -H "Content-Type: application/json" \
   -d @stm-import.json \
-  https://martiendejong.nl/wp-json/stm/v1/translations/bulk
+  <?php echo esc_url(home_url('/wp-json/stm/v1/translations/bulk')); ?>
+
         </pre>
     </div>
 </div>
