@@ -193,94 +193,120 @@ class Admin {
      * Save translation (AJAX/POST handler)
      */
     public static function save_translation() {
-        check_admin_referer('stm_save_translation');
-
-        if (!current_user_can('manage_options')) {
-            wp_die('Unauthorized');
+        if (!Security::verify_admin_action('stm_save_translation')) {
+            wp_die('Unauthorized', 403);
         }
 
         global $wpdb;
 
+        // Validate and sanitize inputs
         $string_id = intval($_POST['string_id']);
         $language_code = sanitize_text_field($_POST['language_code']);
-        $translation = wp_kses_post($_POST['translation']);
+        $translation = Security::sanitize_translation($_POST['translation']);
 
-        $table = $wpdb->prefix . 'stm_translations';
-
-        // Upsert translation
-        $existing = $wpdb->get_var($wpdb->prepare(
-            "SELECT id FROM {$table} WHERE string_id = %d AND language_code = %s",
-            $string_id,
-            $language_code
-        ));
-
-        $data = [
-            'string_id' => $string_id,
-            'language_code' => $language_code,
-            'translation' => $translation,
-            'status' => 'published',
-            'translated_by' => get_current_user_id(),
-            'translated_at' => current_time('mysql'),
-        ];
-
-        if ($existing) {
-            $wpdb->update($table, $data, ['id' => $existing]);
-        } else {
-            $wpdb->insert($table, $data);
+        if (!Security::validate_language_code($language_code)) {
+            wp_die('Invalid language code', 400);
         }
 
-        // Invalidate cache
-        $string = $wpdb->get_row($wpdb->prepare(
-            "SELECT string_key, context FROM {$wpdb->prefix}stm_strings WHERE id = %d",
-            $string_id
-        ));
+        try {
+            $table = $wpdb->prefix . 'stm_translations';
 
-        if ($string) {
-            Cache::invalidate_string($string->string_key, $string->context);
+            // Upsert translation
+            $existing = $wpdb->get_var($wpdb->prepare(
+                "SELECT id FROM {$table} WHERE string_id = %d AND language_code = %s",
+                $string_id,
+                $language_code
+            ));
+
+            $data = [
+                'string_id' => $string_id,
+                'language_code' => $language_code,
+                'translation' => $translation,
+                'status' => 'published',
+                'translated_by' => get_current_user_id(),
+                'translated_at' => current_time('mysql'),
+            ];
+
+            if ($existing) {
+                $result = $wpdb->update($table, $data, ['id' => $existing]);
+            } else {
+                $result = $wpdb->insert($table, $data);
+            }
+
+            if ($result === false) {
+                throw new \Exception('Database operation failed');
+            }
+
+            // Invalidate cache
+            $string = $wpdb->get_row($wpdb->prepare(
+                "SELECT string_key, context FROM {$wpdb->prefix}stm_strings WHERE id = %d",
+                $string_id
+            ));
+
+            if ($string) {
+                Cache::invalidate_string($string->string_key, $string->context);
+            }
+
+            wp_redirect(add_query_arg('updated', '1', wp_get_referer()));
+            exit;
+        } catch (\Exception $e) {
+            Security::log('Error saving translation: ' . $e->getMessage(), 'error');
+            wp_die('Failed to save translation', 500);
         }
-
-        wp_redirect(add_query_arg('updated', '1', wp_get_referer()));
-        exit;
     }
 
     /**
      * Add new string
      */
     public static function add_string() {
-        check_admin_referer('stm_add_string');
-
-        if (!current_user_can('manage_options')) {
-            wp_die('Unauthorized');
+        if (!Security::verify_admin_action('stm_add_string')) {
+            wp_die('Unauthorized', 403);
         }
 
         global $wpdb;
 
-        $string_key = sanitize_text_field($_POST['string_key']);
-        $context = sanitize_text_field($_POST['context'] ?? 'general');
+        // Validate and sanitize inputs
+        $string_key = Security::sanitize_translation_key($_POST['string_key']);
+        $context = Security::sanitize_context($_POST['context'] ?? 'general');
         $description = sanitize_textarea_field($_POST['description'] ?? '');
 
-        $table = $wpdb->prefix . 'stm_strings';
+        if (!Security::validate_translation_key($string_key)) {
+            wp_die('Invalid translation key format', 400);
+        }
 
-        $data = [
-            'string_key' => $string_key,
-            'context' => $context,
-            'description' => $description,
-        ];
+        if (!Security::validate_context($context)) {
+            wp_die('Invalid context format', 400);
+        }
 
-        $wpdb->insert($table, $data);
+        try {
+            $table = $wpdb->prefix . 'stm_strings';
 
-        wp_redirect(add_query_arg('added', '1', wp_get_referer()));
-        exit;
+            $data = [
+                'string_key' => $string_key,
+                'context' => $context,
+                'description' => $description,
+            ];
+
+            $result = $wpdb->insert($table, $data);
+
+            if ($result === false) {
+                throw new \Exception('Database operation failed');
+            }
+
+            wp_redirect(add_query_arg('added', '1', wp_get_referer()));
+            exit;
+        } catch (\Exception $e) {
+            Security::log('Error adding string: ' . $e->getMessage(), 'error');
+            wp_die('Failed to add string', 500);
+        }
     }
 
     /**
      * Import JSON file
      */
     public static function import_json() {
-        check_admin_referer('stm_import_json');
-
-        if (!current_user_can('manage_options')) {
-            wp_die('Unauthorized');
+        if (!Security::verify_admin_action('stm_import_json')) {
+            wp_die('Unauthorized', 403);
         }
 
         // TODO: Handle file upload and JSON parsing

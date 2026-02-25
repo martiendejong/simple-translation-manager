@@ -36,6 +36,8 @@ spl_autoload_register(function($class) {
 
 // Core includes
 require_once STM_PLUGIN_DIR . 'includes/functions.php';
+require_once STM_PLUGIN_DIR . 'includes/class-security.php';
+require_once STM_PLUGIN_DIR . 'includes/class-settings.php';
 require_once STM_PLUGIN_DIR . 'includes/class-database.php';
 require_once STM_PLUGIN_DIR . 'includes/class-cache.php';
 require_once STM_PLUGIN_DIR . 'includes/class-admin.php';

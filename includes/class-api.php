@@ -138,7 +138,7 @@ class API {
      * Permission check (requires manage_options capability)
      */
     public static function check_permissions() {
-        return current_user_can('manage_options');
+        return Security::can_manage_translations();
     }
 
     /**
@@ -155,24 +155,41 @@ class API {
     public static function create_language($request) {
         global $wpdb;
 
-        $data = [
-            'code' => sanitize_text_field($request['code']),
-            'name' => sanitize_text_field($request['name']),
-            'native_name' => sanitize_text_field($request['native_name']),
-            'is_default' => intval($request['is_default'] ?? 0),
-            'is_active' => intval($request['is_active'] ?? 1),
-            'flag_emoji' => sanitize_text_field($request['flag_emoji'] ?? ''),
-            'order_index' => intval($request['order_index'] ?? 999),
-        ];
+        $code = sanitize_text_field($request['code']);
+        $flag_emoji = sanitize_text_field($request['flag_emoji'] ?? '');
 
-        $result = $wpdb->insert($wpdb->prefix . 'stm_languages', $data);
-
-        if ($result) {
-            wp_cache_delete('stm_active_languages');
-            return rest_ensure_response(['id' => $wpdb->insert_id, 'success' => true]);
+        // Validate inputs
+        if (!Security::validate_language_code($code)) {
+            return new \WP_Error('invalid_code', 'Invalid language code (must be 2-3 letters)', ['status' => 400]);
         }
 
-        return new \WP_Error('db_error', 'Failed to create language', ['status' => 500]);
+        if ($flag_emoji && !Security::validate_flag_emoji($flag_emoji)) {
+            return new \WP_Error('invalid_emoji', 'Invalid flag emoji', ['status' => 400]);
+        }
+
+        try {
+            $data = [
+                'code' => $code,
+                'name' => sanitize_text_field($request['name']),
+                'native_name' => sanitize_text_field($request['native_name']),
+                'is_default' => intval($request['is_default'] ?? 0),
+                'is_active' => intval($request['is_active'] ?? 1),
+                'flag_emoji' => $flag_emoji,
+                'order_index' => intval($request['order_index'] ?? 999),
+            ];
+
+            $result = $wpdb->insert($wpdb->prefix . 'stm_languages', $data);
+
+            if ($result === false) {
+                throw new \Exception('Database operation failed');
+            }
+
+            wp_cache_delete('stm_active_languages');
+            return rest_ensure_response(['id' => $wpdb->insert_id, 'success' => true]);
+        } catch (\Exception $e) {
+            Security::log('Error creating language: ' . $e->getMessage(), 'error');
+            return new \WP_Error('db_error', 'Failed to create language', ['status' => 500]);
+        }
     }
 
     /**
@@ -223,19 +240,36 @@ class API {
     public static function create_string($request) {
         global $wpdb;
 
-        $data = [
-            'string_key' => sanitize_text_field($request['key']),
-            'context' => sanitize_text_field($request['context'] ?? 'general'),
-            'description' => sanitize_textarea_field($request['description'] ?? ''),
-        ];
+        $string_key = Security::sanitize_translation_key($request['key']);
+        $context = Security::sanitize_context($request['context'] ?? 'general');
 
-        $result = $wpdb->insert($wpdb->prefix . 'stm_strings', $data);
-
-        if ($result) {
-            return rest_ensure_response(['id' => $wpdb->insert_id, 'success' => true]);
+        // Validate inputs
+        if (!Security::validate_translation_key($string_key)) {
+            return new \WP_Error('invalid_key', 'Invalid translation key format', ['status' => 400]);
         }
 
-        return new \WP_Error('db_error', 'Failed to create string', ['status' => 500]);
+        if (!Security::validate_context($context)) {
+            return new \WP_Error('invalid_context', 'Invalid context format', ['status' => 400]);
+        }
+
+        try {
+            $data = [
+                'string_key' => $string_key,
+                'context' => $context,
+                'description' => sanitize_textarea_field($request['description'] ?? ''),
+            ];
+
+            $result = $wpdb->insert($wpdb->prefix . 'stm_strings', $data);
+
+            if ($result === false) {
+                throw new \Exception('Database operation failed');
+            }
+
+            return rest_ensure_response(['id' => $wpdb->insert_id, 'success' => true]);
+        } catch (\Exception $e) {
+            Security::log('Error creating string: ' . $e->getMessage(), 'error');
+            return new \WP_Error('db_error', 'Failed to create string', ['status' => 500]);
+        }
     }
 
     /**
@@ -246,20 +280,29 @@ class API {
 
         $string_id = intval($request['string_id']);
         $language_code = sanitize_text_field($request['language_code']);
-        $translation = wp_kses_post($request['translation']);
+        $translation = Security::sanitize_translation($request['translation']);
 
-        $data = [
-            'string_id' => $string_id,
-            'language_code' => $language_code,
-            'translation' => $translation,
-            'status' => sanitize_text_field($request['status'] ?? 'published'),
-            'translated_by' => get_current_user_id(),
-            'translated_at' => current_time('mysql'),
-        ];
+        // Validate inputs
+        if (!Security::validate_language_code($language_code)) {
+            return new \WP_Error('invalid_language', 'Invalid language code', ['status' => 400]);
+        }
 
-        $result = $wpdb->insert($wpdb->prefix . 'stm_translations', $data);
+        try {
+            $data = [
+                'string_id' => $string_id,
+                'language_code' => $language_code,
+                'translation' => $translation,
+                'status' => sanitize_text_field($request['status'] ?? 'published'),
+                'translated_by' => get_current_user_id(),
+                'translated_at' => current_time('mysql'),
+            ];
 
-        if ($result) {
+            $result = $wpdb->insert($wpdb->prefix . 'stm_translations', $data);
+
+            if ($result === false) {
+                throw new \Exception('Database operation failed');
+            }
+
             // Invalidate cache
             $string = $wpdb->get_row($wpdb->prepare(
                 "SELECT string_key, context FROM {$wpdb->prefix}stm_strings WHERE id = %d",
@@ -270,9 +313,10 @@ class API {
             }
 
             return rest_ensure_response(['id' => $wpdb->insert_id, 'success' => true]);
+        } catch (\Exception $e) {
+            Security::log('Error creating translation: ' . $e->getMessage(), 'error');
+            return new \WP_Error('db_error', 'Failed to create translation', ['status' => 500]);
         }
-
-        return new \WP_Error('db_error', 'Failed to create translation', ['status' => 500]);
     }
 
     /**
@@ -284,60 +328,95 @@ class API {
         $items = $request->get_json_params();
         $created = 0;
         $updated = 0;
+        $errors = [];
 
-        foreach ($items as $item) {
-            // Find or create string
-            $string = $wpdb->get_row($wpdb->prepare(
-                "SELECT id FROM {$wpdb->prefix}stm_strings
-                WHERE string_key = %s AND context = %s",
-                $item['key'],
-                $item['context'] ?? 'general'
-            ));
+        try {
+            foreach ($items as $item) {
+                // Validate and sanitize inputs
+                $string_key = Security::sanitize_translation_key($item['key']);
+                $context = Security::sanitize_context($item['context'] ?? 'general');
+                $language_code = sanitize_text_field($item['lang']);
+                $translation = Security::sanitize_translation($item['translation']);
 
-            if (!$string) {
-                $wpdb->insert($wpdb->prefix . 'stm_strings', [
-                    'string_key' => $item['key'],
-                    'context' => $item['context'] ?? 'general',
-                ]);
-                $string_id = $wpdb->insert_id;
-                $created++;
-            } else {
-                $string_id = $string->id;
+                if (!Security::validate_translation_key($string_key)) {
+                    $errors[] = "Invalid key: {$item['key']}";
+                    continue;
+                }
+
+                if (!Security::validate_context($context)) {
+                    $errors[] = "Invalid context: {$item['context']}";
+                    continue;
+                }
+
+                if (!Security::validate_language_code($language_code)) {
+                    $errors[] = "Invalid language code: {$language_code}";
+                    continue;
+                }
+
+                // Find or create string
+                $string = $wpdb->get_row($wpdb->prepare(
+                    "SELECT id FROM {$wpdb->prefix}stm_strings
+                    WHERE string_key = %s AND context = %s",
+                    $string_key,
+                    $context
+                ));
+
+                if (!$string) {
+                    $result = $wpdb->insert($wpdb->prefix . 'stm_strings', [
+                        'string_key' => $string_key,
+                        'context' => $context,
+                    ]);
+                    if ($result === false) {
+                        throw new \Exception('Failed to create string');
+                    }
+                    $string_id = $wpdb->insert_id;
+                    $created++;
+                } else {
+                    $string_id = $string->id;
+                }
+
+                // Upsert translation
+                $existing = $wpdb->get_var($wpdb->prepare(
+                    "SELECT id FROM {$wpdb->prefix}stm_translations
+                    WHERE string_id = %d AND language_code = %s",
+                    $string_id,
+                    $language_code
+                ));
+
+                $data = [
+                    'string_id' => $string_id,
+                    'language_code' => $language_code,
+                    'translation' => $translation,
+                    'status' => 'published',
+                    'translated_by' => get_current_user_id(),
+                    'translated_at' => current_time('mysql'),
+                ];
+
+                if ($existing) {
+                    $result = $wpdb->update($wpdb->prefix . 'stm_translations', $data, ['id' => $existing]);
+                    if ($result !== false) {
+                        $updated++;
+                    }
+                } else {
+                    $result = $wpdb->insert($wpdb->prefix . 'stm_translations', $data);
+                    if ($result !== false) {
+                        $created++;
+                    }
+                }
+
+                Cache::invalidate_string($string_key, $context);
             }
 
-            // Upsert translation
-            $existing = $wpdb->get_var($wpdb->prepare(
-                "SELECT id FROM {$wpdb->prefix}stm_translations
-                WHERE string_id = %d AND language_code = %s",
-                $string_id,
-                $item['lang']
-            ));
-
-            $data = [
-                'string_id' => $string_id,
-                'language_code' => $item['lang'],
-                'translation' => $item['translation'],
-                'status' => 'published',
-                'translated_by' => get_current_user_id(),
-                'translated_at' => current_time('mysql'),
-            ];
-
-            if ($existing) {
-                $wpdb->update($wpdb->prefix . 'stm_translations', $data, ['id' => $existing]);
-                $updated++;
-            } else {
-                $wpdb->insert($wpdb->prefix . 'stm_translations', $data);
-                $created++;
-            }
-
-            Cache::invalidate_string($item['key'], $item['context'] ?? 'general');
+            return rest_ensure_response([
+                'success' => true,
+                'created' => $created,
+                'updated' => $updated,
+                'errors' => $errors,
+            ]);
+        } catch (\Exception $e) {
+            Security::log('Error in bulk create translations: ' . $e->getMessage(), 'error');
+            return new \WP_Error('db_error', 'Failed to bulk create translations', ['status' => 500]);
         }
-
-        return rest_ensure_response([
-            'success' => true,
-            'created' => $created,
-            'updated' => $updated,
-        ]);
     }
 
     /**
