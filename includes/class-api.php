@@ -521,4 +521,67 @@ class API {
 
         return rest_ensure_response(['success' => true]);
     }
+
+    /**
+     * Save multiple post translations in bulk (helper method, not REST endpoint)
+     *
+     * @param int $post_id Post ID
+     * @param array $translations Associative array: ['field_name' => 'translation']
+     * @param string $lang_code Language code (e.g., 'nl', 'en')
+     * @return array Result with success count and errors
+     */
+    public static function save_post_translations($post_id, $translations, $lang_code) {
+        global $wpdb;
+        $table = $wpdb->prefix . 'stm_post_translations';
+
+        $success = 0;
+        $errors = [];
+
+        foreach ($translations as $field => $translation) {
+            // Check if exists
+            $existing = $wpdb->get_var($wpdb->prepare(
+                "SELECT id FROM {$table} WHERE post_id = %d AND field_name = %s AND language_code = %s",
+                $post_id, $field, $lang_code
+            ));
+
+            if ($existing) {
+                // Update
+                $result = $wpdb->update(
+                    $table,
+                    ['translation' => $translation, 'updated_at' => current_time('mysql')],
+                    ['id' => $existing],
+                    ['%s', '%s'],
+                    ['%d']
+                );
+            } else {
+                // Insert
+                $result = $wpdb->insert(
+                    $table,
+                    [
+                        'post_id' => $post_id,
+                        'field_name' => $field,
+                        'language_code' => $lang_code,
+                        'translation' => $translation
+                    ],
+                    ['%d', '%s', '%s', '%s']
+                );
+            }
+
+            if ($result !== false) {
+                $success++;
+            } else {
+                $errors[] = "Failed to save $field: " . $wpdb->last_error;
+                error_log("[STM] Translation save error for post $post_id field $field: " . $wpdb->last_error);
+            }
+        }
+
+        // Clear cache
+        Cache::invalidate_post($post_id);
+
+        return [
+            'success' => $success,
+            'total' => count($translations),
+            'errors' => $errors
+        ];
+    }
 }

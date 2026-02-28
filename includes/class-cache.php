@@ -94,10 +94,15 @@ class Cache {
             $lang
         ));
 
-        // Store in cache
-        wp_cache_set($cache_key, $result, self::GROUP, self::TTL);
+        // Log database errors (not empty results)
+        if ($wpdb->last_error) {
+            error_log("[STM] DB error getting translation for post {$post_id} field {$field}: " . $wpdb->last_error);
+        }
 
-        return $result;
+        // Store in cache (even if null)
+        wp_cache_set($cache_key, $result ?: '', self::GROUP, self::TTL);
+
+        return $result ?: '';
     }
 
     /**

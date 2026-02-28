@@ -46,6 +46,11 @@ require_once STM_PLUGIN_DIR . 'includes/class-post-editor.php';
 require_once STM_PLUGIN_DIR . 'includes/class-frontend.php';
 require_once STM_PLUGIN_DIR . 'includes/class-language-switcher.php';
 
+// WP-CLI commands (only loaded if WP-CLI is available)
+if (defined('WP_CLI') && WP_CLI) {
+    require_once STM_PLUGIN_DIR . 'includes/class-cli.php';
+}
+
 /**
  * Plugin activation
  */
