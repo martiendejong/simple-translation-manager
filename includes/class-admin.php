@@ -22,6 +22,7 @@ class Admin {
         add_action('admin_post_stm_save_translation', [__CLASS__, 'save_translation']);
         add_action('admin_post_stm_add_string', [__CLASS__, 'add_string']);
         add_action('admin_post_stm_import_json', [__CLASS__, 'import_json']);
+        add_action('admin_notices', [__CLASS__, 'show_translation_warnings']);
     }
 
     /**
@@ -187,6 +188,106 @@ class Admin {
      */
     public static function page_settings() {
         include STM_PLUGIN_DIR . 'templates/admin-settings.php';
+    }
+
+    /**
+     * Show admin notices for untranslated content
+     */
+    public static function show_translation_warnings() {
+        // Only show on STM pages and post listing pages
+        $screen = get_current_screen();
+        if (!$screen) {
+            return;
+        }
+
+        $show_on = ['edit', 'stm-translations', 'toplevel_page_stm-translations'];
+        $is_stm_page = strpos($screen->id, 'stm-') !== false;
+        $is_post_list = $screen->base === 'edit';
+
+        if (!$is_stm_page && !$is_post_list) {
+            return;
+        }
+
+        // Use transient to cache the warning check (avoid DB query on every page load)
+        $cache_key = 'stm_untranslated_warning';
+        $warning_data = get_transient($cache_key);
+
+        if (false === $warning_data) {
+            global $wpdb;
+
+            $languages = Database::get_languages();
+            $default_lang = Database::get_default_language();
+            $default_code = $default_lang ? $default_lang->code : 'en';
+
+            $non_default_langs = array_filter($languages, function($lang) use ($default_code) {
+                return $lang->code !== $default_code;
+            });
+
+            if (empty($non_default_langs)) {
+                set_transient($cache_key, ['count' => 0], 3600);
+                return;
+            }
+
+            $table_pt = $wpdb->prefix . 'stm_post_translations';
+
+            // Count published posts
+            $total_posts = $wpdb->get_var(
+                "SELECT COUNT(*) FROM {$wpdb->posts} WHERE post_status = 'publish' AND post_type IN ('post', 'page')"
+            );
+
+            // Count posts with title translations per non-default language
+            $missing_by_lang = [];
+            foreach ($non_default_langs as $lang) {
+                $translated = $wpdb->get_var($wpdb->prepare(
+                    "SELECT COUNT(DISTINCT post_id) FROM {$table_pt}
+                     WHERE language_code = %s AND field_name = 'title'
+                     AND post_id IN (SELECT ID FROM {$wpdb->posts} WHERE post_status = 'publish' AND post_type IN ('post', 'page'))",
+                    $lang->code
+                ));
+
+                $missing = $total_posts - intval($translated);
+                if ($missing > 0) {
+                    $missing_by_lang[] = [
+                        'code' => $lang->code,
+                        'name' => $lang->native_name,
+                        'emoji' => $lang->flag_emoji,
+                        'missing' => $missing,
+                        'total' => $total_posts,
+                    ];
+                }
+            }
+
+            $warning_data = ['count' => count($missing_by_lang), 'langs' => $missing_by_lang];
+            set_transient($cache_key, $warning_data, 3600);
+        }
+
+        if ($warning_data['count'] === 0) {
+            return;
+        }
+
+        $lines = [];
+        foreach ($warning_data['langs'] as $info) {
+            $pct = round(($info['missing'] / $info['total']) * 100);
+            $lines[] = sprintf(
+                '%s %s: %d/%d posts missing translations (%d%%)',
+                $info['emoji'],
+                $info['name'],
+                $info['missing'],
+                $info['total'],
+                $pct
+            );
+        }
+
+        $dashboard_url = admin_url('admin.php?page=stm-translations');
+        echo '<div class="notice notice-warning is-dismissible">';
+        echo '<p><strong>Translation Manager:</strong> Untranslated content detected.</p>';
+        echo '<ul style="margin:5px 0 5px 20px;list-style:disc;">';
+        foreach ($lines as $line) {
+            echo '<li>' . esc_html($line) . '</li>';
+        }
+        echo '</ul>';
+        echo '<p><a href="' . esc_url($dashboard_url) . '">Manage translations &rarr;</a></p>';
+        echo '</div>';
     }
 
     /**

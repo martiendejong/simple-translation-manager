@@ -132,6 +132,102 @@ if (!function_exists('stm_get_post_translation')) {
     }
 }
 
+if (!function_exists('stm_validate_translation_data')) {
+    /**
+     * Validate translation data before saving
+     *
+     * @param int $post_id Post ID to validate
+     * @param string $field Field name (e.g., 'title', 'content', 'excerpt')
+     * @param string $lang_code Language code (e.g., 'nl', 'en')
+     * @return array ['valid' => bool, 'errors' => array]
+     */
+    function stm_validate_translation_data($post_id, $field, $lang_code) {
+        $errors = [];
+
+        // Validate post exists
+        if (!$post_id || !get_post($post_id)) {
+            $errors[] = sprintf('Post ID %d does not exist.', $post_id);
+        }
+
+        // Validate field name
+        $allowed_fields = ['title', 'content', 'excerpt', 'description', 'slug'];
+        // Also allow custom meta fields (alphanumeric, underscores, hyphens)
+        if (!in_array($field, $allowed_fields) && !preg_match('/^[a-z0-9_-]+$/i', $field)) {
+            $errors[] = sprintf('Invalid field name: %s', $field);
+        }
+
+        // Validate language code
+        if (!STM\Security::validate_language_code($lang_code)) {
+            $errors[] = sprintf('Invalid language code: %s (must be 2-3 lowercase letters)', $lang_code);
+        } else {
+            // Check language exists in database
+            $languages = STM\Database::get_languages();
+            $valid_codes = array_map(function($lang) { return $lang->code; }, $languages);
+            if (!in_array(strtolower($lang_code), $valid_codes)) {
+                $errors[] = sprintf('Language "%s" is not configured. Available: %s', $lang_code, implode(', ', $valid_codes));
+            }
+        }
+
+        return [
+            'valid' => empty($errors),
+            'errors' => $errors,
+        ];
+    }
+}
+
+if (!function_exists('stm_validate_bulk_translation_data')) {
+    /**
+     * Validate bulk translation data
+     *
+     * @param array $translations Array of [post_id => [field => translation]]
+     * @param string $lang_code Language code
+     * @return array ['valid' => bool, 'errors' => array, 'warnings' => array]
+     */
+    function stm_validate_bulk_translation_data($translations, $lang_code) {
+        $errors = [];
+        $warnings = [];
+
+        if (!is_array($translations) || empty($translations)) {
+            return ['valid' => false, 'errors' => ['Translations data must be a non-empty array.'], 'warnings' => []];
+        }
+
+        // Validate language code once
+        if (!STM\Security::validate_language_code($lang_code)) {
+            return ['valid' => false, 'errors' => [sprintf('Invalid language code: %s', $lang_code)], 'warnings' => []];
+        }
+
+        $languages = STM\Database::get_languages();
+        $valid_codes = array_map(function($lang) { return $lang->code; }, $languages);
+        if (!in_array(strtolower($lang_code), $valid_codes)) {
+            return ['valid' => false, 'errors' => [sprintf('Language "%s" is not configured.', $lang_code)], 'warnings' => []];
+        }
+
+        foreach ($translations as $post_id => $fields) {
+            if (!get_post($post_id)) {
+                $errors[] = sprintf('Post ID %d does not exist.', $post_id);
+                continue;
+            }
+
+            if (!is_array($fields)) {
+                $errors[] = sprintf('Post ID %d: fields must be an associative array.', $post_id);
+                continue;
+            }
+
+            foreach ($fields as $field => $value) {
+                if (empty(trim($value))) {
+                    $warnings[] = sprintf('Post ID %d, field "%s": empty translation.', $post_id, $field);
+                }
+            }
+        }
+
+        return [
+            'valid' => empty($errors),
+            'errors' => $errors,
+            'warnings' => $warnings,
+        ];
+    }
+}
+
 if (!function_exists('stm_get_languages')) {
     /**
      * Get all active languages

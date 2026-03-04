@@ -87,12 +87,14 @@ class API {
             'permission_callback' => [__CLASS__, 'check_permissions'],
         ]);
 
-        // Auto-translate via AI
-        register_rest_route($namespace, '/translate/auto', [
+        // Bulk post translations
+        register_rest_route($namespace, '/posts/bulk-translations', [
             'methods' => 'POST',
-            'callback' => [__CLASS__, 'auto_translate'],
+            'callback' => [__CLASS__, 'bulk_post_translations'],
             'permission_callback' => [__CLASS__, 'check_permissions'],
         ]);
+
+        // Auto-translate via AI (handled by AutoTranslate class)
 
         // Post translations
         register_rest_route($namespace, '/posts/(?P<id>\d+)/translations', [
@@ -520,6 +522,65 @@ class API {
         // TODO: Implement import logic
 
         return rest_ensure_response(['success' => true]);
+    }
+
+    /**
+     * POST /posts/bulk-translations - Bulk save post translations via REST API
+     *
+     * Expected JSON format:
+     * {
+     *   "lang": "nl",
+     *   "translations": {
+     *     "123": { "title": "Titel", "content": "Inhoud" },
+     *     "456": { "title": "Andere titel" }
+     *   }
+     * }
+     */
+    public static function bulk_post_translations($request) {
+        $params = $request->get_json_params();
+        $lang_code = sanitize_text_field($params['lang'] ?? '');
+        $translations = $params['translations'] ?? [];
+
+        // Validate using helper function
+        $validation = stm_validate_bulk_translation_data($translations, $lang_code);
+        if (!$validation['valid']) {
+            return new \WP_Error('validation_error', implode('; ', $validation['errors']), ['status' => 400]);
+        }
+
+        $results = [
+            'success' => true,
+            'processed' => 0,
+            'saved' => 0,
+            'errors' => [],
+            'warnings' => $validation['warnings'] ?? [],
+        ];
+
+        foreach ($translations as $post_id => $fields) {
+            $post_id = intval($post_id);
+            if (!get_post($post_id)) {
+                $results['errors'][] = "Post $post_id not found";
+                continue;
+            }
+
+            $results['processed']++;
+
+            // Sanitize field values
+            $sanitized = [];
+            foreach ($fields as $field => $value) {
+                $sanitized[sanitize_text_field($field)] = Security::sanitize_translation($value);
+            }
+
+            $result = self::save_post_translations($post_id, $sanitized, $lang_code);
+            $results['saved'] += $result['success'];
+
+            if (!empty($result['errors'])) {
+                foreach ($result['errors'] as $error) {
+                    $results['errors'][] = "Post $post_id: $error";
+                }
+            }
+        }
+
+        return rest_ensure_response($results);
     }
 
     /**

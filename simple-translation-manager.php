@@ -3,7 +3,7 @@
  * Plugin Name: Simple Translation Manager
  * Plugin URI: https://martiendejong.nl
  * Description: Lightweight multilingual plugin with database storage and WordPress caching
- * Version: 1.0.0
+ * Version: 1.1.0
  * Author: Martien de Jong
  * Author URI: https://martiendejong.nl
  * License: GPL v2 or later
@@ -17,7 +17,7 @@ if (!defined('ABSPATH')) {
 }
 
 // Plugin constants
-define('STM_VERSION', '1.0.0');
+define('STM_VERSION', '1.1.0');
 define('STM_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('STM_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('STM_PLUGIN_FILE', __FILE__);
@@ -45,6 +45,9 @@ require_once STM_PLUGIN_DIR . 'includes/class-api.php';
 require_once STM_PLUGIN_DIR . 'includes/class-post-editor.php';
 require_once STM_PLUGIN_DIR . 'includes/class-frontend.php';
 require_once STM_PLUGIN_DIR . 'includes/class-language-switcher.php';
+require_once STM_PLUGIN_DIR . 'includes/class-import-export.php';
+require_once STM_PLUGIN_DIR . 'includes/class-translation-memory.php';
+require_once STM_PLUGIN_DIR . 'includes/class-auto-translate.php';
 
 // WP-CLI commands (only loaded if WP-CLI is available)
 if (defined('WP_CLI') && WP_CLI) {
@@ -136,5 +139,8 @@ function stm_init() {
     STM\PostEditor::init();
     STM\Frontend::init();
     STM\LanguageSwitcher::init();
+    STM\ImportExport::init();
+    STM\TranslationMemory::init();
+    STM\AutoTranslate::init();
 }
 add_action('plugins_loaded', 'stm_init');
