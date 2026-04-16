@@ -6,49 +6,8 @@
  */
 
 if (!function_exists('stm_get_current_language')) {
-    /**
-     * Get current language code
-     *
-     * Detection order:
-     * 1. URL path (/nl/, /en/)
-     * 2. URL parameter (?lang=nl)
-     * 3. Session
-     * 4. Cookie
-     * 5. Default language
-     *
-     * @return string Language code (e.g., 'en', 'nl')
-     */
     function stm_get_current_language() {
-        // Check URL path
-        $request_uri = $_SERVER['REQUEST_URI'] ?? '';
-        if (preg_match('#^/([a-z]{2})(/|$|\?)#', $request_uri, $matches)) {
-            $lang = $matches[1];
-            $_SESSION['stm_lang'] = $lang;
-            setcookie('stm_lang', $lang, time() + (86400 * 30), '/');
-            return $lang;
-        }
-
-        // Check URL parameter
-        if (isset($_GET['lang']) && strlen($_GET['lang']) === 2) {
-            $lang = sanitize_text_field($_GET['lang']);
-            $_SESSION['stm_lang'] = $lang;
-            setcookie('stm_lang', $lang, time() + (86400 * 30), '/');
-            return $lang;
-        }
-
-        // Check session
-        if (isset($_SESSION['stm_lang'])) {
-            return $_SESSION['stm_lang'];
-        }
-
-        // Check cookie
-        if (isset($_COOKIE['stm_lang'])) {
-            return sanitize_text_field($_COOKIE['stm_lang']);
-        }
-
-        // Default language
-        $default = STM\Database::get_default_language();
-        return $default ? $default->code : 'en';
+        return STM\Frontend::get_current_language();
     }
 }
 
