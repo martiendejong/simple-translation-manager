@@ -120,6 +120,65 @@ $languages = STM\Database::get_languages();
 
     <hr style="margin: 40px 0;">
 
+    <!-- AI / Auto-translate settings -->
+    <?php
+    $ai = STM\AutoTranslate::get_settings();
+    $ai_saved = isset($_GET['stm_saved']);
+    ?>
+    <?php if ($ai_saved): ?>
+        <div class="notice notice-success is-dismissible"><p>AI settings saved.</p></div>
+    <?php endif; ?>
+
+    <div class="card" style="max-width: 600px;">
+        <h2>Auto-Translate (AI)</h2>
+        <p>Used by the <strong>Auto-translate</strong> button in the post editor. Requires an API key from the chosen provider.</p>
+
+        <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
+            <input type="hidden" name="action" value="stm_save_ai_settings">
+            <?php wp_nonce_field('stm_ai_settings'); ?>
+
+            <table class="form-table">
+                <tr>
+                    <th><label for="ai_provider">Provider</label></th>
+                    <td>
+                        <select id="ai_provider" name="ai_provider">
+                            <option value="openai" <?php selected($ai['provider'], 'openai'); ?>>OpenAI (GPT-4o-mini) — best quality</option>
+                            <option value="deepl"  <?php selected($ai['provider'], 'deepl');  ?>>DeepL — free tier 500k chars/mo</option>
+                        </select>
+                    </td>
+                </tr>
+                <tr>
+                    <th><label for="openai_key">OpenAI API Key</label></th>
+                    <td>
+                        <input type="password" id="openai_key" name="openai_key" class="regular-text"
+                               placeholder="<?php echo $ai['openai_key_set'] ? '••••••••••••••••' : 'sk-...'; ?>">
+                        <?php if ($ai['openai_key_set']): ?>
+                            <span style="color:#46b450;margin-left:8px;">✓ configured</span>
+                        <?php endif; ?>
+                        <p class="description">Leave blank to keep current key. Get one at <a href="https://platform.openai.com/api-keys" target="_blank">platform.openai.com</a>.</p>
+                    </td>
+                </tr>
+                <tr>
+                    <th><label for="deepl_key">DeepL API Key</label></th>
+                    <td>
+                        <input type="password" id="deepl_key" name="deepl_key" class="regular-text"
+                               placeholder="<?php echo $ai['deepl_key_set'] ? '••••••••••••••••' : 'xxxxxxxx-xxxx-...:fx'; ?>">
+                        <?php if ($ai['deepl_key_set']): ?>
+                            <span style="color:#46b450;margin-left:8px;">✓ configured</span>
+                        <?php endif; ?>
+                        <p class="description">Leave blank to keep current key. Free keys end in <code>:fx</code>. Get one at <a href="https://www.deepl.com/pro-api" target="_blank">deepl.com</a>.</p>
+                    </td>
+                </tr>
+            </table>
+
+            <p class="submit">
+                <button type="submit" class="button button-primary">Save AI Settings</button>
+            </p>
+        </form>
+    </div>
+
+    <hr style="margin: 40px 0;">
+
     <div class="card">
         <h2>REST API Endpoints</h2>
         <p>All endpoints support Application Password authentication (WordPress 5.6+).</p>

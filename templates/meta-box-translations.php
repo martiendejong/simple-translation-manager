@@ -45,14 +45,29 @@ if (!defined('ABSPATH')) exit;
             <?php $first = true; ?>
             <?php foreach ($languages as $lang): ?>
                 <?php if ($lang->code === $current_lang) continue; ?>
-
+                <?php
+                $t         = $translations[$lang->code] ?? [];
+                $has_title = !empty($t['post_title']);
+                $has_body  = !empty($t['post_content']);
+                if ($has_title && $has_body) {
+                    $status_class = 'stm-tab-complete';
+                    $status_icon  = '<span class="stm-tab-status" title="Fully translated">✓</span>';
+                } elseif ($has_title || $has_body) {
+                    $status_class = 'stm-tab-partial';
+                    $status_icon  = '<span class="stm-tab-status" title="Partially translated">◐</span>';
+                } else {
+                    $status_class = 'stm-tab-empty';
+                    $status_icon  = '';
+                }
+                ?>
                 <button type="button"
-                        class="stm-tab-button <?php echo $first ? 'active' : ''; ?>"
+                        class="stm-tab-button <?php echo $first ? 'active' : ''; ?> <?php echo esc_attr($status_class); ?>"
                         role="tab"
                         aria-selected="<?php echo $first ? 'true' : 'false'; ?>"
                         aria-controls="stm-tab-panel-<?php echo esc_attr($lang->code); ?>"
                         data-lang="<?php echo esc_attr($lang->code); ?>">
                     <?php echo esc_html($lang->flag_emoji . ' ' . $lang->name); ?>
+                    <?php echo $status_icon; // already escaped ?>
                 </button>
 
                 <?php $first = false; ?>
@@ -65,8 +80,8 @@ if (!defined('ABSPATH')) exit;
 
             <?php
             $translation = $translations[$lang->code] ?? [];
-            $title = $translation['post_title'] ?? '';
-            $slug = $translation['post_name'] ?? '';
+            $title   = $translation['post_title']   ?? '';
+            $slug    = $translation['post_name']    ?? '';
             $excerpt = $translation['post_excerpt'] ?? '';
             $content = $translation['post_content'] ?? '';
             ?>
@@ -76,11 +91,12 @@ if (!defined('ABSPATH')) exit;
                  role="tabpanel"
                  data-lang="<?php echo esc_attr($lang->code); ?>">
 
-                <div class="stm-tab-toolbar">
+                <div class="stm-tab-toolbar stm-auto-translate-bar">
                     <button type="button"
                             class="button stm-auto-translate-btn"
                             data-lang="<?php echo esc_attr($lang->code); ?>"
-                            data-source-lang="<?php echo esc_attr($current_lang); ?>">
+                            data-source-lang="<?php echo esc_attr($current_lang); ?>"
+                            data-post-id="<?php echo esc_attr($post->ID); ?>">
                         <span class="dashicons dashicons-translation" aria-hidden="true"></span>
                         Auto-translate to <?php echo esc_html($lang->name); ?>
                     </button>
@@ -159,7 +175,7 @@ if (!defined('ABSPATH')) exit;
             <?php $first = false; ?>
         <?php endforeach; ?>
 
-        <?php if (count($languages) === 1 || (count($languages) === 2 && $current_lang)): ?>
+        <?php if (count($languages) <= 1): ?>
             <p class="description" style="margin-top: 20px;">
                 <strong>No other languages available.</strong>
                 Go to <a href="<?php echo admin_url('admin.php?page=stm-languages'); ?>">Languages</a> to add more.

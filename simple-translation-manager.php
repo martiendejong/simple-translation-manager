@@ -76,42 +76,36 @@ register_deactivation_hook(__FILE__, 'stm_deactivate');
  * Handle language URL redirects
  */
 function stm_template_redirect() {
+    if (!STM\Settings::is_url_routing_enabled()) {
+        return;
+    }
+
     $request_uri = $_SERVER['REQUEST_URI'];
 
-    // Check if URL starts with language code
-    if (preg_match('#^/([a-z]{2})(/.*)?$#', $request_uri, $matches)) {
-        $lang_code = $matches[1];
-        $path = isset($matches[2]) ? $matches[2] : '/';
-
-        // Get valid language codes from database
-        $languages = STM\Database::get_languages();
-        $valid_codes = array_map(function($lang) {
-            return $lang->code;
-        }, $languages);
-
-        if (in_array($lang_code, $valid_codes)) {
-            // Special handling for homepage (/?lang= causes 502 error)
-            if ($path === '/') {
-                // Set language in session and cookie
-                if (session_status() === PHP_SESSION_NONE) {
-                    session_start();
-                }
-                $_SESSION['stm_lang'] = $lang_code;
-                setcookie('stm_lang', $lang_code, time() + (86400 * 30), '/');
-
-                // Redirect to homepage without query parameter
-                // Language will be picked up from session/cookie
-                $redirect_url = home_url('/');
-            } else {
-                // Build redirect URL with lang parameter
-                $redirect_url = home_url($path . '?lang=' . $lang_code);
-            }
-
-            // Redirect
-            wp_safe_redirect($redirect_url, 301);
-            exit;
-        }
+    // Require /{lang}/ with a subsequent path to avoid hijacking bare 2-letter page slugs (e.g. /de, /nl)
+    if (!preg_match('#^/([a-z]{2,3})/(.*)$#', $request_uri, $matches)) {
+        return;
     }
+
+    $lang_code = $matches[1];
+    $path = '/' . $matches[2];
+
+    $languages = STM\Database::get_languages();
+    $valid_codes = array_map(function($lang) { return $lang->code; }, $languages);
+
+    if (!in_array($lang_code, $valid_codes)) {
+        return;
+    }
+
+    if ($path === '/') {
+        setcookie('stm_lang', $lang_code, time() + (86400 * 30), '/');
+        $redirect_url = home_url('/');
+    } else {
+        $redirect_url = home_url($path . '?lang=' . $lang_code);
+    }
+
+    wp_safe_redirect($redirect_url, 301);
+    exit;
 }
 add_action('template_redirect', 'stm_template_redirect', 1);
 
@@ -128,11 +122,6 @@ add_filter('query_vars', 'stm_query_vars');
  * Initialize plugin
  */
 function stm_init() {
-    // Start session for language switching
-    if (session_status() === PHP_SESSION_NONE) {
-        session_start();
-    }
-
     // Initialize components
     STM\Admin::init();
     STM\API::init();

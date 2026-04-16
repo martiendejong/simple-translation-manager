@@ -212,6 +212,36 @@
     line-height: 1.2;
 }
 
+/* Tab completeness indicators */
+.stm-tab-status {
+    display: inline-block;
+    margin-left: 5px;
+    font-size: 11px;
+    vertical-align: middle;
+}
+
+.stm-tab-complete .stm-tab-status { color: #46b450; }
+.stm-tab-partial  .stm-tab-status { color: #f0b849; }
+
+.stm-tab-complete { border-top-color: #46b450; }
+.stm-tab-partial  { border-top-color: #f0b849; }
+
+/* Auto-translate bar */
+.stm-auto-translate-bar {
+    padding: 10px 0 14px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    border-bottom: 1px solid #f0f0f0;
+    margin-bottom: 4px;
+}
+
+.stm-auto-translate-status {
+    font-size: 13px;
+    color: #646970;
+    font-style: italic;
+}
+
 /* Content editor area — plain textarea that gets upgraded to TinyMCE */
 .stm-editor-area {
     display: block;

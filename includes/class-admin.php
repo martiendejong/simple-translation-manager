@@ -22,6 +22,9 @@ class Admin {
         add_action('admin_post_stm_save_translation', [__CLASS__, 'save_translation']);
         add_action('admin_post_stm_add_string', [__CLASS__, 'add_string']);
         add_action('admin_post_stm_import_json', [__CLASS__, 'import_json']);
+        add_action('admin_post_stm_add_language', [__CLASS__, 'add_language']);
+        add_action('admin_post_stm_delete_language', [__CLASS__, 'delete_language']);
+        add_action('admin_post_stm_save_ai_settings', [__CLASS__, 'save_ai_settings']);
         add_action('admin_notices', [__CLASS__, 'show_translation_warnings']);
     }
 
@@ -403,17 +406,145 @@ class Admin {
     }
 
     /**
-     * Import JSON file
+     * Import JSON file (admin form handler)
      */
     public static function import_json() {
         if (!Security::verify_admin_action('stm_import_json')) {
             wp_die('Unauthorized', 403);
         }
 
-        // TODO: Handle file upload and JSON parsing
-        // Import format: { "nav.home": "Home", "nav.about": "About", ... }
+        if (empty($_FILES['stm_import_file']['tmp_name'])) {
+            wp_redirect(add_query_arg('stm_error', 'no_file', wp_get_referer()));
+            exit;
+        }
 
-        wp_redirect(add_query_arg('imported', '1', wp_get_referer()));
+        $file = $_FILES['stm_import_file'];
+
+        // Only allow JSON files
+        $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+        if ($ext !== 'json') {
+            wp_redirect(add_query_arg('stm_error', 'invalid_type', wp_get_referer()));
+            exit;
+        }
+
+        $json = file_get_contents($file['tmp_name']);
+        $data = json_decode($json, true);
+
+        if (!is_array($data)) {
+            wp_redirect(add_query_arg('stm_error', 'invalid_json', wp_get_referer()));
+            exit;
+        }
+
+        $result = API::process_import($data);
+
+        if (isset($result['error'])) {
+            wp_redirect(add_query_arg('stm_error', urlencode($result['error']), wp_get_referer()));
+            exit;
+        }
+
+        wp_redirect(add_query_arg([
+            'imported' => $result['created'] + $result['updated'],
+            'stm_errors' => count($result['errors']),
+        ], wp_get_referer()));
+        exit;
+    }
+
+    /**
+     * Add language (admin form handler)
+     */
+    public static function add_language() {
+        if (!Security::verify_admin_action('stm_add_language')) {
+            wp_die('Unauthorized', 403);
+        }
+
+        global $wpdb;
+
+        $code        = sanitize_text_field($_POST['lang_code'] ?? '');
+        $name        = sanitize_text_field($_POST['lang_name'] ?? '');
+        $native_name = sanitize_text_field($_POST['lang_native'] ?? $name);
+        $flag        = sanitize_text_field($_POST['lang_flag'] ?? '');
+        $is_default  = isset($_POST['lang_default']) ? 1 : 0;
+
+        if (!Security::validate_language_code($code) || empty($name)) {
+            wp_redirect(add_query_arg('stm_error', 'invalid_fields', wp_get_referer()));
+            exit;
+        }
+
+        if ($is_default) {
+            $wpdb->update($wpdb->prefix . 'stm_languages', ['is_default' => 0], ['is_default' => 1]);
+        }
+
+        $result = $wpdb->insert($wpdb->prefix . 'stm_languages', [
+            'code'        => strtolower($code),
+            'name'        => $name,
+            'native_name' => $native_name,
+            'flag_emoji'  => $flag,
+            'is_default'  => $is_default,
+            'is_active'   => 1,
+            'order_index' => intval($_POST['lang_order'] ?? 99),
+        ]);
+
+        wp_cache_delete('stm_active_languages');
+        wp_cache_delete('stm_default_language');
+
+        wp_redirect(add_query_arg(
+            $result === false ? 'stm_error' : 'stm_added',
+            $result === false ? 'db_error'  : '1',
+            wp_get_referer()
+        ));
+        exit;
+    }
+
+    /**
+     * Delete language (admin form handler)
+     */
+    public static function delete_language() {
+        if (!Security::verify_admin_action('stm_delete_language')) {
+            wp_die('Unauthorized', 403);
+        }
+
+        $code = sanitize_text_field($_POST['lang_code'] ?? '');
+
+        if (!Security::validate_language_code($code)) {
+            wp_die('Invalid language code', 400);
+        }
+
+        global $wpdb;
+
+        // Prevent deleting the default language
+        $is_default = $wpdb->get_var($wpdb->prepare(
+            "SELECT is_default FROM {$wpdb->prefix}stm_languages WHERE code = %s",
+            $code
+        ));
+
+        if ($is_default) {
+            wp_redirect(add_query_arg('stm_error', 'cannot_delete_default', wp_get_referer()));
+            exit;
+        }
+
+        $wpdb->delete($wpdb->prefix . 'stm_languages', ['code' => $code]);
+
+        wp_cache_delete('stm_active_languages');
+
+        wp_redirect(add_query_arg('stm_deleted', '1', wp_get_referer()));
+        exit;
+    }
+
+    /**
+     * Save AI/auto-translate settings
+     */
+    public static function save_ai_settings() {
+        if (!Security::verify_admin_action('stm_ai_settings')) {
+            wp_die('Unauthorized', 403);
+        }
+
+        $provider   = sanitize_text_field($_POST['ai_provider'] ?? 'openai');
+        $openai_key = sanitize_text_field($_POST['openai_key'] ?? '');
+        $deepl_key  = sanitize_text_field($_POST['deepl_key'] ?? '');
+
+        AutoTranslate::save_settings($provider, $openai_key ?: null, $deepl_key ?: null);
+
+        wp_redirect(add_query_arg('stm_saved', '1', wp_get_referer()));
         exit;
     }
 }

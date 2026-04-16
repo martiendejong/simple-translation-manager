@@ -33,23 +33,13 @@ class Frontend {
      * Get current language
      */
     public static function get_current_language() {
-        // Priority: URL parameter > Cookie > Session > Default
+        // Priority: URL parameter > Cookie > Default
         if (isset($_GET['lang'])) {
             $lang = sanitize_text_field($_GET['lang']);
             if (Security::validate_language_code($lang)) {
-                // Store in cookie and session
-                if (session_status() === PHP_SESSION_NONE) {
-                    session_start();
-                }
-                $_SESSION['stm_lang'] = $lang;
                 setcookie('stm_lang', $lang, time() + (86400 * 30), '/');
                 return $lang;
             }
-        }
-
-        // Check session
-        if (session_status() !== PHP_SESSION_NONE && isset($_SESSION['stm_lang'])) {
-            return $_SESSION['stm_lang'];
         }
 
         // Check cookie
