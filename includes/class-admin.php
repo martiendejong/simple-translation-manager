@@ -403,17 +403,46 @@ class Admin {
     }
 
     /**
-     * Import JSON file
+     * Import JSON file (admin form handler)
      */
     public static function import_json() {
         if (!Security::verify_admin_action('stm_import_json')) {
             wp_die('Unauthorized', 403);
         }
 
-        // TODO: Handle file upload and JSON parsing
-        // Import format: { "nav.home": "Home", "nav.about": "About", ... }
+        if (empty($_FILES['stm_import_file']['tmp_name'])) {
+            wp_redirect(add_query_arg('stm_error', 'no_file', wp_get_referer()));
+            exit;
+        }
 
-        wp_redirect(add_query_arg('imported', '1', wp_get_referer()));
+        $file = $_FILES['stm_import_file'];
+
+        // Only allow JSON files
+        $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+        if ($ext !== 'json') {
+            wp_redirect(add_query_arg('stm_error', 'invalid_type', wp_get_referer()));
+            exit;
+        }
+
+        $json = file_get_contents($file['tmp_name']);
+        $data = json_decode($json, true);
+
+        if (!is_array($data)) {
+            wp_redirect(add_query_arg('stm_error', 'invalid_json', wp_get_referer()));
+            exit;
+        }
+
+        $result = API::process_import($data);
+
+        if (isset($result['error'])) {
+            wp_redirect(add_query_arg('stm_error', urlencode($result['error']), wp_get_referer()));
+            exit;
+        }
+
+        wp_redirect(add_query_arg([
+            'imported' => $result['created'] + $result['updated'],
+            'stm_errors' => count($result['errors']),
+        ], wp_get_referer()));
         exit;
     }
 }
