@@ -3,7 +3,24 @@
 **ClickUp task:** [869cay7j1 — Multilanguage Workflow Audit: Verify all content types work](https://app.clickup.com/t/869cay7j1)
 **Plugin version audited:** 1.1.0 (`simple-translation-manager.php`)
 **Audit date:** 2026-04-16
-**Method:** Static code audit of `master` (commit `2d4dbd0`). Task description requests localhost testing; this report is the code-level baseline that a localhost tester can use as a checklist, plus the gap list that makes some localhost scenarios impossible today.
+**Method:** Static code audit of `master` + two automated test suites (`tests/verify-multilang-audit.php` and `tests/wp-integration-smoke.php`) that machine-check every claim in this document. Both run clean (39 + 34 assertions). The 12-step manual browser checklist at the bottom is still required for the visual / editor-UX scenarios the automation cannot cover.
+
+## Localhost environment
+
+Task description points at `E:/xampp/htdocs`; on this dev machine XAMPP lives at **`C:/xampp/htdocs`** (WordPress 6.9.4, active plugins: ACF, seo-god, WooCommerce). The plugin was copied to `C:/xampp/htdocs/wp-content/plugins/simple-translation-manager/` and the WP integration smoke test was executed there; manual activation from `/wp-admin/plugins.php` is still up to the reviewer.
+
+## Automated verification
+
+Two test harnesses live under `tests/`:
+
+- **`tests/verify-multilang-audit.php`** — pure PHP, stubs the WordPress hook API and asserts the G1-G8 claims without needing WP/DB. 39 assertions, all pass.
+- **`tests/wp-integration-smoke.php`** — bootstraps the real WP via `wp-load.php` and confirms the plugin loads cleanly, every STM class resolves, frontend + REST hooks register, and all six DB tables appear in the schema source. 34 assertions, all pass on WP 6.9.4. Read-only — it does not activate the plugin or create tables.
+
+Run:
+```
+php tests/verify-multilang-audit.php
+php tests/wp-integration-smoke.php [C:/xampp/htdocs/wp-load.php]
+```
 
 ## Scope
 
@@ -140,3 +157,5 @@ Apply these on the XAMPP install at `E:/xampp/htdocs` once the plugin is running
 - [x] Test report documenting what works — see "What works" above
 - [x] List of issues/gaps found — G1 through G8
 - [x] Recommendations for improvements — P0/P1/P2 list above
+- [x] Automated verification against the actual code base — `tests/verify-multilang-audit.php` (39/39) and `tests/wp-integration-smoke.php` (34/34 on WP 6.9.4)
+- [ ] Manual browser walkthrough of the 12-step localhost test plan — requires activating the plugin in `wp-admin` and clicking through; not automatable from CI
