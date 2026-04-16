@@ -3,7 +3,7 @@
  * Plugin Name: Simple Translation Manager
  * Plugin URI: https://martiendejong.nl
  * Description: Lightweight multilingual plugin with database storage and WordPress caching
- * Version: 1.1.0
+ * Version: 1.1.1
  * Author: Martien de Jong
  * Author URI: https://martiendejong.nl
  * License: GPL v2 or later
@@ -17,7 +17,7 @@ if (!defined('ABSPATH')) {
 }
 
 // Plugin constants
-define('STM_VERSION', '1.1.0');
+define('STM_VERSION', '1.1.1');
 define('STM_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('STM_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('STM_PLUGIN_FILE', __FILE__);

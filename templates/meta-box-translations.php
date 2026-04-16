@@ -12,7 +12,12 @@
 if (!defined('ABSPATH')) exit;
 ?>
 
-<div class="stm-post-translations">
+<div class="stm-post-translations" data-current-lang="<?php echo esc_attr($current_lang); ?>">
+
+    <div class="stm-save-toast" role="status" aria-live="polite" hidden>
+        <span class="stm-save-toast-icon" aria-hidden="true">&#10003;</span>
+        <span class="stm-save-toast-text">Translations saved</span>
+    </div>
 
     <!-- Current Post Language -->
     <div class="stm-current-language">
@@ -36,12 +41,16 @@ if (!defined('ABSPATH')) exit;
         <h3>Translations</h3>
         <p class="description">Add translations for this post in other languages.</p>
 
-        <div class="stm-tabs">
+        <div class="stm-tabs" role="tablist">
             <?php $first = true; ?>
             <?php foreach ($languages as $lang): ?>
                 <?php if ($lang->code === $current_lang) continue; ?>
 
-                <button type="button" class="stm-tab-button <?php echo $first ? 'active' : ''; ?>"
+                <button type="button"
+                        class="stm-tab-button <?php echo $first ? 'active' : ''; ?>"
+                        role="tab"
+                        aria-selected="<?php echo $first ? 'true' : 'false'; ?>"
+                        aria-controls="stm-tab-panel-<?php echo esc_attr($lang->code); ?>"
                         data-lang="<?php echo esc_attr($lang->code); ?>">
                     <?php echo esc_html($lang->flag_emoji . ' ' . $lang->name); ?>
                 </button>
@@ -63,7 +72,20 @@ if (!defined('ABSPATH')) exit;
             ?>
 
             <div class="stm-tab-content <?php echo $first ? 'active' : ''; ?>"
+                 id="stm-tab-panel-<?php echo esc_attr($lang->code); ?>"
+                 role="tabpanel"
                  data-lang="<?php echo esc_attr($lang->code); ?>">
+
+                <div class="stm-tab-toolbar">
+                    <button type="button"
+                            class="button stm-auto-translate-btn"
+                            data-lang="<?php echo esc_attr($lang->code); ?>"
+                            data-source-lang="<?php echo esc_attr($current_lang); ?>">
+                        <span class="dashicons dashicons-translation" aria-hidden="true"></span>
+                        Auto-translate to <?php echo esc_html($lang->name); ?>
+                    </button>
+                    <span class="stm-auto-translate-status" aria-live="polite"></span>
+                </div>
 
                 <table class="form-table">
                     <tr>
@@ -77,7 +99,8 @@ if (!defined('ABSPATH')) exit;
                                    name="stm_translations[<?php echo esc_attr($lang->code); ?>][post_title]"
                                    id="stm_title_<?php echo esc_attr($lang->code); ?>"
                                    value="<?php echo esc_attr($title); ?>"
-                                   class="widefat">
+                                   class="widefat stm-translation-field"
+                                   data-field="post_title">
                         </td>
                     </tr>
 
@@ -92,7 +115,8 @@ if (!defined('ABSPATH')) exit;
                                    name="stm_translations[<?php echo esc_attr($lang->code); ?>][post_name]"
                                    id="stm_slug_<?php echo esc_attr($lang->code); ?>"
                                    value="<?php echo esc_attr($slug); ?>"
-                                   class="widefat">
+                                   class="widefat stm-translation-field"
+                                   data-field="post_name">
                             <p class="description">The URL slug for this translation (e.g., mijn-blog-post)</p>
                         </td>
                     </tr>
@@ -107,7 +131,8 @@ if (!defined('ABSPATH')) exit;
                             <textarea name="stm_translations[<?php echo esc_attr($lang->code); ?>][post_excerpt]"
                                       id="stm_excerpt_<?php echo esc_attr($lang->code); ?>"
                                       rows="4"
-                                      class="widefat"><?php echo esc_textarea($excerpt); ?></textarea>
+                                      class="widefat stm-translation-field"
+                                      data-field="post_excerpt"><?php echo esc_textarea($excerpt); ?></textarea>
                         </td>
                     </tr>
 
@@ -121,7 +146,8 @@ if (!defined('ABSPATH')) exit;
                             <textarea
                                 name="stm_translations[<?php echo esc_attr($lang->code); ?>][post_content]"
                                 id="stm_content_<?php echo esc_attr($lang->code); ?>"
-                                class="stm-editor-area"
+                                class="stm-editor-area stm-translation-field"
+                                data-field="post_content"
                                 rows="20"
                             ><?php echo esc_textarea($content); ?></textarea>
                         </td>
