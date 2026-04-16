@@ -10,7 +10,8 @@
     'use strict';
 
     var activeEditorLang = null;
-    var initializedEditors = {};
+    var initializedEditors = {}; // lang → true once TinyMCE 'init' fires
+    var pendingEditors = {};     // lang → true while wp.editor.initialize() is in flight
 
     $(document).ready(function() {
         initTranslationTabs();
@@ -32,15 +33,16 @@
     // Also sync on the Gutenberg "Update" / "Publish" save path (fires before REST call)
     if (typeof wp !== 'undefined' && wp.data) {
         var lastSaving = false;
-        wp.data.subscribe(function() {
-            var editor = wp.data.select('core/editor');
-            if (!editor) return;
-            var isSaving = editor.isSavingPost();
-            if (isSaving && !lastSaving) {
-                saveAllEditors();
-            }
-            lastSaving = isSaving;
-        });
+        var gutenbergEditor = wp.data.select('core/editor'); // cache — subscribe fires on every state mutation
+        if (gutenbergEditor) {
+            wp.data.subscribe(function() {
+                var isSaving = gutenbergEditor.isSavingPost();
+                if (isSaving && !lastSaving) {
+                    saveAllEditors();
+                }
+                lastSaving = isSaving;
+            });
+        }
     }
 
     function initTranslationTabs() {
@@ -71,20 +73,24 @@
     }
 
     function initEditor(lang) {
-        if (initializedEditors[lang]) return;
+        if (initializedEditors[lang] || pendingEditors[lang]) return;
 
         var editorId = 'stm_content_' + lang;
         if (!document.getElementById(editorId)) return;
 
         if (typeof wp !== 'undefined' && wp.editor) {
+            pendingEditors[lang] = true;
             wp.editor.initialize(editorId, {
                 tinymce: {
                     wpautop: true,
                     plugins: 'charmap colorpicker hr lists paste tabfocus textcolor fullscreen wordpress wpautoresize wpeditimage wpemoji wpgallery wplink wptextpattern',
-                    toolbar1: 'formatselect,bold,italic,strikethrough,bullist,numlist,hr,alignleft,aligncenter,alignright,link,unlink,wp_more,spellchecker,wp_fullscreen',
-                    toolbar2: 'strikethrough,hr,forecolor,pastetext,removeformat,charmap,outdent,indent,undo,redo,wp_help',
+                    toolbar1: 'formatselect,bold,italic,bullist,numlist,hr,alignleft,aligncenter,alignright,link,unlink,wp_more,spellchecker,wp_fullscreen',
+                    toolbar2: 'forecolor,pastetext,removeformat,charmap,outdent,indent,undo,redo,wp_help',
                     setup: function(ed) {
-                        // Ensure content is synced to textarea on every change
+                        ed.on('init', function() {
+                            initializedEditors[lang] = true;
+                            delete pendingEditors[lang];
+                        });
                         ed.on('change keyup', function() { ed.save(); });
                     },
                 },
@@ -93,7 +99,6 @@
                 },
                 mediaButtons: true,
             });
-            initializedEditors[lang] = true;
         }
     }
 
@@ -113,10 +118,13 @@
     function removeEditor(lang) {
         saveEditor(lang); // always save before destroy
         var editorId = 'stm_content_' + lang;
-        if (typeof wp !== 'undefined' && wp.editor && initializedEditors[lang]) {
-            wp.editor.remove(editorId);
-            delete initializedEditors[lang];
+        if (typeof wp !== 'undefined' && wp.editor) {
+            if (initializedEditors[lang] || pendingEditors[lang]) {
+                wp.editor.remove(editorId);
+            }
         }
+        delete initializedEditors[lang];
+        delete pendingEditors[lang];
     }
 
 })(jQuery);

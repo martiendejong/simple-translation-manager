@@ -106,6 +106,8 @@
 
 /* Content editor area — plain textarea that gets upgraded to TinyMCE */
 .stm-editor-area {
+    display: block;
+    width: 100%;
     font-family: monospace;
     font-size: 13px;
     line-height: 1.6;

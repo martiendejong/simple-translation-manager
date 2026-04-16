@@ -123,7 +123,6 @@ if (!defined('ABSPATH')) exit;
                                 id="stm_content_<?php echo esc_attr($lang->code); ?>"
                                 class="stm-editor-area"
                                 rows="20"
-                                style="width:100%;display:block;"
                             ><?php echo esc_textarea($content); ?></textarea>
                         </td>
                     </tr>
