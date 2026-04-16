@@ -118,16 +118,13 @@ if (!defined('ABSPATH')) exit;
                             </label>
                         </th>
                         <td>
-                            <?php
-                            wp_editor($content, 'stm_content_' . $lang->code, [
-                                'textarea_name' => 'stm_translations[' . $lang->code . '][post_content]',
-                                'textarea_rows' => 15,
-                                'media_buttons' => true,
-                                'teeny' => false,
-                                'tinymce' => true,
-                                'quicktags' => true,
-                            ]);
-                            ?>
+                            <textarea
+                                name="stm_translations[<?php echo esc_attr($lang->code); ?>][post_content]"
+                                id="stm_content_<?php echo esc_attr($lang->code); ?>"
+                                class="stm-editor-area"
+                                rows="20"
+                                style="width:100%;display:block;"
+                            ><?php echo esc_textarea($content); ?></textarea>
                         </td>
                     </tr>
                 </table>

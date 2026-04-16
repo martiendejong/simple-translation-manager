@@ -95,7 +95,7 @@ class PostEditor {
         wp_enqueue_script(
             'stm-post-editor',
             STM_PLUGIN_URL . 'assets/admin-post-editor.js',
-            ['jquery', 'wp-i18n'],
+            ['jquery', 'wp-i18n', 'wp-editor'],
             STM_VERSION,
             true
         );
@@ -156,18 +156,20 @@ class PostEditor {
                         $value = sanitize_text_field($value);
                     }
 
-                    // Skip empty values
-                    if (empty($value)) {
-                        continue;
-                    }
-
-                    // Upsert translation
                     $existing = $wpdb->get_var($wpdb->prepare(
                         "SELECT id FROM {$table} WHERE post_id = %d AND field_name = %s AND language_code = %s",
                         $post_id,
                         $field_name,
                         $lang_code
                     ));
+
+                    // Empty value — delete existing row if present
+                    if (empty($value)) {
+                        if ($existing) {
+                            $wpdb->delete($table, ['id' => $existing]);
+                        }
+                        continue;
+                    }
 
                     $data = [
                         'post_id' => $post_id,
