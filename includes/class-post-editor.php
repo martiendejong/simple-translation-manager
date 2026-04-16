@@ -101,8 +101,11 @@ class PostEditor {
         );
 
         wp_localize_script('stm-post-editor', 'stmPostEditor', [
-            'ajaxUrl' => admin_url('admin-ajax.php'),
-            'nonce' => wp_create_nonce('stm_post_editor_nonce'),
+            'ajaxUrl'     => admin_url('admin-ajax.php'),
+            'nonce'       => wp_create_nonce('stm_post_editor_nonce'),
+            'restUrl'     => rest_url('stm/v1'),
+            'restNonce'   => wp_create_nonce('wp_rest'),
+            'defaultLang' => Settings::get_default_language(),
         ]);
     }
 

@@ -426,7 +426,19 @@ class API {
      */
     public static function get_post_slugs($request) {
         $post_id = intval($request['id']);
-        $slugs = get_post_meta($post_id, '_stm_slugs', true) ?: [];
+
+        global $wpdb;
+        $table = $wpdb->prefix . 'stm_post_translations';
+
+        $rows = $wpdb->get_results($wpdb->prepare(
+            "SELECT language_code, translation FROM {$table} WHERE post_id = %d AND field_name = 'post_name'",
+            $post_id
+        ), ARRAY_A);
+
+        $slugs = [];
+        foreach ($rows as $row) {
+            $slugs[$row['language_code']] = $row['translation'];
+        }
 
         return rest_ensure_response($slugs);
     }
@@ -439,12 +451,32 @@ class API {
         $language_code = sanitize_text_field($request['language_code']);
         $slug = sanitize_title($request['slug']);
 
-        $slugs = get_post_meta($post_id, '_stm_slugs', true) ?: [];
-        $slugs[$language_code] = $slug;
+        if (!Security::validate_language_code($language_code)) {
+            return new \WP_Error('invalid_language', 'Invalid language code', ['status' => 400]);
+        }
 
-        update_post_meta($post_id, '_stm_slugs', $slugs);
+        global $wpdb;
+        $table = $wpdb->prefix . 'stm_post_translations';
 
-        return rest_ensure_response(['success' => true, 'slugs' => $slugs]);
+        $existing = $wpdb->get_var($wpdb->prepare(
+            "SELECT id FROM {$table} WHERE post_id = %d AND field_name = 'post_name' AND language_code = %s",
+            $post_id, $language_code
+        ));
+
+        $data = [
+            'post_id'       => $post_id,
+            'field_name'    => 'post_name',
+            'language_code' => $language_code,
+            'translation'   => $slug,
+        ];
+
+        if ($existing) {
+            $wpdb->update($table, $data, ['id' => $existing]);
+        } else {
+            $wpdb->insert($table, $data);
+        }
+
+        return rest_ensure_response(['success' => true, 'slug' => $slug]);
     }
 
     /**
@@ -511,17 +543,113 @@ class API {
 
     /**
      * POST /import - Import translations from JSON
+     *
+     * Accepts two formats:
+     *   Format A: { "nl": { "nav.home": "Home", ... }, "en": { ... } }
+     *   Format B: { "lang": "nl", "translations": { "nav.home": "Home", ... } }
      */
     public static function import_json($request) {
         $data = $request->get_json_params();
 
-        // Expected format: { "lang": "nl", "translations": { "nav.home": "Home", ... } }
-        // Or: { "nl": { "nav.home": "Home" }, "en": { ... } }
+        if (empty($data) || !is_array($data)) {
+            return new \WP_Error('empty_data', 'No data provided', ['status' => 400]);
+        }
 
-        // Detect format and normalize
-        // TODO: Implement import logic
+        $result = self::process_import($data);
 
-        return rest_ensure_response(['success' => true]);
+        if (isset($result['error'])) {
+            return new \WP_Error('import_error', $result['error'], ['status' => 400]);
+        }
+
+        return rest_ensure_response($result);
+    }
+
+    /**
+     * Shared import logic — called by REST endpoint and admin handler
+     *
+     * @param array $data Decoded JSON array
+     * @return array { created, updated, errors } or { error }
+     */
+    public static function process_import(array $data) {
+        // Normalize to { lang_code => [ key => translation ] }
+        $normalized = [];
+
+        if (isset($data['lang']) && isset($data['translations']) && is_array($data['translations'])) {
+            $normalized[$data['lang']] = $data['translations'];
+        } else {
+            foreach ($data as $key => $value) {
+                if (is_array($value) && Security::validate_language_code($key)) {
+                    $normalized[$key] = $value;
+                }
+            }
+        }
+
+        if (empty($normalized)) {
+            return ['error' => 'Unrecognized import format. Expected {"nl":{"key":"value"}} or {"lang":"nl","translations":{"key":"value"}}'];
+        }
+
+        global $wpdb;
+        $created = 0;
+        $updated = 0;
+        $errors  = [];
+
+        foreach ($normalized as $lang_code => $translations) {
+            if (!Security::validate_language_code($lang_code)) {
+                $errors[] = "Invalid language code: $lang_code";
+                continue;
+            }
+
+            foreach ($translations as $string_key => $translation) {
+                $string_key  = Security::sanitize_translation_key($string_key);
+                $translation = Security::sanitize_translation($translation);
+
+                if (!Security::validate_translation_key($string_key)) {
+                    $errors[] = "Invalid key: $string_key";
+                    continue;
+                }
+
+                // Find or create the string record
+                $string_id = $wpdb->get_var($wpdb->prepare(
+                    "SELECT id FROM {$wpdb->prefix}stm_strings WHERE string_key = %s",
+                    $string_key
+                ));
+
+                if (!$string_id) {
+                    $wpdb->insert($wpdb->prefix . 'stm_strings', [
+                        'string_key' => $string_key,
+                        'context'    => 'general',
+                    ]);
+                    $string_id = $wpdb->insert_id;
+                }
+
+                // Upsert translation
+                $existing = $wpdb->get_var($wpdb->prepare(
+                    "SELECT id FROM {$wpdb->prefix}stm_translations WHERE string_id = %d AND language_code = %s",
+                    $string_id, $lang_code
+                ));
+
+                $t_data = [
+                    'string_id'     => $string_id,
+                    'language_code' => $lang_code,
+                    'translation'   => $translation,
+                    'status'        => 'published',
+                    'translated_by' => get_current_user_id(),
+                    'translated_at' => current_time('mysql'),
+                ];
+
+                if ($existing) {
+                    $wpdb->update($wpdb->prefix . 'stm_translations', $t_data, ['id' => $existing]);
+                    $updated++;
+                } else {
+                    $wpdb->insert($wpdb->prefix . 'stm_translations', $t_data);
+                    $created++;
+                }
+
+                Cache::invalidate_string($string_key, 'general');
+            }
+        }
+
+        return ['success' => true, 'created' => $created, 'updated' => $updated, 'errors' => $errors];
     }
 
     /**
