@@ -168,6 +168,20 @@ class Admin {
         // Get unique contexts for filter
         $contexts = $wpdb->get_col("SELECT DISTINCT context FROM {$table_strings} ORDER BY context ASC");
 
+        // Batch-fetch all translations for visible strings (avoids N+1 in template)
+        $translations_map = [];
+        if (!empty($strings)) {
+            $string_ids = implode(',', array_map('intval', array_column($strings, 'id')));
+            $all_translations = $wpdb->get_results(
+                "SELECT string_id, language_code, id, translation, status
+                 FROM {$table_translations}
+                 WHERE string_id IN ({$string_ids})"
+            );
+            foreach ($all_translations as $t) {
+                $translations_map[$t->string_id][$t->language_code] = $t;
+            }
+        }
+
         include STM_PLUGIN_DIR . 'templates/admin-translations.php';
     }
 

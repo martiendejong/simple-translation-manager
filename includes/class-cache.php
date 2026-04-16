@@ -136,8 +136,17 @@ class Cache {
                 wp_cache_delete($cache_key, self::GROUP);
             }
         } else {
-            // Invalidate all fields for this post (brute force but safe)
-            wp_cache_flush();
+            // Query which fields exist for this post and delete each targeted key
+            global $wpdb;
+            $fields = $wpdb->get_col($wpdb->prepare(
+                "SELECT DISTINCT field_name FROM {$wpdb->prefix}stm_post_translations WHERE post_id = %d",
+                $post_id
+            ));
+            foreach ($languages as $lang) {
+                foreach ($fields as $f) {
+                    wp_cache_delete("post_{$post_id}_{$f}_{$lang->code}", self::GROUP);
+                }
+            }
         }
     }
 

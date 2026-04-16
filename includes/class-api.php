@@ -275,6 +275,219 @@ class API {
     }
 
     /**
+     * PUT /strings/{id} - Update a string
+     */
+    public static function update_string($request) {
+        global $wpdb;
+
+        $id = intval($request['id']);
+        $string_key = Security::sanitize_translation_key($request['key'] ?? '');
+        $context = Security::sanitize_context($request['context'] ?? 'general');
+
+        if ($string_key && !Security::validate_translation_key($string_key)) {
+            return new \WP_Error('invalid_key', 'Invalid translation key format', ['status' => 400]);
+        }
+
+        $update = [];
+        if ($string_key) {
+            $update['string_key'] = $string_key;
+        }
+        if ($request['context'] !== null) {
+            if (!Security::validate_context($context)) {
+                return new \WP_Error('invalid_context', 'Invalid context format', ['status' => 400]);
+            }
+            $update['context'] = $context;
+        }
+        if ($request['description'] !== null) {
+            $update['description'] = sanitize_textarea_field($request['description']);
+        }
+
+        if (empty($update)) {
+            return new \WP_Error('no_data', 'No fields to update', ['status' => 400]);
+        }
+
+        $result = $wpdb->update($wpdb->prefix . 'stm_strings', $update, ['id' => $id]);
+
+        if ($result === false) {
+            return new \WP_Error('db_error', 'Failed to update string', ['status' => 500]);
+        }
+
+        return rest_ensure_response(['success' => true, 'updated' => $result]);
+    }
+
+    /**
+     * DELETE /strings/{id} - Delete a string and its translations
+     */
+    public static function delete_string($request) {
+        global $wpdb;
+
+        $id = intval($request['id']);
+
+        $string = $wpdb->get_row($wpdb->prepare(
+            "SELECT string_key, context FROM {$wpdb->prefix}stm_strings WHERE id = %d",
+            $id
+        ));
+
+        if (!$string) {
+            return new \WP_Error('not_found', 'String not found', ['status' => 404]);
+        }
+
+        $wpdb->delete($wpdb->prefix . 'stm_translations', ['string_id' => $id]);
+        $wpdb->delete($wpdb->prefix . 'stm_strings', ['id' => $id]);
+
+        Cache::invalidate_string($string->string_key, $string->context);
+
+        return rest_ensure_response(['success' => true]);
+    }
+
+    /**
+     * GET /translations - List translations (optionally filtered)
+     */
+    public static function get_translations($request) {
+        global $wpdb;
+
+        $string_id = intval($request->get_param('string_id'));
+        $lang = sanitize_text_field($request->get_param('lang') ?? '');
+
+        $where = ['1=1'];
+        if ($string_id) {
+            $where[] = $wpdb->prepare('t.string_id = %d', $string_id);
+        }
+        if ($lang) {
+            $where[] = $wpdb->prepare('t.language_code = %s', $lang);
+        }
+
+        $results = $wpdb->get_results("
+            SELECT t.*, s.string_key, s.context
+            FROM {$wpdb->prefix}stm_translations t
+            INNER JOIN {$wpdb->prefix}stm_strings s ON t.string_id = s.id
+            WHERE " . implode(' AND ', $where) . "
+            ORDER BY s.context ASC, s.string_key ASC, t.language_code ASC
+        ");
+
+        return rest_ensure_response($results);
+    }
+
+    /**
+     * PUT /translations/{id} - Update a translation
+     */
+    public static function update_translation($request) {
+        global $wpdb;
+
+        $id = intval($request['id']);
+
+        $row = $wpdb->get_row($wpdb->prepare(
+            "SELECT t.*, s.string_key, s.context
+             FROM {$wpdb->prefix}stm_translations t
+             INNER JOIN {$wpdb->prefix}stm_strings s ON t.string_id = s.id
+             WHERE t.id = %d",
+            $id
+        ));
+
+        if (!$row) {
+            return new \WP_Error('not_found', 'Translation not found', ['status' => 404]);
+        }
+
+        $update = [
+            'translation'   => Security::sanitize_translation($request['translation']),
+            'status'        => sanitize_text_field($request['status'] ?? $row->status),
+            'translated_by' => get_current_user_id(),
+            'translated_at' => current_time('mysql'),
+        ];
+
+        $result = $wpdb->update($wpdb->prefix . 'stm_translations', $update, ['id' => $id]);
+
+        if ($result === false) {
+            return new \WP_Error('db_error', 'Failed to update translation', ['status' => 500]);
+        }
+
+        Cache::invalidate_string($row->string_key, $row->context);
+
+        return rest_ensure_response(['success' => true]);
+    }
+
+    /**
+     * GET /posts/{id}/translations - Get all translations for a post
+     */
+    public static function get_post_translations($request) {
+        global $wpdb;
+
+        $post_id = intval($request['id']);
+
+        if (!get_post($post_id)) {
+            return new \WP_Error('not_found', 'Post not found', ['status' => 404]);
+        }
+
+        $rows = $wpdb->get_results($wpdb->prepare(
+            "SELECT language_code, field_name, translation
+             FROM {$wpdb->prefix}stm_post_translations
+             WHERE post_id = %d
+             ORDER BY language_code ASC, field_name ASC",
+            $post_id
+        ));
+
+        $result = [];
+        foreach ($rows as $row) {
+            if (!isset($result[$row->language_code])) {
+                $result[$row->language_code] = [];
+            }
+            $result[$row->language_code][$row->field_name] = $row->translation;
+        }
+
+        return rest_ensure_response($result);
+    }
+
+    /**
+     * POST /posts/{id}/translations - Save a post field translation
+     */
+    public static function save_post_translation($request) {
+        global $wpdb;
+
+        $post_id = intval($request['id']);
+        $language_code = sanitize_text_field($request['language_code'] ?? '');
+        $field = sanitize_text_field($request['field'] ?? '');
+        $translation = Security::sanitize_translation($request['translation'] ?? '');
+
+        if (!get_post($post_id)) {
+            return new \WP_Error('not_found', 'Post not found', ['status' => 404]);
+        }
+
+        if (!Security::validate_language_code($language_code)) {
+            return new \WP_Error('invalid_language', 'Invalid language code', ['status' => 400]);
+        }
+
+        if (empty($field) || !preg_match('/^[a-z0-9_-]+$/i', $field)) {
+            return new \WP_Error('invalid_field', 'Invalid field name', ['status' => 400]);
+        }
+
+        $table = $wpdb->prefix . 'stm_post_translations';
+
+        $existing = $wpdb->get_var($wpdb->prepare(
+            "SELECT id FROM {$table} WHERE post_id = %d AND field_name = %s AND language_code = %s",
+            $post_id, $field, $language_code
+        ));
+
+        if ($existing) {
+            $wpdb->update(
+                $table,
+                ['translation' => $translation, 'updated_at' => current_time('mysql')],
+                ['id' => $existing]
+            );
+        } else {
+            $wpdb->insert($table, [
+                'post_id'       => $post_id,
+                'field_name'    => $field,
+                'language_code' => $language_code,
+                'translation'   => $translation,
+            ]);
+        }
+
+        Cache::invalidate_post($post_id, $field);
+
+        return rest_ensure_response(['success' => true]);
+    }
+
+    /**
      * POST /translations - Create translation
      */
     public static function create_translation($request) {
