@@ -43,7 +43,14 @@ if (!file_exists($pluginFile)) {
     exit(2);
 }
 
-require_once $pluginFile;
+// If WordPress already loaded STM (e.g. the wp-content/plugins symlink points
+// at a sibling worktree), don't re-require this worktree's copy — the global
+// function declarations (stm_activate, stm_init, ...) would collide.
+// Schema/source checks below read this worktree's files directly, so they
+// still reflect this branch regardless of which copy WP bootstrapped.
+if (!defined('STM_VERSION')) {
+    require_once $pluginFile;
+}
 
 $results = [];
 function check($name, $cond, $detail = '') {
