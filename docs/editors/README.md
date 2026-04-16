@@ -8,6 +8,23 @@ with the Simple Translation Manager plugin day-to-day.
 | [**EDITORS_GUIDE.md**](./EDITORS_GUIDE.md) | Learn how translations work, how to add and publish them, and best practices |
 | [**TROUBLESHOOTING.md**](./TROUBLESHOOTING.md) | Diagnose a specific problem (missing translation, cache, language switcher, etc.) |
 
+## Available formats
+
+The same two documents are shipped in three formats; pick whichever suits your workflow:
+
+| Format | Location | Best for |
+|---|---|---|
+| Markdown (source of truth) | `./EDITORS_GUIDE.md`, `./TROUBLESHOOTING.md` | Reading on GitHub, editing, diffing |
+| WordPress HTML + WXR import | [`./wordpress/`](./wordpress/) | Publishing the docs as pages inside your own WordPress site |
+| PDF | [`./pdf/`](./pdf/) | Distributing offline, emailing, training handouts, printing |
+
+The HTML, WXR, and PDF files are generated from the markdown by [`./build-docs.mjs`](./build-docs.mjs). Re-run after editing the markdown:
+
+```
+npm install --no-save marked
+node docs/editors/build-docs.mjs
+```
+
 ---
 
 ## How to read this pack
