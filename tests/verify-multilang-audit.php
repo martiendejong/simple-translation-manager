@@ -262,11 +262,11 @@ foreach (['widget_text', 'widget_text_content', 'widget_block_content', 'widget_
     assert_absent("G4: NO widget content filter $h", 'filter', $h);
 }
 
-// ----- G7: session_start on plugins_loaded ------------------------------
+// ----- G7: session_start removed (recommendation implemented) -----------
 $main_src = file_get_contents(STM_PLUGIN_FILE);
-assert_true('G7: main plugin file still calls session_start()',
-    strpos($main_src, 'session_start()') !== false,
-    'if this fails the G7 recommendation can be closed.');
+assert_true('G7: session_start() removed from main plugin file',
+    strpos($main_src, 'session_start()') === false,
+    'session_start() should not be present — cookie-only detection is in place.');
 
 // ----- G8: pre_get_posts present but filter_query body has no lang filter
 assert_present('pre_get_posts action registered', 'action', 'pre_get_posts');
