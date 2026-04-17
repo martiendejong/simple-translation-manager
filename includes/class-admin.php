@@ -43,6 +43,16 @@ class Admin {
             30
         );
 
+        // Submenu: Dashboard (first so it's the top entry)
+        add_submenu_page(
+            'stm-translations',
+            'Translation Dashboard',
+            'Dashboard',
+            'manage_options',
+            'stm-dashboard',
+            ['\\STM\\Dashboard', 'render_page']
+        );
+
         // Submenu: Strings
         add_submenu_page(
             'stm-translations',
@@ -111,6 +121,35 @@ class Admin {
             'ajaxUrl' => admin_url('admin-ajax.php'),
             'nonce' => wp_create_nonce('stm_admin_nonce'),
         ]);
+
+        // Dashboard-specific assets
+        if (strpos($hook, 'stm-dashboard') !== false) {
+            wp_enqueue_style(
+                'stm-dashboard',
+                STM_PLUGIN_URL . 'assets/admin-dashboard.css',
+                ['stm-admin'],
+                STM_VERSION
+            );
+
+            wp_enqueue_script(
+                'stm-dashboard',
+                STM_PLUGIN_URL . 'assets/admin-dashboard.js',
+                ['jquery', 'stm-admin'],
+                STM_VERSION,
+                true
+            );
+
+            wp_localize_script('stm-dashboard', 'stmDashboard', [
+                'ajaxUrl'     => admin_url('admin-ajax.php'),
+                'nonce'       => wp_create_nonce('stm_dashboard_nonce'),
+                'i18n'        => [
+                    'saving'     => __('Saving…', 'simple-translation-manager'),
+                    'saved'      => __('Saved', 'simple-translation-manager'),
+                    'error'      => __('Error', 'simple-translation-manager'),
+                    'refreshing' => __('Refreshing…', 'simple-translation-manager'),
+                ],
+            ]);
+        }
     }
 
     /**
@@ -167,6 +206,20 @@ class Admin {
 
         // Get unique contexts for filter
         $contexts = $wpdb->get_col("SELECT DISTINCT context FROM {$table_strings} ORDER BY context ASC");
+
+        // Batch-fetch all translations for visible strings (avoids N+1 in template)
+        $translations_map = [];
+        if (!empty($strings)) {
+            $string_ids = implode(',', array_map('intval', array_column($strings, 'id')));
+            $all_translations = $wpdb->get_results(
+                "SELECT string_id, language_code, id, translation, status
+                 FROM {$table_translations}
+                 WHERE string_id IN ({$string_ids})"
+            );
+            foreach ($all_translations as $t) {
+                $translations_map[$t->string_id][$t->language_code] = $t;
+            }
+        }
 
         include STM_PLUGIN_DIR . 'templates/admin-translations.php';
     }
