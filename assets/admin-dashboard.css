@@ -1,0 +1,100 @@
+/* Translation Dashboard styles */
+
+.stm-dashboard .stm-overview-summary {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin: 16px 0;
+}
+
+.stm-dashboard .stm-card {
+    background: #fff;
+    border: 1px solid #dcdcde;
+    border-radius: 4px;
+    padding: 12px 16px;
+    min-width: 180px;
+    flex: 1 1 180px;
+    box-shadow: 0 1px 1px rgba(0, 0, 0, 0.04);
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.stm-dashboard .stm-card-label {
+    color: #646970;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.stm-dashboard .stm-card-value {
+    font-size: 20px;
+    color: #1d2327;
+}
+
+.stm-dashboard .stm-progress {
+    position: relative;
+    background: #f0f0f1;
+    height: 18px;
+    border-radius: 9px;
+    overflow: hidden;
+    width: 100%;
+    max-width: 220px;
+}
+
+.stm-dashboard .stm-progress-bar {
+    height: 100%;
+    background: #2271b1;
+    transition: width 0.3s ease;
+}
+
+.stm-dashboard .stm-progress-bar.is-good { background: #00a32a; }
+.stm-dashboard .stm-progress-bar.is-mid  { background: #dba617; }
+.stm-dashboard .stm-progress-bar.is-low  { background: #d63638; }
+
+.stm-dashboard .stm-progress-label {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    text-align: center;
+    line-height: 18px;
+    font-size: 11px;
+    font-weight: 600;
+    color: #1d2327;
+    mix-blend-mode: difference;
+    color: #fff;
+}
+
+.stm-dashboard .stm-filter-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: center;
+    background: #fff;
+    padding: 10px 12px;
+    border: 1px solid #dcdcde;
+    border-radius: 4px;
+}
+
+.stm-dashboard .stm-filter-bar label {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    font-size: 13px;
+}
+
+.stm-dashboard .stm-missing-table .stm-quick-input {
+    width: 100%;
+}
+
+.stm-dashboard .stm-quick-status {
+    display: inline-block;
+    margin-top: 4px;
+    font-size: 12px;
+    min-height: 16px;
+}
+
+.stm-dashboard .stm-quick-status.is-success { color: #00a32a; }
+.stm-dashboard .stm-quick-status.is-error   { color: #d63638; }
+.stm-dashboard .stm-quick-status.is-pending { color: #646970; }

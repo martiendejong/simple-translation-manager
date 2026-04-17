@@ -48,6 +48,7 @@ require_once STM_PLUGIN_DIR . 'includes/class-language-switcher.php';
 require_once STM_PLUGIN_DIR . 'includes/class-import-export.php';
 require_once STM_PLUGIN_DIR . 'includes/class-translation-memory.php';
 require_once STM_PLUGIN_DIR . 'includes/class-auto-translate.php';
+require_once STM_PLUGIN_DIR . 'includes/class-dashboard.php';
 
 // WP-CLI commands (only loaded if WP-CLI is available)
 if (defined('WP_CLI') && WP_CLI) {
@@ -131,5 +132,6 @@ function stm_init() {
     STM\ImportExport::init();
     STM\TranslationMemory::init();
     STM\AutoTranslate::init();
+    STM\Dashboard::init();
 }
 add_action('plugins_loaded', 'stm_init');

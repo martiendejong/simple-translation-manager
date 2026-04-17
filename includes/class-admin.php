@@ -43,6 +43,16 @@ class Admin {
             30
         );
 
+        // Submenu: Dashboard (first so it's the top entry)
+        add_submenu_page(
+            'stm-translations',
+            'Translation Dashboard',
+            'Dashboard',
+            'manage_options',
+            'stm-dashboard',
+            ['\\STM\\Dashboard', 'render_page']
+        );
+
         // Submenu: Strings
         add_submenu_page(
             'stm-translations',
@@ -111,6 +121,35 @@ class Admin {
             'ajaxUrl' => admin_url('admin-ajax.php'),
             'nonce' => wp_create_nonce('stm_admin_nonce'),
         ]);
+
+        // Dashboard-specific assets
+        if (strpos($hook, 'stm-dashboard') !== false) {
+            wp_enqueue_style(
+                'stm-dashboard',
+                STM_PLUGIN_URL . 'assets/admin-dashboard.css',
+                ['stm-admin'],
+                STM_VERSION
+            );
+
+            wp_enqueue_script(
+                'stm-dashboard',
+                STM_PLUGIN_URL . 'assets/admin-dashboard.js',
+                ['jquery', 'stm-admin'],
+                STM_VERSION,
+                true
+            );
+
+            wp_localize_script('stm-dashboard', 'stmDashboard', [
+                'ajaxUrl'     => admin_url('admin-ajax.php'),
+                'nonce'       => wp_create_nonce('stm_dashboard_nonce'),
+                'i18n'        => [
+                    'saving'     => __('Saving…', 'simple-translation-manager'),
+                    'saved'      => __('Saved', 'simple-translation-manager'),
+                    'error'      => __('Error', 'simple-translation-manager'),
+                    'refreshing' => __('Refreshing…', 'simple-translation-manager'),
+                ],
+            ]);
+        }
     }
 
     /**
