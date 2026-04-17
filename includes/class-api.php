@@ -306,13 +306,21 @@ class API {
             return new \WP_Error('no_data', 'No fields to update', ['status' => 400]);
         }
 
+        $exists = $wpdb->get_var($wpdb->prepare(
+            "SELECT id FROM {$wpdb->prefix}stm_strings WHERE id = %d",
+            $id
+        ));
+        if (!$exists) {
+            return new \WP_Error('not_found', 'String not found', ['status' => 404]);
+        }
+
         $result = $wpdb->update($wpdb->prefix . 'stm_strings', $update, ['id' => $id]);
 
         if ($result === false) {
             return new \WP_Error('db_error', 'Failed to update string', ['status' => 500]);
         }
 
-        return rest_ensure_response(['success' => true, 'updated' => $result]);
+        return rest_ensure_response(['success' => true]);
     }
 
     /**
@@ -342,12 +350,17 @@ class API {
 
     /**
      * GET /translations - List translations (optionally filtered)
+     *
+     * Params: string_id, lang, per_page (default 500, max 1000), page (default 1)
      */
     public static function get_translations($request) {
         global $wpdb;
 
         $string_id = intval($request->get_param('string_id'));
-        $lang = sanitize_text_field($request->get_param('lang') ?? '');
+        $lang      = sanitize_text_field($request->get_param('lang') ?? '');
+        $per_page  = min(1000, max(1, intval($request->get_param('per_page') ?? 500)));
+        $page      = max(1, intval($request->get_param('page') ?? 1));
+        $offset    = ($page - 1) * $per_page;
 
         $where = ['1=1'];
         if ($string_id) {
@@ -357,15 +370,28 @@ class API {
             $where[] = $wpdb->prepare('t.language_code = %s', $lang);
         }
 
-        $results = $wpdb->get_results("
-            SELECT t.*, s.string_key, s.context
+        $where_sql = implode(' AND ', $where);
+
+        $results = $wpdb->get_results($wpdb->prepare(
+            "SELECT t.*, s.string_key, s.context
             FROM {$wpdb->prefix}stm_translations t
             INNER JOIN {$wpdb->prefix}stm_strings s ON t.string_id = s.id
-            WHERE " . implode(' AND ', $where) . "
+            WHERE {$where_sql}
             ORDER BY s.context ASC, s.string_key ASC, t.language_code ASC
-        ");
+            LIMIT %d OFFSET %d",
+            $per_page,
+            $offset
+        ));
 
-        return rest_ensure_response($results);
+        $total = $wpdb->get_var(
+            "SELECT COUNT(*) FROM {$wpdb->prefix}stm_translations t WHERE {$where_sql}"
+        );
+
+        $response = rest_ensure_response($results);
+        $response->header('X-WP-Total', $total);
+        $response->header('X-WP-TotalPages', ceil($total / $per_page));
+
+        return $response;
     }
 
     /**
@@ -389,7 +415,7 @@ class API {
         }
 
         $update = [
-            'translation'   => Security::sanitize_translation($request['translation']),
+            'translation'   => Security::sanitize_translation($request['translation'] ?? ''),
             'status'        => sanitize_text_field($request['status'] ?? $row->status),
             'translated_by' => get_current_user_id(),
             'translated_at' => current_time('mysql'),
