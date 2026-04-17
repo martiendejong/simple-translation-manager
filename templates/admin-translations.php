@@ -73,13 +73,7 @@ if (!defined('ABSPATH')) exit;
 
                         <?php foreach ($languages as $lang): ?>
                             <?php
-                            global $wpdb;
-                            $translation = $wpdb->get_row($wpdb->prepare(
-                                "SELECT * FROM {$wpdb->prefix}stm_translations
-                                WHERE string_id = %d AND language_code = %s",
-                                $string->id,
-                                $lang->code
-                            ));
+                            $translation = $translations_map[$string->id][$lang->code] ?? null;
                             ?>
                             <td>
                                 <form method="post" action="<?php echo admin_url('admin-post.php'); ?>" style="margin:0;">
