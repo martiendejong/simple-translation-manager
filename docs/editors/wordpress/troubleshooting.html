@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Troubleshooting - Multilanguage Features</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+         line-height: 1.6; color: #23282d; max-width: 860px; margin: 2em auto; padding: 0 1em; }
+  h1, h2, h3, h4 { color: #1d2327; margin-top: 1.6em; }
+  h1 { border-bottom: 2px solid #2271b1; padding-bottom: .3em; }
+  h2 { border-bottom: 1px solid #dcdcde; padding-bottom: .2em; }
+  code { background: #f0f0f1; padding: .1em .35em; border-radius: 3px; font-size: 92%; }
+  pre { background: #f6f7f7; border: 1px solid #dcdcde; padding: 1em; overflow-x: auto; border-radius: 4px; }
+  pre code { background: transparent; padding: 0; }
+  blockquote { border-left: 4px solid #2271b1; background: #f0f6fc; margin: 1em 0;
+               padding: .6em 1em; color: #1d2327; }
+  table { border-collapse: collapse; margin: 1em 0; width: 100%; }
+  th, td { border: 1px solid #dcdcde; padding: .5em .75em; text-align: left; vertical-align: top; }
+  th { background: #f6f7f7; }
+  a { color: #2271b1; }
+  hr { border: 0; border-top: 1px solid #dcdcde; margin: 2em 0; }
+</style>
+</head>
+<body>
+<h1>Troubleshooting — Multilanguage Features</h1>
+<p>Practical fixes for the most common problems content editors hit when working
+with translations. Each section lists <strong>symptoms</strong>, then <strong>what to check</strong>
+from quickest to slowest.</p>
+<p>If nothing here resolves your issue, collect:</p>
+<ol>
+<li>The URL that&#39;s misbehaving (including the <code>?lang=</code> parameter if any).</li>
+<li>A screenshot of the Translations meta box for the post in question.</li>
+<li>Your browser and WordPress version.</li>
+</ol>
+<p>Send them to your developer or plugin maintainer.</p>
+<hr>
+<h2>Table of Contents</h2>
+<ol>
+<li><a href="#1-missing-translations">Missing Translations</a></li>
+<li><a href="#2-wrong-language-is-served">Wrong Language is Served</a></li>
+<li><a href="#3-cache-issues">Cache Issues</a></li>
+<li><a href="#4-language-switcher-problems">Language Switcher Problems</a></li>
+<li><a href="#5-meta-box-not-showing">Meta Box Not Showing</a></li>
+<li><a href="#6-url--slug-problems">URL &amp; Slug Problems</a></li>
+<li><a href="#7-acf--pods--elementor-content-not-translating">ACF / Pods / Elementor Content Not Translating</a></li>
+<li><a href="#8-permissions--saving-errors">Permissions &amp; Saving Errors</a></li>
+<li><a href="#9-getting-more-help">Getting More Help</a></li>
+</ol>
+<hr>
+<h2>1. Missing Translations</h2>
+<h3>Symptom</h3>
+<p>A translation you saved doesn&#39;t appear on the frontend. Instead the visitor
+sees the original-language content (or nothing at all) when using
+<code>?lang=&lt;code&gt;</code>.</p>
+<h3>Checklist</h3>
+<ol>
+<li><strong>Confirm the source language of the post.</strong>
+Open the post. In the <strong>Translations</strong> meta box, is
+<strong>&quot;This post is written in:&quot;</strong> set to the correct original language?
+If it says <code>English</code> but you wrote the post in Dutch, the plugin thinks
+your Dutch version <strong>is</strong> the original, and there is no translation for
+English to serve.</li>
+<li><strong>Confirm the target-language tab was saved.</strong>
+Switch to the target language tab (e.g. <code>🇳🇱 Dutch</code>) and verify the Title,
+Slug, Excerpt, and Content fields contain your translation. Empty fields
+fall back to the original post — that&#39;s by design
+(<a href="./EDITORS_GUIDE.md#43-partial-translations">partial translations</a>).</li>
+<li><strong>Did you click Update / Publish after filling in the tab?</strong>
+Translations save with the rest of the post. Clicking a tab without
+clicking <strong>Update</strong> loses your input.</li>
+<li><strong>Is the <code>?lang=</code> code correct?</strong>
+Language codes are case-sensitive and must match exactly what is in
+<strong>Translations → Languages</strong>. <code>NL</code> is <strong>not</strong> the same as <code>nl</code>.</li>
+<li><strong>Is the visible language actually different from the default?</strong>
+If English is default and you&#39;re viewing the English post without
+<code>?lang=nl</code>, you&#39;ll see the English version — which is the desired
+behavior.</li>
+</ol>
+<h3>Fix</h3>
+<ul>
+<li>Re-open the target-language tab, re-enter the fields, and click <strong>Update</strong>.</li>
+<li>If the Language column on <strong>Posts → All Posts</strong> shows the wrong flag,
+correct the source language selector first, then re-save.</li>
+</ul>
+<hr>
+<h2>2. Wrong Language is Served</h2>
+<h3>Symptom</h3>
+<p>You visit <code>/about/?lang=fr</code> but see the English version. Or you visit the
+homepage and get Dutch even though you expected English.</p>
+<h3>Checklist</h3>
+<ol>
+<li><p><strong>Check the URL for a stray <code>?lang=</code> parameter.</strong>
+The plugin uses <code>?lang=</code> as the highest-priority signal. If the URL
+contains <code>?lang=en</code>, the visitor gets English regardless of cookie or
+session.</p>
+</li>
+<li><p><strong>Clear your session and cookie.</strong>
+The plugin remembers a visitor&#39;s language choice in:</p>
+<ul>
+<li>A session variable (cleared when the browser closes).</li>
+<li>A cookie called <code>stm_lang</code> (30-day lifetime).</li>
+</ul>
+<p>To test a fresh visitor experience, open an <strong>incognito / private
+browsing</strong> window, or clear cookies for your domain.</p>
+</li>
+<li><p><strong>Confirm a translation exists for that language.</strong>
+If the post has no French translation, the plugin falls back to the
+original language. That&#39;s expected — add the translation, then retry.</p>
+</li>
+<li><p><strong>Confirm the language is active in Translations → Languages.</strong>
+A language that has been removed or deactivated won&#39;t be served.</p>
+</li>
+</ol>
+<h3>Fix</h3>
+<ul>
+<li>Clear cookies for your site, then retry with a fresh browser.</li>
+<li>If a translation is missing, add it via the Translations meta box.</li>
+</ul>
+<hr>
+<h2>3. Cache Issues</h2>
+<h3>Symptom</h3>
+<p>You updated a translation, but the frontend still shows the old version. Or
+changes appear inconsistently depending on which page you visit.</p>
+<h3>What&#39;s happening</h3>
+<p>WordPress and most hosting stacks layer multiple caches:</p>
+<ul>
+<li><strong>Browser cache</strong> (your own browser).</li>
+<li><strong>Page cache</strong> (WP Rocket, W3 Total Cache, LiteSpeed Cache, Cloudflare APO,
+host-level Varnish/Nginx page caching).</li>
+<li><strong>Object cache</strong> (Redis / Memcached — the plugin uses this internally).</li>
+<li><strong>CDN edge cache</strong> (Cloudflare, BunnyCDN, etc.).</li>
+</ul>
+<p>A stale translation is almost always one of these, not the plugin itself.</p>
+<h3>Checklist &amp; Fix</h3>
+<ol>
+<li><strong>Hard-reload your browser.</strong> Windows: <code>Ctrl + F5</code>. macOS: <code>Cmd + Shift + R</code>.</li>
+<li><strong>Flush your WordPress object cache.</strong>
+If you have a caching plugin, use its &quot;Clear all cache&quot; button.
+On servers with Redis: ask your developer/host to run
+<code>wp cache flush</code> via WP-CLI.</li>
+<li><strong>Purge your page cache.</strong>
+Each caching plugin has a &quot;Purge all pages&quot; option. Do this after bulk
+translation updates.</li>
+<li><strong>Purge your CDN.</strong>
+Cloudflare: <strong>Caching → Configuration → Purge Everything</strong> (or purge
+by URL).</li>
+<li><strong>Verify with a URL-busting query parameter.</strong>
+Append a random <code>&amp;cb=123</code> to the URL to bypass most page caches:
+<code>/about/?lang=nl&amp;cb=123</code>. If the new content appears now, the problem
+was cache, not the translation.</li>
+</ol>
+<h3>Prevention</h3>
+<ul>
+<li>After every batch of translation edits, purge the caches above.</li>
+<li>Ask your developer to add a cache-purge hook so the plugin&#39;s own object
+cache is flushed when a translation saves (the plugin does this internally
+for WordPress&#39;s object cache, but third-party plugins need their own hook).</li>
+</ul>
+<hr>
+<h2>4. Language Switcher Problems</h2>
+<h3>Symptom</h3>
+<ul>
+<li>The switcher doesn&#39;t appear.</li>
+<li>The switcher lists languages, but clicking them doesn&#39;t change the page.</li>
+<li>The switcher points to the wrong translation.</li>
+</ul>
+<h3>Checklist</h3>
+<ol>
+<li><strong>Widget placement.</strong>
+Go to <strong>Appearance → Widgets</strong> and confirm the <strong>Language Switcher</strong>
+widget is in a visible sidebar or widget area. Some themes only show
+specific sidebars on specific templates.</li>
+<li><strong>Shortcode syntax.</strong>
+In a post or page, the shortcode must be exactly:
+<code>[stm_language_switcher]</code>, <code>[stm_language_switcher style=&quot;dropdown&quot;]</code>, or
+<code>[stm_language_switcher style=&quot;flags&quot;]</code>.</li>
+<li><strong>At least two active languages exist.</strong>
+The switcher hides itself if there is only one language.</li>
+<li><strong>The current page has a translation group.</strong>
+If the page has never been saved with the Translations meta box, it may
+not belong to a translation group, so the switcher cannot link it to its
+peers. Save the post once to create the group automatically.</li>
+<li><strong>Switcher points to wrong page.</strong>
+If clicking &quot;French&quot; lands on the English page, the French post is likely
+missing from the translation group. Open each language&#39;s version and
+verify they share the same group — the simplest way is to save each
+translation from the original post&#39;s Translations meta box (instead of
+editing each page separately).</li>
+</ol>
+<hr>
+<h2>5. Meta Box Not Showing</h2>
+<h3>Symptom</h3>
+<p>The <strong>Translations</strong> meta box is missing when editing a post.</p>
+<h3>Checklist</h3>
+<ol>
+<li><strong>Post type must be public.</strong>
+The plugin only adds the meta box to public post types. Private /
+internal CPTs won&#39;t see it. Ask your developer to mark the CPT <code>public</code>
+or register it against the plugin.</li>
+<li><strong>Screen options.</strong>
+Click <strong>Screen Options</strong> at the top right of the editor and confirm
+<strong>Translations</strong> is checked.</li>
+<li><strong>User role / capability.</strong>
+Users without the <code>edit_posts</code> capability (e.g. Subscribers) won&#39;t see
+the meta box. Assign the user a role of Author or higher.</li>
+<li><strong>Plugin conflict.</strong>
+Deactivate other translation / multilingual plugins (WPML, Polylang,
+TranslatePress). Running multiple multilingual plugins at once is not
+supported and often hides meta boxes from each other.</li>
+<li><strong>Block editor vs. classic editor.</strong>
+The Translations meta box renders in both, but some block-editor
+extensions collapse meta boxes by default. Scroll all the way down or
+check the three-dots menu → <strong>Options → Advanced panels</strong>.</li>
+</ol>
+<hr>
+<h2>6. URL &amp; Slug Problems</h2>
+<h3>Symptom</h3>
+<ul>
+<li><code>/about/?lang=nl</code> works but <code>/over-ons/</code> gives a 404.</li>
+<li>Pretty permalinks don&#39;t reflect the translated slug.</li>
+<li>A translated post shares the same slug as its original.</li>
+</ul>
+<h3>Checklist</h3>
+<ol>
+<li><strong>Permalinks flushed?</strong>
+Go to <strong>Settings → Permalinks</strong> and click <strong>Save Changes</strong> (no other
+change needed). This re-registers rewrite rules.</li>
+<li><strong>Translated slug entered?</strong>
+Open the post → Translations meta box → target language tab → confirm
+the <strong>Slug</strong> field is filled in. An empty translated slug means the
+post has no URL of its own in that language.</li>
+<li><strong>Slug collision with another post.</strong>
+Two posts can&#39;t share the same slug in the same post type. If you enter
+<code>over-ons</code> and another post already uses it, WordPress will silently
+append <code>-2</code>. Check the actual saved slug after Update.</li>
+<li><strong>Per-language URL routing setting.</strong>
+Under <strong>Translations → Settings</strong>, pretty language URLs (<code>/en/</code>, <code>/nl/</code>)
+may or may not be enabled depending on your setup. If they are disabled,
+all translations use the <code>?lang=</code> query parameter and there is no
+<code>/over-ons/</code> URL — only <code>/about/?lang=nl</code>.</li>
+</ol>
+<hr>
+<h2>7. ACF / Pods / Elementor Content Not Translating</h2>
+<h3>Symptom</h3>
+<p>The post&#39;s title and body are translated, but ACF fields / Pods fields /
+Elementor widgets still show the original language.</p>
+<h3>Why</h3>
+<p>This plugin translates core WordPress post fields (title, slug, excerpt,
+content) natively. Custom-field plugins and page builders store their data
+in <strong>separate meta fields</strong> that are outside this plugin&#39;s translation
+scope.</p>
+<h3>Fix (editor approach)</h3>
+<p>Use the <strong>separate pages joined by a translation group</strong> strategy described
+in <a href="./EDITORS_GUIDE.md#32-approach-b--separate-pages-joined-by-a-translation-group"><code>EDITORS_GUIDE.md</code> §3.2</a>:</p>
+<ol>
+<li>Create one page per language.</li>
+<li>Build the Elementor / ACF layout natively in each page.</li>
+<li>Link them via the Translations meta box so the language switcher knows
+about all versions.</li>
+</ol>
+<h3>Fix (developer approach)</h3>
+<p>If you need ACF / Pods field translation without duplicating pages, ask your
+developer to add a custom bridge between those plugins and
+<code>STM\Database</code> / <code>STM\PostEditor</code>. See <a href="../API.md"><code>../API.md</code></a> for the
+available hooks.</p>
+<hr>
+<h2>8. Permissions &amp; Saving Errors</h2>
+<h3>Symptom</h3>
+<ul>
+<li>&quot;You do not have permission to edit this translation.&quot;</li>
+<li>&quot;Nonce verification failed.&quot;</li>
+<li>Changes silently revert after clicking Update.</li>
+</ul>
+<h3>Checklist</h3>
+<ol>
+<li><strong>Re-login.</strong>
+Nonce and session errors usually mean your WordPress login expired
+in another tab. Log out and log back in, then retry.</li>
+<li><strong>User role.</strong>
+Translation editing requires <code>edit_posts</code> at minimum. Importing JSON
+requires <code>manage_options</code> (Administrator).</li>
+<li><strong>Browser extensions.</strong>
+Aggressive privacy extensions (some ad-blockers, uBlock Origin custom
+rules) can strip the nonce from the save request. Try in an incognito
+window with extensions disabled.</li>
+<li><strong>Server error logs.</strong>
+If saving genuinely fails (500 error, blank screen), ask your
+developer to check <code>wp-content/debug.log</code> or the host&#39;s PHP error log
+for a stack trace.</li>
+</ol>
+<hr>
+<h2>9. Getting More Help</h2>
+<h3>Self-service</h3>
+<ol>
+<li>Re-read <a href="./EDITORS_GUIDE.md"><code>EDITORS_GUIDE.md</code></a> — most &quot;it doesn&#39;t work&quot;
+questions are answered in the Best Practices section.</li>
+<li>Skim <a href="../../README-BLOG.md"><code>../../README-BLOG.md</code></a> for the end-to-end
+translation flow.</li>
+<li>Check the browser&#39;s developer console (F12 → Console tab) for red error
+messages — copy them verbatim if you escalate.</li>
+</ol>
+<h3>Escalating to developers</h3>
+<p>When opening a ticket or contacting the plugin maintainer, include:</p>
+<ul>
+<li><strong>URL</strong> where the issue occurs (with <code>?lang=</code> if relevant).</li>
+<li><strong>Post ID</strong> of the post you were editing.</li>
+<li><strong>Expected behavior</strong> and <strong>actual behavior</strong>.</li>
+<li><strong>Steps to reproduce</strong> from a logged-out or incognito window.</li>
+<li><strong>Screenshot</strong> of the Translations meta box.</li>
+<li><strong>Browser &amp; WordPress version.</strong></li>
+<li><strong>Other active plugins</strong> (especially other caching or multilingual plugins).</li>
+</ul>
+<h3>Developer references</h3>
+<ul>
+<li>REST API: <a href="../API.md"><code>../API.md</code></a></li>
+<li>WP-CLI: <a href="../CLI-COMMANDS.md"><code>../CLI-COMMANDS.md</code></a></li>
+<li>Plugin source: <code>includes/class-post-editor.php</code>, <code>includes/class-frontend.php</code></li>
+</ul>
+
+</body>
+</html>
