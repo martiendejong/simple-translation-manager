@@ -85,10 +85,12 @@ class PostEditor {
             return;
         }
 
+        wp_enqueue_style('dashicons');
+
         wp_enqueue_style(
             'stm-post-editor',
             STM_PLUGIN_URL . 'assets/admin-post-editor.css',
-            [],
+            ['dashicons'],
             STM_VERSION
         );
 
@@ -100,12 +102,24 @@ class PostEditor {
             true
         );
 
+        $post_id = isset($_GET['post']) ? (int) $_GET['post'] : 0;
+        $current_lang = $post_id ? self::get_post_language($post_id) : Settings::get_default_language();
+
         wp_localize_script('stm-post-editor', 'stmPostEditor', [
             'ajaxUrl'     => admin_url('admin-ajax.php'),
             'nonce'       => wp_create_nonce('stm_post_editor_nonce'),
-            'restUrl'     => rest_url('stm/v1'),
+            'restUrl'     => esc_url_raw(rest_url('stm/v1/translate/auto')),
             'restNonce'   => wp_create_nonce('wp_rest'),
+            'sourceLang'  => $current_lang,
             'defaultLang' => Settings::get_default_language(),
+            'i18n' => [
+                'translating'        => __('Translating…', 'simple-translation-manager'),
+                'translated'         => __('Translation complete', 'simple-translation-manager'),
+                'translateFailed'    => __('Auto-translate failed', 'simple-translation-manager'),
+                'nothingToTranslate' => __('No source content to translate — fill in the post first.', 'simple-translation-manager'),
+                'overwriteConfirm'   => __('This tab already has translations. Overwrite them with auto-translated content?', 'simple-translation-manager'),
+                'saved'              => __('Translations saved', 'simple-translation-manager'),
+            ],
         ]);
     }
 
@@ -188,6 +202,9 @@ class PostEditor {
                     }
                 }
             }
+
+            // Invalidate cached translations for this post across all languages
+            Cache::invalidate_post($post_id);
         }
     }
 
