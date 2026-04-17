@@ -13,6 +13,10 @@ if (isset($_POST['stm_save_settings']) && check_admin_referer('stm_settings')) {
         STM\Settings::set_cache_duration((int) $_POST['cache_duration'] ?? 3600);
         STM\Settings::set_keep_data_on_uninstall(isset($_POST['keep_data_on_uninstall']));
         STM\Settings::set_debug_mode(isset($_POST['debug_mode']));
+        STM\Settings::set_switcher_style(sanitize_text_field($_POST['switcher_style'] ?? 'list'));
+        STM\Settings::set_switcher_show_flags(isset($_POST['switcher_show_flags']));
+        STM\Settings::set_switcher_show_names(isset($_POST['switcher_show_names']));
+        STM\Settings::set_switcher_position(sanitize_text_field($_POST['switcher_position'] ?? 'none'));
 
         echo '<div class="notice notice-success is-dismissible"><p>Settings saved successfully.</p></div>';
     }
@@ -106,6 +110,57 @@ $languages = STM\Database::get_languages();
                     <p class="description">
                         Logs translation lookups and cache misses to debug.log<br>
                         Only enable for troubleshooting (impacts performance).
+                    </p>
+                </td>
+            </tr>
+        </table>
+
+        <h2 style="margin-top: 2em;">Language Switcher</h2>
+        <p>Configure how the language switcher looks and where it appears. Use the <code>[stm_language_switcher]</code> shortcode or the Language Switcher widget to place it manually.</p>
+
+        <table class="form-table">
+            <tr>
+                <th scope="row"><label for="switcher_style">Display Style</label></th>
+                <td>
+                    <select name="switcher_style" id="switcher_style">
+                        <option value="list"     <?php selected($settings['switcher_style'], 'list');     ?>>List — horizontal list of links</option>
+                        <option value="dropdown" <?php selected($settings['switcher_style'], 'dropdown'); ?>>Dropdown — single select menu</option>
+                        <option value="buttons"  <?php selected($settings['switcher_style'], 'buttons');  ?>>Buttons — pill buttons per language</option>
+                        <option value="flags"    <?php selected($settings['switcher_style'], 'flags');    ?>>Flags only — emoji flags, no text</option>
+                    </select>
+                    <p class="description">Default style used by shortcode, widget, and auto-inject.</p>
+                </td>
+            </tr>
+            <tr>
+                <th scope="row">Display Options</th>
+                <td>
+                    <label style="display:block;margin-bottom:6px;">
+                        <input type="checkbox" name="switcher_show_flags" value="1"
+                               <?php checked($settings['switcher_show_flags']); ?>>
+                        Show flag emoji
+                    </label>
+                    <label style="display:block;">
+                        <input type="checkbox" name="switcher_show_names" value="1"
+                               <?php checked($settings['switcher_show_names']); ?>>
+                        Show language name
+                    </label>
+                    <p class="description">
+                        At least one of these should be enabled. "Flags only" style ignores these and always shows flags.
+                    </p>
+                </td>
+            </tr>
+            <tr>
+                <th scope="row"><label for="switcher_position">Auto-inject Position</label></th>
+                <td>
+                    <select name="switcher_position" id="switcher_position">
+                        <option value="none"           <?php selected($settings['switcher_position'], 'none');           ?>>None — place manually via shortcode or widget</option>
+                        <option value="before_content" <?php selected($settings['switcher_position'], 'before_content'); ?>>Before post content</option>
+                        <option value="after_content"  <?php selected($settings['switcher_position'], 'after_content');  ?>>After post content</option>
+                        <option value="both"           <?php selected($settings['switcher_position'], 'both');           ?>>Before and after content</option>
+                    </select>
+                    <p class="description">
+                        Auto-inject adds the switcher to single post/page content automatically.<br>
+                        Use "None" if you place it with the widget or shortcode.
                     </p>
                 </td>
             </tr>
