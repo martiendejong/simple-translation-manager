@@ -13,6 +13,8 @@ namespace STM;
 
 class LanguageSwitcher extends \WP_Widget {
 
+    private static $generating_excerpt = false;
+
     public static function init() {
         add_action('widgets_init', function() {
             register_widget('STM\LanguageSwitcher');
@@ -23,7 +25,11 @@ class LanguageSwitcher extends \WP_Widget {
         // Enqueue frontend CSS on every page load
         add_action('wp_enqueue_scripts', [__CLASS__, 'enqueue_styles']);
 
-        // Auto-inject into post content when position is configured
+        // Track when WordPress is generating an excerpt so we can skip the_content injection
+        // and only inject via the_excerpt (preventing double-output when both filters fire).
+        add_filter('pre_get_the_excerpt', function($post) { self::$generating_excerpt = true;  return $post; });
+        add_filter('the_excerpt',         function($text)  { self::$generating_excerpt = false; return $text;  }, 999);
+
         add_filter('the_content', [__CLASS__, 'auto_inject'], 20);
         add_filter('the_excerpt', [__CLASS__, 'auto_inject'], 20);
     }
@@ -130,6 +136,12 @@ class LanguageSwitcher extends \WP_Widget {
 
     public static function auto_inject($content) {
         if (!is_singular()) {
+            return $content;
+        }
+
+        // Skip the_content injection when WordPress is generating an excerpt —
+        // the the_excerpt filter (which runs after stripping) will handle it instead.
+        if (current_filter() === 'the_content' && self::$generating_excerpt) {
             return $content;
         }
 
