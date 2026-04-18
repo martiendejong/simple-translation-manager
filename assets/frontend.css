@@ -81,11 +81,8 @@
 
 .stm-style-buttons .stm-lang-btn.current {
     opacity: 1;
-    background-color: currentColor;
-}
-
-.stm-style-buttons .stm-lang-btn.current span,
-.stm-style-buttons .stm-lang-btn.current {
+    background-color: #333;
+    border-color: #333;
     color: #fff;
 }
 
