@@ -25,6 +25,7 @@ class LanguageSwitcher extends \WP_Widget {
 
         // Auto-inject into post content when position is configured
         add_filter('the_content', [__CLASS__, 'auto_inject'], 20);
+        add_filter('the_excerpt', [__CLASS__, 'auto_inject'], 20);
     }
 
     // -------------------------------------------------------------------------
