@@ -14,11 +14,17 @@ class Settings {
     /**
      * Option names
      */
-    const OPTION_DEFAULT_LANGUAGE = 'stm_default_language';
+    const OPTION_DEFAULT_LANGUAGE   = 'stm_default_language';
     const OPTION_ENABLE_URL_ROUTING = 'stm_enable_url_routing';
-    const OPTION_CACHE_DURATION = 'stm_cache_duration';
-    const OPTION_KEEP_DATA = 'stm_keep_data_on_uninstall';
-    const OPTION_DEBUG_MODE = 'stm_debug_mode';
+    const OPTION_CACHE_DURATION     = 'stm_cache_duration';
+    const OPTION_KEEP_DATA          = 'stm_keep_data_on_uninstall';
+    const OPTION_DEBUG_MODE         = 'stm_debug_mode';
+
+    // Language switcher
+    const OPTION_SWITCHER_STYLE      = 'stm_switcher_style';
+    const OPTION_SWITCHER_SHOW_FLAGS = 'stm_switcher_show_flags';
+    const OPTION_SWITCHER_SHOW_NAMES = 'stm_switcher_show_names';
+    const OPTION_SWITCHER_POSITION   = 'stm_switcher_position';
 
     /**
      * Get default language code
@@ -146,12 +152,62 @@ class Settings {
      */
     public static function get_all() {
         return [
-            'default_language' => self::get_default_language(),
-            'enable_url_routing' => self::is_url_routing_enabled(),
-            'cache_duration' => self::get_cache_duration(),
-            'keep_data_on_uninstall' => self::keep_data_on_uninstall(),
-            'debug_mode' => self::is_debug_mode(),
+            'default_language'      => self::get_default_language(),
+            'enable_url_routing'    => self::is_url_routing_enabled(),
+            'cache_duration'        => self::get_cache_duration(),
+            'keep_data_on_uninstall'=> self::keep_data_on_uninstall(),
+            'debug_mode'            => self::is_debug_mode(),
+            'switcher_style'        => self::get_switcher_style(),
+            'switcher_show_flags'   => self::switcher_show_flags(),
+            'switcher_show_names'   => self::switcher_show_names(),
+            'switcher_position'     => self::get_switcher_position(),
         ];
+    }
+
+    /**
+     * Language switcher style — 'list', 'dropdown', 'buttons', 'flags'
+     */
+    public static function get_switcher_style() {
+        return get_option(self::OPTION_SWITCHER_STYLE, 'list');
+    }
+
+    public static function set_switcher_style($style) {
+        $allowed = ['list', 'dropdown', 'buttons', 'flags'];
+        return update_option(self::OPTION_SWITCHER_STYLE, in_array($style, $allowed, true) ? $style : 'list');
+    }
+
+    /**
+     * Show flag emoji in switcher
+     */
+    public static function switcher_show_flags() {
+        return (bool) get_option(self::OPTION_SWITCHER_SHOW_FLAGS, true);
+    }
+
+    public static function set_switcher_show_flags($show) {
+        return update_option(self::OPTION_SWITCHER_SHOW_FLAGS, (bool) $show);
+    }
+
+    /**
+     * Show language name in switcher
+     */
+    public static function switcher_show_names() {
+        return (bool) get_option(self::OPTION_SWITCHER_SHOW_NAMES, true);
+    }
+
+    public static function set_switcher_show_names($show) {
+        return update_option(self::OPTION_SWITCHER_SHOW_NAMES, (bool) $show);
+    }
+
+    /**
+     * Auto-inject position — 'none', 'before_content', 'after_content', 'both'
+     */
+    public static function get_switcher_position() {
+        return get_option(self::OPTION_SWITCHER_POSITION, 'none');
+    }
+
+    public static function set_switcher_position($position) {
+        $allowed = ['none', 'before_content', 'after_content', 'both'];
+        return update_option(self::OPTION_SWITCHER_POSITION, in_array($position, $allowed, true) ? $position : 'none');
     }
 
     /**

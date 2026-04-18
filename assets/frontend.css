@@ -1,0 +1,114 @@
+/* Simple Translation Manager — Frontend Switcher Styles */
+
+.stm-language-switcher {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.9em;
+}
+
+/* ── List ── */
+.stm-style-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
+.stm-style-list li {
+    margin: 0;
+    padding: 0;
+}
+
+.stm-style-list li a {
+    display: inline-block;
+    padding: 4px 8px;
+    text-decoration: none;
+    border-radius: 3px;
+    color: inherit;
+    opacity: 0.7;
+    transition: opacity 0.15s;
+}
+
+.stm-style-list li a:hover,
+.stm-style-list li.current a {
+    opacity: 1;
+    font-weight: 600;
+}
+
+/* ── Dropdown ── */
+.stm-style-dropdown select {
+    padding: 5px 8px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    background: #fff;
+    cursor: pointer;
+    font-size: inherit;
+}
+
+.stm-style-dropdown select:focus {
+    outline: 2px solid #0073aa;
+    outline-offset: 1px;
+}
+
+/* ── Buttons ── */
+.stm-style-buttons {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.stm-style-buttons .stm-lang-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 6px 14px;
+    border: 2px solid currentColor;
+    border-radius: 4px;
+    text-decoration: none;
+    font-weight: 500;
+    color: inherit;
+    opacity: 0.65;
+    transition: opacity 0.15s, background-color 0.15s;
+    line-height: 1.3;
+}
+
+.stm-style-buttons .stm-lang-btn:hover {
+    opacity: 0.9;
+}
+
+.stm-style-buttons .stm-lang-btn.current {
+    opacity: 1;
+    background-color: #333;
+    border-color: #333;
+    color: #fff;
+}
+
+/* ── Flags ── */
+.stm-style-flags {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+}
+
+.stm-style-flags a {
+    display: inline-block;
+    font-size: 1.5em;
+    line-height: 1;
+    text-decoration: none;
+    opacity: 0.55;
+    transition: opacity 0.15s;
+}
+
+.stm-style-flags a:hover,
+.stm-style-flags a.current {
+    opacity: 1;
+}
+
+/* ── Auto-inject wrapper ── */
+.stm-auto-inject {
+    margin: 1em 0;
+}
