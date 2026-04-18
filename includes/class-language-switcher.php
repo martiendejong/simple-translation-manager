@@ -13,8 +13,6 @@ namespace STM;
 
 class LanguageSwitcher extends \WP_Widget {
 
-    private static $generating_excerpt = false;
-
     public static function init() {
         add_action('widgets_init', function() {
             register_widget('STM\LanguageSwitcher');
@@ -24,11 +22,6 @@ class LanguageSwitcher extends \WP_Widget {
 
         // Enqueue frontend CSS on every page load
         add_action('wp_enqueue_scripts', [__CLASS__, 'enqueue_styles']);
-
-        // Track when WordPress is generating an excerpt so we can skip the_content injection
-        // and only inject via the_excerpt (preventing double-output when both filters fire).
-        add_filter('pre_get_the_excerpt', function($post) { self::$generating_excerpt = true;  return $post; });
-        add_filter('the_excerpt',         function($text)  { self::$generating_excerpt = false; return $text;  }, 999);
 
         add_filter('the_content', [__CLASS__, 'auto_inject'], 20);
         add_filter('the_excerpt', [__CLASS__, 'auto_inject'], 20);
@@ -139,9 +132,10 @@ class LanguageSwitcher extends \WP_Widget {
             return $content;
         }
 
-        // Skip the_content injection when WordPress is generating an excerpt —
-        // the the_excerpt filter (which runs after stripping) will handle it instead.
-        if (current_filter() === 'the_content' && self::$generating_excerpt) {
+        // Skip the_content injection when it fires inside wp_trim_excerpt —
+        // get_the_excerpt is in the filter stack at that point. The the_excerpt
+        // filter runs after HTML-stripping and handles the injection cleanly.
+        if (current_filter() === 'the_content' && doing_filter('get_the_excerpt')) {
             return $content;
         }
 
