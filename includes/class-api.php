@@ -122,6 +122,13 @@ class API {
             'permission_callback' => [__CLASS__, 'check_permissions'],
         ]);
 
+        // Languages — update
+        register_rest_route($namespace, '/languages/(?P<id>\d+)', [
+            'methods' => 'PUT',
+            'callback' => [__CLASS__, 'update_language'],
+            'permission_callback' => [__CLASS__, 'check_permissions'],
+        ]);
+
         // Delete all translations for a post in one language
         register_rest_route($namespace, '/posts/(?P<id>\d+)/translations/(?P<lang>[a-z]{2,3})', [
             'methods' => 'DELETE',
@@ -746,6 +753,50 @@ class API {
         }
 
         return rest_ensure_response(['success' => true, 'slug' => $slug]);
+    }
+
+    /**
+     * PUT /languages/{id} - Update a language (name, native_name, flag_emoji, is_active, order_index)
+     */
+    public static function update_language($request) {
+        global $wpdb;
+
+        $id = intval($request['id']);
+
+        $lang = $wpdb->get_row($wpdb->prepare(
+            "SELECT * FROM {$wpdb->prefix}stm_languages WHERE id = %d",
+            $id
+        ));
+
+        if (!$lang) {
+            return new \WP_Error('not_found', 'Language not found', ['status' => 404]);
+        }
+
+        $update = [];
+
+        if (isset($request['name']))        $update['name']        = sanitize_text_field($request['name']);
+        if (isset($request['native_name'])) $update['native_name'] = sanitize_text_field($request['native_name']);
+        if (isset($request['flag_emoji']))  $update['flag_emoji']  = sanitize_text_field($request['flag_emoji']);
+        if (isset($request['order_index'])) $update['order_index'] = max(0, intval($request['order_index']));
+        if (isset($request['is_active']))   $update['is_active']   = $request['is_active'] ? 1 : 0;
+
+        if (empty($update)) {
+            return new \WP_Error('no_data', 'Nothing to update', ['status' => 400]);
+        }
+
+        $result = $wpdb->update($wpdb->prefix . 'stm_languages', $update, ['id' => $id]);
+
+        if ($result === false) {
+            return new \WP_Error('db_error', 'Failed to update language', ['status' => 500]);
+        }
+
+        wp_cache_delete('stm_active_languages');
+
+        if (isset($update['is_active'])) {
+            flush_rewrite_rules(false);
+        }
+
+        return rest_ensure_response(['success' => true]);
     }
 
     /**

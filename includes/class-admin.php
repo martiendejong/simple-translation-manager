@@ -26,6 +26,13 @@ class Admin {
         add_action('admin_post_stm_delete_language', [__CLASS__, 'delete_language']);
         add_action('admin_post_stm_save_ai_settings', [__CLASS__, 'save_ai_settings']);
         add_action('admin_notices', [__CLASS__, 'show_translation_warnings']);
+
+        // Session persistence: save/load filter state via AJAX
+        add_action('wp_ajax_stm_save_prefs', [__CLASS__, 'ajax_save_prefs']);
+        add_action('wp_ajax_stm_load_prefs', [__CLASS__, 'ajax_load_prefs']);
+
+        // Nonce refresh via heartbeat (keeps long-open admin pages valid)
+        add_filter('heartbeat_received', [__CLASS__, 'heartbeat_refresh_nonce'], 10, 2);
     }
 
     /**
@@ -118,8 +125,10 @@ class Admin {
         );
 
         wp_localize_script('stm-admin', 'stmAdmin', [
-            'ajaxUrl' => admin_url('admin-ajax.php'),
-            'nonce' => wp_create_nonce('stm_admin_nonce'),
+            'ajaxUrl'   => admin_url('admin-ajax.php'),
+            'nonce'     => wp_create_nonce('stm_admin_nonce'),
+            'restNonce' => wp_create_nonce('wp_rest'),
+            'restUrl'   => esc_url_raw(rest_url('stm/v1')),
         ]);
 
         // Dashboard-specific assets
@@ -584,6 +593,59 @@ class Admin {
     }
 
     /**
+     * AJAX: save user filter preferences to user_meta
+     * Called by admin JS when filters change or a dashboard tab is selected.
+     * Stored per-page so different STM pages have independent state.
+     */
+    public static function ajax_save_prefs() {
+        check_ajax_referer('stm_admin_nonce', 'nonce');
+
+        $page  = sanitize_key($_POST['page'] ?? '');
+        $prefs = $_POST['prefs'] ?? [];
+
+        if (!$page || !is_array($prefs)) {
+            wp_send_json_error('Invalid request');
+        }
+
+        // Whitelist allowed keys to prevent arbitrary meta storage
+        $allowed = ['lang', 'context', 'status', 'search', 'paged', 'tab'];
+        $clean   = [];
+        foreach ($allowed as $key) {
+            if (isset($prefs[$key])) {
+                $clean[$key] = sanitize_text_field($prefs[$key]);
+            }
+        }
+
+        $all = (array) get_user_meta(get_current_user_id(), 'stm_admin_prefs', true);
+        $all[$page] = $clean;
+        update_user_meta(get_current_user_id(), 'stm_admin_prefs', $all);
+
+        wp_send_json_success();
+    }
+
+    /**
+     * AJAX: return saved preferences for the current user
+     */
+    public static function ajax_load_prefs() {
+        check_ajax_referer('stm_admin_nonce', 'nonce');
+
+        $page = sanitize_key($_POST['page'] ?? '');
+        $all  = (array) get_user_meta(get_current_user_id(), 'stm_admin_prefs', true);
+
+        wp_send_json_success($all[$page] ?? []);
+    }
+
+    /**
+     * Heartbeat: refresh STM nonce so admin pages open > 12h stay valid
+     */
+    public static function heartbeat_refresh_nonce($response, $data) {
+        if (!empty($data['stm_refresh_nonce'])) {
+            $response['stm_nonce'] = wp_create_nonce('stm_admin_nonce');
+        }
+        return $response;
+    }
+
+    /**
      * Save AI/auto-translate settings
      */
     public static function save_ai_settings() {
@@ -595,7 +657,11 @@ class Admin {
         $openai_key = sanitize_text_field($_POST['openai_key'] ?? '');
         $deepl_key  = sanitize_text_field($_POST['deepl_key'] ?? '');
 
-        AutoTranslate::save_settings($provider, $openai_key ?: null, $deepl_key ?: null);
+        AutoTranslate::save_settings($provider, $openai_key ?: null, $deepl_key ?: null, [
+            'openai_model'           => sanitize_text_field($_POST['openai_model'] ?? ''),
+            'openai_temperature'     => (float) ($_POST['openai_temperature'] ?? 0.3),
+            'openai_prompt_template' => sanitize_textarea_field($_POST['openai_prompt_template'] ?? ''),
+        ]);
 
         wp_redirect(add_query_arg('stm_saved', '1', wp_get_referer()));
         exit;

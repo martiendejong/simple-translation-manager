@@ -197,7 +197,7 @@ $languages = STM\Database::get_languages();
                     <th><label for="ai_provider">Provider</label></th>
                     <td>
                         <select id="ai_provider" name="ai_provider">
-                            <option value="openai" <?php selected($ai['provider'], 'openai'); ?>>OpenAI (GPT-4o-mini) — best quality</option>
+                            <option value="openai" <?php selected($ai['provider'], 'openai'); ?>>OpenAI (GPT) — best quality</option>
                             <option value="deepl"  <?php selected($ai['provider'], 'deepl');  ?>>DeepL — free tier 500k chars/mo</option>
                         </select>
                     </td>
@@ -214,6 +214,36 @@ $languages = STM\Database::get_languages();
                     </td>
                 </tr>
                 <tr>
+                    <th><label for="openai_model">OpenAI Model</label></th>
+                    <td>
+                        <select id="openai_model" name="openai_model">
+                            <option value="gpt-4o-mini" <?php selected($ai['openai_model'], 'gpt-4o-mini'); ?>>gpt-4o-mini — fast &amp; cheap (~$0.0003/call)</option>
+                            <option value="gpt-4o"      <?php selected($ai['openai_model'], 'gpt-4o');      ?>>gpt-4o — best quality</option>
+                            <option value="gpt-3.5-turbo" <?php selected($ai['openai_model'], 'gpt-3.5-turbo'); ?>>gpt-3.5-turbo — legacy</option>
+                        </select>
+                    </td>
+                </tr>
+                <tr>
+                    <th><label for="openai_temperature">Temperature</label></th>
+                    <td>
+                        <input type="range" id="openai_temperature" name="openai_temperature"
+                               min="0" max="1" step="0.05"
+                               value="<?php echo esc_attr($ai['openai_temperature']); ?>"
+                               oninput="document.getElementById('stm_temp_display').textContent=this.value">
+                        <span id="stm_temp_display" style="margin-left:8px;font-weight:600;"><?php echo esc_html($ai['openai_temperature']); ?></span>
+                        <p class="description">0 = deterministic, 1 = creative. Default: 0.3 (recommended for translation).</p>
+                    </td>
+                </tr>
+                <tr>
+                    <th><label for="openai_prompt_template">Prompt Template</label></th>
+                    <td>
+                        <textarea id="openai_prompt_template" name="openai_prompt_template"
+                                  class="large-text" rows="4"
+                                  placeholder="Leave empty for default. Use {source} and {target} as placeholders for language names."><?php echo esc_textarea($ai['openai_prompt_template']); ?></textarea>
+                        <p class="description">Custom system prompt. Leave empty to use the built-in prompt. Use <code>{source}</code> and <code>{target}</code> for language names.</p>
+                    </td>
+                </tr>
+                <tr>
                     <th><label for="deepl_key">DeepL API Key</label></th>
                     <td>
                         <input type="password" id="deepl_key" name="deepl_key" class="regular-text"
@@ -226,8 +256,10 @@ $languages = STM\Database::get_languages();
                 </tr>
             </table>
 
-            <p class="submit">
+            <p class="submit" style="display:flex;gap:8px;align-items:center;">
                 <button type="submit" class="button button-primary">Save AI Settings</button>
+                <button type="button" id="stm-test-ai-connection" class="button">Test connection</button>
+                <span id="stm-ai-test-result" style="margin-left:4px;"></span>
             </p>
         </form>
     </div>

@@ -31,31 +31,56 @@ $error_messages = [
     <table class="wp-list-table widefat fixed striped">
         <thead>
             <tr>
-                <th style="width:8%;">Code</th>
-                <th style="width:18%;">Name</th>
-                <th style="width:18%;">Native Name</th>
+                <th style="width:7%;">Code</th>
+                <th style="width:16%;">Name</th>
+                <th style="width:16%;">Native Name</th>
                 <th style="width:6%;">Flag</th>
-                <th style="width:8%;">Default</th>
-                <th style="width:8%;">Active</th>
-                <th style="width:8%;">Order</th>
-                <th style="width:10%;">Actions</th>
+                <th style="width:7%;">Default</th>
+                <th style="width:7%;">Active</th>
+                <th style="width:7%;">Order</th>
+                <th style="width:34%;">Actions</th>
             </tr>
         </thead>
         <tbody>
             <?php foreach ($languages as $lang): ?>
-                <tr>
+                <tr data-lang-id="<?php echo esc_attr($lang->id); ?>">
                     <td><code><?php echo esc_html($lang->code); ?></code></td>
                     <td><?php echo esc_html($lang->name); ?></td>
                     <td><?php echo esc_html($lang->native_name); ?></td>
                     <td><?php echo esc_html($lang->flag_emoji); ?></td>
                     <td><?php echo $lang->is_default ? '<strong>✓ default</strong>' : ''; ?></td>
-                    <td><?php echo $lang->is_active ? '✓' : '—'; ?></td>
-                    <td><?php echo esc_html($lang->order_index); ?></td>
                     <td>
+                        <button type="button"
+                                class="button button-small stm-lang-toggle-active"
+                                data-lang-id="<?php echo esc_attr($lang->id); ?>"
+                                data-is-active="<?php echo (int) $lang->is_active; ?>"
+                                <?php echo $lang->is_default ? 'disabled title="Default language is always active"' : ''; ?>>
+                            <?php echo $lang->is_active ? 'Active' : 'Inactive'; ?>
+                        </button>
+                    </td>
+                    <td>
+                        <button type="button" class="button button-small stm-lang-move"
+                                data-lang-id="<?php echo esc_attr($lang->id); ?>"
+                                data-direction="up"
+                                data-order="<?php echo esc_attr($lang->order_index); ?>"
+                                title="Move up">↑</button>
+                        <button type="button" class="button button-small stm-lang-move"
+                                data-lang-id="<?php echo esc_attr($lang->id); ?>"
+                                data-direction="down"
+                                data-order="<?php echo esc_attr($lang->order_index); ?>"
+                                title="Move down">↓</button>
+                        <?php echo esc_html($lang->order_index); ?>
+                    </td>
+                    <td>
+                        <button type="button"
+                                class="button button-small stm-lang-edit"
+                                data-lang-id="<?php echo esc_attr($lang->id); ?>">
+                            Edit
+                        </button>
                         <?php if (!$lang->is_default): ?>
                             <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>"
                                   style="display:inline;"
-                                  onsubmit="return confirm('Delete <?php echo esc_js($lang->name); ?>?')">
+                                  onsubmit="return confirm('Delete <?php echo esc_js($lang->name); ?> and all its translations?')">
                                 <input type="hidden" name="action" value="stm_delete_language">
                                 <input type="hidden" name="lang_code" value="<?php echo esc_attr($lang->code); ?>">
                                 <?php wp_nonce_field('stm_delete_language'); ?>
@@ -66,6 +91,36 @@ $error_messages = [
                         <?php endif; ?>
                     </td>
                 </tr>
+
+                <!-- Inline edit row (hidden by default) -->
+                <tr class="stm-lang-edit-row" data-lang-id="<?php echo esc_attr($lang->id); ?>" style="display:none;background:#f9f9f9;">
+                    <td colspan="8" style="padding:16px;">
+                        <strong>Edit: <?php echo esc_html($lang->name); ?></strong>
+                        <table class="form-table" style="margin-top:10px;">
+                            <tr>
+                                <th style="width:150px;"><label>Name</label></th>
+                                <td><input type="text" name="name" class="regular-text" value="<?php echo esc_attr($lang->name); ?>"></td>
+                            </tr>
+                            <tr>
+                                <th><label>Native Name</label></th>
+                                <td><input type="text" name="native_name" class="regular-text" value="<?php echo esc_attr($lang->native_name); ?>"></td>
+                            </tr>
+                            <tr>
+                                <th><label>Flag Emoji</label></th>
+                                <td><input type="text" name="flag_emoji" class="small-text" value="<?php echo esc_attr($lang->flag_emoji); ?>" maxlength="10"></td>
+                            </tr>
+                            <tr>
+                                <th><label>Sort Order</label></th>
+                                <td><input type="number" name="order_index" class="small-text" value="<?php echo esc_attr($lang->order_index); ?>" min="0" max="999"></td>
+                            </tr>
+                        </table>
+                        <p style="margin-top:10px;">
+                            <button type="button" class="button button-primary stm-lang-edit-save">Save</button>
+                            <button type="button" class="button stm-lang-edit-cancel" style="margin-left:6px;">Cancel</button>
+                        </p>
+                    </td>
+                </tr>
+
             <?php endforeach; ?>
         </tbody>
     </table>
