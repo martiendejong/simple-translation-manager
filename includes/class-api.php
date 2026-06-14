@@ -187,6 +187,8 @@ class API {
             }
 
             wp_cache_delete('stm_active_languages');
+            // New language means new rewrite rules needed
+            flush_rewrite_rules( false );
             return rest_ensure_response(['id' => $wpdb->insert_id, 'success' => true]);
         } catch (\Exception $e) {
             Security::log('Error creating language: ' . $e->getMessage(), 'error');

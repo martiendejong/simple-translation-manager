@@ -150,35 +150,40 @@ class Frontend {
 
     /**
      * Filter permalink
+     *
+     * Rewrites internal links to use the /{lang}/ prefix structure that matches
+     * the rewrite rules, e.g. /topic/valsuani/ → /fr/topic/valsuani/
+     * If a translated slug exists for the post it is substituted first.
      */
-    public static function filter_permalink($permalink, $post) {
-        if (is_admin()) {
+    public static function filter_permalink( $permalink, $post ) {
+        if ( is_admin() ) {
             return $permalink;
         }
 
         $current_lang = self::get_current_language();
         $default_lang = Settings::get_default_language();
 
-        // If on default language, return as-is
-        if ($current_lang === $default_lang) {
+        if ( $current_lang === $default_lang ) {
             return $permalink;
         }
 
-        $post_lang = PostEditor::get_post_language($post->ID);
-
-        // Get translation slug
-        $translation = PostEditor::get_post_translation($post->ID, $current_lang);
-
-        if (!empty($translation['post_name'])) {
-            // Replace slug in permalink
-            $original_slug = $post->post_name;
-            $translated_slug = $translation['post_name'];
-            $permalink = str_replace('/' . $original_slug . '/', '/' . $translated_slug . '/', $permalink);
+        // Substitute translated slug when one exists
+        $translation = PostEditor::get_post_translation( $post->ID, $current_lang );
+        if ( ! empty( $translation['post_name'] ) && $translation['post_name'] !== $post->post_name ) {
+            $permalink = str_replace(
+                '/' . $post->post_name . '/',
+                '/' . $translation['post_name'] . '/',
+                $permalink
+            );
         }
 
-        // Add language parameter
-        $separator = (strpos($permalink, '?') !== false) ? '&' : '?';
-        $permalink = $permalink . $separator . 'lang=' . $current_lang;
+        // Inject language prefix after the home URL
+        // e.g. https://example.com/topic/x/ → https://example.com/fr/topic/x/
+        $home = trailingslashit( home_url() );
+        if ( strpos( $permalink, $home ) === 0 ) {
+            $path      = substr( $permalink, strlen( $home ) );
+            $permalink = $home . $current_lang . '/' . $path;
+        }
 
         return $permalink;
     }
