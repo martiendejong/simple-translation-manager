@@ -49,6 +49,8 @@ require_once STM_PLUGIN_DIR . 'includes/class-import-export.php';
 require_once STM_PLUGIN_DIR . 'includes/class-translation-memory.php';
 require_once STM_PLUGIN_DIR . 'includes/class-auto-translate.php';
 require_once STM_PLUGIN_DIR . 'includes/class-dashboard.php';
+require_once STM_PLUGIN_DIR . 'includes/class-hreflang.php';
+require_once STM_PLUGIN_DIR . 'includes/class-seo-god-integration.php';
 
 // WP-CLI commands (only loaded if WP-CLI is available)
 if (defined('WP_CLI') && WP_CLI) {
@@ -74,41 +76,49 @@ function stm_deactivate() {
 register_deactivation_hook(__FILE__, 'stm_deactivate');
 
 /**
- * Handle language URL redirects
+ * Inject language-prefixed rewrite rules for every non-default language.
+ *
+ * For each existing WordPress rewrite rule we add a clone prefixed with the
+ * language code, e.g.:
+ *   topic/([^/]+)/?$  →  fr/topic/([^/]+)/?$  (with &lang=fr appended)
+ *
+ * This means /fr/topic/valsuani/ is served directly by WordPress as the
+ * French version of that post — no redirect, fully indexable by Google.
+ *
+ * Call flush_rewrite_rules() after enabling/disabling a language for the
+ * new rules to take effect (activation/deactivation hooks already do this).
  */
-function stm_template_redirect() {
-    if (!STM\Settings::is_url_routing_enabled()) {
-        return;
+function stm_rewrite_rules_array( array $rules ): array {
+    if ( ! STM\Settings::is_url_routing_enabled() ) {
+        return $rules;
     }
-
-    $request_uri = $_SERVER['REQUEST_URI'];
-
-    // Require /{lang}/ with a subsequent path to avoid hijacking bare 2-letter page slugs (e.g. /de, /nl)
-    if (!preg_match('#^/([a-z]{2,3})/(.*)$#', $request_uri, $matches)) {
-        return;
-    }
-
-    $lang_code = $matches[1];
-    $path = '/' . $matches[2];
 
     $languages = STM\Database::get_languages();
-    $valid_codes = array_map(function($lang) { return $lang->code; }, $languages);
+    $default   = STM\Settings::get_default_language();
+    $prefixed  = [];
 
-    if (!in_array($lang_code, $valid_codes)) {
-        return;
+    foreach ( $languages as $lang ) {
+        if ( $lang->code === $default ) {
+            continue;
+        }
+
+        $code = preg_quote( $lang->code, '#' );
+
+        foreach ( $rules as $pattern => $rewrite ) {
+            // Strip the leading ^ that WordPress adds — we re-add it with the prefix
+            $clean   = ltrim( $pattern, '^' );
+            $sep     = ( strpos( $rewrite, '?' ) !== false ) ? '&' : '?';
+            $prefixed[ '^' . $code . '/' . $clean ] = $rewrite . $sep . 'lang=' . $lang->code;
+        }
+
+        // Root URL for this language: /fr/ → homepage with lang=fr
+        $prefixed[ '^' . $code . '/?$' ] = 'index.php?lang=' . $lang->code;
     }
 
-    if ($path === '/') {
-        setcookie('stm_lang', $lang_code, time() + (86400 * 30), '/');
-        $redirect_url = home_url('/');
-    } else {
-        $redirect_url = home_url($path . '?lang=' . $lang_code);
-    }
-
-    wp_safe_redirect($redirect_url, 301);
-    exit;
+    // Prepend so language rules take priority over default rules
+    return array_merge( $prefixed, $rules );
 }
-add_action('template_redirect', 'stm_template_redirect', 1);
+add_filter( 'rewrite_rules_array', 'stm_rewrite_rules_array' );
 
 /**
  * Register query vars
@@ -123,7 +133,6 @@ add_filter('query_vars', 'stm_query_vars');
  * Initialize plugin
  */
 function stm_init() {
-    // Initialize components
     STM\Admin::init();
     STM\API::init();
     STM\PostEditor::init();
@@ -133,5 +142,7 @@ function stm_init() {
     STM\TranslationMemory::init();
     STM\AutoTranslate::init();
     STM\Dashboard::init();
+    STM\Hreflang::init();
+    STM\SeoGodIntegration::init();
 }
 add_action('plugins_loaded', 'stm_init');

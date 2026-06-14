@@ -31,23 +31,32 @@ class Frontend {
 
     /**
      * Get current language
+     *
+     * Priority: rewrite query var → GET param → cookie → default
+     * The rewrite query var is set by WordPress when a /fr/... URL matches
+     * a language-prefixed rewrite rule (see stm_rewrite_rules_array filter).
      */
     public static function get_current_language() {
-        // Priority: URL parameter > Cookie > Default
-        if (isset($_GET['lang'])) {
-            $lang = sanitize_text_field($_GET['lang']);
-            if (Security::validate_language_code($lang)) {
-                setcookie('stm_lang', $lang, time() + (86400 * 30), '/');
+        // Priority 1: WordPress query var set by rewrite rules (/fr/topic/...)
+        $from_query = get_query_var( 'lang', '' );
+        if ( $from_query && Security::validate_language_code( $from_query ) ) {
+            return sanitize_text_field( $from_query );
+        }
+
+        // Priority 2: explicit GET param (?lang=fr)
+        if ( isset( $_GET['lang'] ) ) {
+            $lang = sanitize_text_field( $_GET['lang'] );
+            if ( Security::validate_language_code( $lang ) ) {
+                setcookie( 'stm_lang', $lang, time() + ( 86400 * 30 ), '/' );
                 return $lang;
             }
         }
 
-        // Check cookie
-        if (isset($_COOKIE['stm_lang'])) {
-            return sanitize_text_field($_COOKIE['stm_lang']);
+        // Priority 3: cookie (persisted from a previous visit)
+        if ( isset( $_COOKIE['stm_lang'] ) ) {
+            return sanitize_text_field( $_COOKIE['stm_lang'] );
         }
 
-        // Default language
         return Settings::get_default_language();
     }
 
