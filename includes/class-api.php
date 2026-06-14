@@ -122,6 +122,34 @@ class API {
             'permission_callback' => [__CLASS__, 'check_permissions'],
         ]);
 
+        // Delete all translations for a post in one language
+        register_rest_route($namespace, '/posts/(?P<id>\d+)/translations/(?P<lang>[a-z]{2,3})', [
+            'methods' => 'DELETE',
+            'callback' => [__CLASS__, 'delete_post_language_translations'],
+            'permission_callback' => [__CLASS__, 'check_permissions'],
+        ]);
+
+        // Languages — delete
+        register_rest_route($namespace, '/languages/(?P<id>\d+)', [
+            'methods' => 'DELETE',
+            'callback' => [__CLASS__, 'delete_language'],
+            'permission_callback' => [__CLASS__, 'check_permissions'],
+        ]);
+
+        // Strings — single item
+        register_rest_route($namespace, '/strings/(?P<id>\d+)', [
+            'methods' => 'GET',
+            'callback' => [__CLASS__, 'get_string'],
+            'permission_callback' => '__return_true',
+        ]);
+
+        // Cache flush (scoped to STM only)
+        register_rest_route($namespace, '/cache/flush', [
+            'methods' => 'POST',
+            'callback' => [__CLASS__, 'flush_cache'],
+            'permission_callback' => [__CLASS__, 'check_permissions'],
+        ]);
+
         // Export/Import
         register_rest_route($namespace, '/export', [
             'methods' => 'GET',
@@ -721,6 +749,107 @@ class API {
     }
 
     /**
+     * DELETE /posts/{id}/translations/{lang} - Remove all translations for a post in one language
+     */
+    public static function delete_post_language_translations($request) {
+        global $wpdb;
+
+        $post_id = intval($request['id']);
+        $lang    = sanitize_text_field($request['lang']);
+
+        if (!get_post($post_id)) {
+            return new \WP_Error('not_found', 'Post not found', ['status' => 404]);
+        }
+
+        if (!Security::validate_language_code($lang)) {
+            return new \WP_Error('invalid_language', 'Invalid language code', ['status' => 400]);
+        }
+
+        if (!current_user_can('edit_post', $post_id)) {
+            return new \WP_Error('forbidden', 'Insufficient permissions', ['status' => 403]);
+        }
+
+        $deleted = $wpdb->delete(
+            $wpdb->prefix . 'stm_post_translations',
+            ['post_id' => $post_id, 'language_code' => $lang],
+            ['%d', '%s']
+        );
+
+        Cache::invalidate_post($post_id);
+
+        return rest_ensure_response(['success' => true, 'deleted' => $deleted]);
+    }
+
+    /**
+     * DELETE /languages/{id} - Delete a language and all its translations
+     */
+    public static function delete_language($request) {
+        global $wpdb;
+
+        $id = intval($request['id']);
+
+        $lang = $wpdb->get_row($wpdb->prepare(
+            "SELECT * FROM {$wpdb->prefix}stm_languages WHERE id = %d",
+            $id
+        ));
+
+        if (!$lang) {
+            return new \WP_Error('not_found', 'Language not found', ['status' => 404]);
+        }
+
+        if ($lang->is_default) {
+            return new \WP_Error('cannot_delete_default', 'Cannot delete the default language', ['status' => 400]);
+        }
+
+        $wpdb->delete($wpdb->prefix . 'stm_post_translations', ['language_code' => $lang->code], ['%s']);
+        $wpdb->delete($wpdb->prefix . 'stm_translations',      ['language_code' => $lang->code], ['%s']);
+        $wpdb->delete($wpdb->prefix . 'stm_languages',         ['id' => $id],                    ['%d']);
+
+        wp_cache_delete('stm_active_languages');
+        flush_rewrite_rules(false);
+
+        return rest_ensure_response(['success' => true, 'code' => $lang->code]);
+    }
+
+    /**
+     * GET /strings/{id} - Get a single string with all its translations
+     */
+    public static function get_string($request) {
+        global $wpdb;
+
+        $id = intval($request['id']);
+
+        $string = $wpdb->get_row($wpdb->prepare(
+            "SELECT s.*,
+                GROUP_CONCAT(
+                    CONCAT(t.language_code, ':', t.translation, ':', t.status)
+                    SEPARATOR '||'
+                ) as translations
+             FROM {$wpdb->prefix}stm_strings s
+             LEFT JOIN {$wpdb->prefix}stm_translations t ON s.id = t.string_id
+             WHERE s.id = %d
+             GROUP BY s.id",
+            $id
+        ));
+
+        if (!$string) {
+            return new \WP_Error('not_found', 'String not found', ['status' => 404]);
+        }
+
+        $string->translations = self::parse_translations($string->translations);
+
+        return rest_ensure_response($string);
+    }
+
+    /**
+     * POST /cache/flush - Flush STM translation cache (scoped, does not wipe global cache)
+     */
+    public static function flush_cache($request) {
+        Cache::flush_all();
+        return rest_ensure_response(['success' => true]);
+    }
+
+    /**
      * Helper: Parse translations string
      */
     private static function parse_translations($translations_str) {
@@ -788,15 +917,18 @@ class API {
      * Accepts two formats:
      *   Format A: { "nl": { "nav.home": "Home", ... }, "en": { ... } }
      *   Format B: { "lang": "nl", "translations": { "nav.home": "Home", ... } }
+     *
+     * Optional: pass dry_run=true to preview changes without writing to DB.
      */
     public static function import_json($request) {
-        $data = $request->get_json_params();
+        $data     = $request->get_json_params();
+        $dry_run  = (bool) ($request->get_param('dry_run') ?? false);
 
         if (empty($data) || !is_array($data)) {
             return new \WP_Error('empty_data', 'No data provided', ['status' => 400]);
         }
 
-        $result = self::process_import($data);
+        $result = self::process_import($data, $dry_run);
 
         if (isset($result['error'])) {
             return new \WP_Error('import_error', $result['error'], ['status' => 400]);
@@ -808,10 +940,11 @@ class API {
     /**
      * Shared import logic — called by REST endpoint and admin handler
      *
-     * @param array $data Decoded JSON array
-     * @return array { created, updated, errors } or { error }
+     * @param array $data     Decoded JSON array
+     * @param bool  $dry_run  When true, validates and counts but does not write to DB
+     * @return array { created, updated, errors, dry_run } or { error }
      */
-    public static function process_import(array $data) {
+    public static function process_import(array $data, bool $dry_run = false) {
         // Normalize to { lang_code => [ key => translation ] }
         $normalized = [];
 
@@ -846,6 +979,24 @@ class API {
 
                 if (!Security::validate_translation_key($string_key)) {
                     $errors[] = "Invalid key: $string_key";
+                    continue;
+                }
+
+                if ($dry_run) {
+                    // In dry-run mode just classify create vs. update without writing
+                    $string_id = $wpdb->get_var($wpdb->prepare(
+                        "SELECT id FROM {$wpdb->prefix}stm_strings WHERE string_key = %s",
+                        $string_key
+                    ));
+                    if ($string_id) {
+                        $has_translation = $wpdb->get_var($wpdb->prepare(
+                            "SELECT id FROM {$wpdb->prefix}stm_translations WHERE string_id = %d AND language_code = %s",
+                            $string_id, $lang_code
+                        ));
+                        $has_translation ? $updated++ : $created++;
+                    } else {
+                        $created++;
+                    }
                     continue;
                 }
 
@@ -890,7 +1041,7 @@ class API {
             }
         }
 
-        return ['success' => true, 'created' => $created, 'updated' => $updated, 'errors' => $errors];
+        return ['success' => true, 'created' => $created, 'updated' => $updated, 'errors' => $errors, 'dry_run' => $dry_run];
     }
 
     /**

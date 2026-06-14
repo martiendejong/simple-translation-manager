@@ -51,7 +51,8 @@ if (!function_exists('stm_get_post_translation')) {
      * Get translation for post/page field
      *
      * @param int $post_id Post ID (defaults to current post)
-     * @param string $field Field name (e.g., 'title', 'excerpt', 'description')
+     * @param string $field Field name — accepts both public aliases ('title', 'content',
+     *                      'excerpt', 'slug') and WP internal names ('post_title', etc.)
      * @param string $lang Language code (defaults to current language)
      * @param mixed $fallback Fallback value if translation not found
      * @return string Translated content
@@ -65,7 +66,16 @@ if (!function_exists('stm_get_post_translation')) {
             $lang = stm_get_current_language();
         }
 
-        $translation = STM\Cache::get_post_translation($post_id, $field, $lang);
+        // Normalize public field aliases to WP internal names (which is how they are stored)
+        static $field_map = [
+            'title'   => 'post_title',
+            'content' => 'post_content',
+            'excerpt' => 'post_excerpt',
+            'slug'    => 'post_name',
+        ];
+        $db_field    = $field_map[$field] ?? $field;
+
+        $translation = STM\Cache::get_post_translation($post_id, $db_field, $lang);
 
         if ($translation) {
             return $translation;

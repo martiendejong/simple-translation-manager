@@ -158,9 +158,25 @@ class Cache {
     }
 
     /**
-     * Flush all translation cache
+     * Flush all STM translation cache
+     *
+     * Uses a version key so only STM entries are invalidated — does NOT
+     * call wp_cache_flush() which would wipe a shared Redis/Memcached instance.
      */
     public static function flush_all() {
-        wp_cache_flush();
+        $version = (int) wp_cache_get('stm_cache_version', self::GROUP);
+        wp_cache_set('stm_cache_version', $version + 1, self::GROUP, 0);
+    }
+
+    /**
+     * Build a version-stamped cache key so flush_all() invalidates without a global flush
+     */
+    private static function versioned_key($raw_key) {
+        $version = wp_cache_get('stm_cache_version', self::GROUP);
+        if ($version === false) {
+            $version = 1;
+            wp_cache_set('stm_cache_version', $version, self::GROUP, 0);
+        }
+        return 'v' . $version . '_' . $raw_key;
     }
 }
