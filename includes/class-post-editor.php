@@ -34,6 +34,9 @@ class PostEditor {
 
         // Enqueue assets
         add_action('admin_enqueue_scripts', [__CLASS__, 'enqueue_assets']);
+
+        // Gutenberg sidebar panel (block editor only)
+        add_action('enqueue_block_editor_assets', [__CLASS__, 'enqueue_gutenberg_assets']);
     }
 
     /**
@@ -106,12 +109,14 @@ class PostEditor {
         $current_lang = $post_id ? self::get_post_language($post_id) : Settings::get_default_language();
 
         wp_localize_script('stm-post-editor', 'stmPostEditor', [
-            'ajaxUrl'     => admin_url('admin-ajax.php'),
-            'nonce'       => wp_create_nonce('stm_post_editor_nonce'),
-            'restUrl'     => esc_url_raw(rest_url('stm/v1/translate/auto')),
-            'restNonce'   => wp_create_nonce('wp_rest'),
-            'sourceLang'  => $current_lang,
-            'defaultLang' => Settings::get_default_language(),
+            'ajaxUrl'      => admin_url('admin-ajax.php'),
+            'nonce'        => wp_create_nonce('stm_post_editor_nonce'),
+            'restUrl'      => esc_url_raw(rest_url('stm/v1/translate/auto')),
+            'postsApiRoot' => esc_url_raw(rest_url('stm/v1/posts/')),
+            'restNonce'    => wp_create_nonce('wp_rest'),
+            'postId'       => $post_id,
+            'sourceLang'   => $current_lang,
+            'defaultLang'  => Settings::get_default_language(),
             'i18n' => [
                 'translating'        => __('Translating…', 'simple-translation-manager'),
                 'translated'         => __('Translation complete', 'simple-translation-manager'),
@@ -119,6 +124,70 @@ class PostEditor {
                 'nothingToTranslate' => __('No source content to translate — fill in the post first.', 'simple-translation-manager'),
                 'overwriteConfirm'   => __('This tab already has translations. Overwrite them with auto-translated content?', 'simple-translation-manager'),
                 'saved'              => __('Translations saved', 'simple-translation-manager'),
+                'deleteConfirm'      => __('Delete this translation? This cannot be undone.', 'simple-translation-manager'),
+                'deleted'            => __('Translation deleted', 'simple-translation-manager'),
+                'deleteFailed'       => __('Failed to delete translation', 'simple-translation-manager'),
+            ],
+        ]);
+    }
+
+    /**
+     * Enqueue the Gutenberg PluginDocumentSettingPanel script
+     */
+    public static function enqueue_gutenberg_assets() {
+        $screen = get_current_screen();
+        if (!$screen || !post_type_supports($screen->post_type, 'editor')) {
+            return;
+        }
+
+        $post_id = isset($_GET['post']) ? (int) $_GET['post'] : 0;
+        $current_lang = $post_id ? self::get_post_language($post_id) : Settings::get_default_language();
+        $languages = Database::get_languages();
+
+        $panel_languages = [];
+        foreach ($languages as $lang) {
+            if ($lang->code === $current_lang) {
+                continue;
+            }
+
+            $t = $post_id ? self::get_post_translation($post_id, $lang->code) : [];
+            $has_title = !empty($t['post_title']);
+            $has_body  = !empty($t['post_content']);
+
+            if ($has_title && $has_body) {
+                $status = 'complete';
+            } elseif ($has_title || $has_body) {
+                $status = 'partial';
+            } else {
+                $status = 'empty';
+            }
+
+            $panel_languages[] = [
+                'code'       => $lang->code,
+                'name'       => $lang->name,
+                'flag_emoji' => $lang->flag_emoji,
+                'status'     => $status,
+            ];
+        }
+
+        wp_enqueue_script(
+            'stm-post-editor-gutenberg',
+            STM_PLUGIN_URL . 'assets/admin-post-editor-gutenberg.js',
+            ['wp-plugins', 'wp-editor', 'wp-edit-post', 'wp-element', 'wp-components', 'jquery'],
+            STM_VERSION,
+            true
+        );
+
+        wp_localize_script('stm-post-editor-gutenberg', 'stmGutenberg', [
+            'postId'    => $post_id,
+            'languages' => $panel_languages,
+            'i18n' => [
+                'title'    => __('Translations', 'simple-translation-manager'),
+                'complete' => __('Complete', 'simple-translation-manager'),
+                'partial'  => __('Partial', 'simple-translation-manager'),
+                'empty'    => __('Not translated', 'simple-translation-manager'),
+                'none'     => __('No other languages configured.', 'simple-translation-manager'),
+                'edit'     => __('Edit', 'simple-translation-manager'),
             ],
         ]);
     }

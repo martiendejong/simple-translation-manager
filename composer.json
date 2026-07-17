@@ -1,0 +1,21 @@
+{
+    "name": "martiendejong/simple-translation-manager",
+    "description": "Lightweight multilingual WordPress plugin with database storage, REST API, and post/page editor translation tabs.",
+    "type": "wordpress-plugin",
+    "license": "GPL-2.0-or-later",
+    "require-dev": {
+        "phpunit/phpunit": "^11.0",
+        "brain/monkey": "^2.6"
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "STM\\Tests\\": "tests/"
+        }
+    },
+    "scripts": {
+        "test": "phpunit"
+    },
+    "config": {
+        "sort-packages": true
+    }
+}

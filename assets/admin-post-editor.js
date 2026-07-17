@@ -19,6 +19,7 @@
     $(document).ready(function() {
         initTranslationTabs();
         initAutoTranslateButtons();
+        initDeleteTranslationButtons();
 
         // Boot the editor for whichever tab is active on load
         var $first = $('.stm-tab-button.active').first();
@@ -337,6 +338,74 @@
         if (inputId) {
             $('#' + inputId).val(translation).trigger('change');
         }
+    }
+
+    // -----------------------------------------------------------------------
+    // Delete translation
+    // -----------------------------------------------------------------------
+
+    function initDeleteTranslationButtons() {
+        $('.stm-delete-translation-btn').on('click', function(e) {
+            e.preventDefault();
+            handleDeleteTranslation($(this));
+        });
+    }
+
+    function handleDeleteTranslation($btn) {
+        var lang = $btn.data('lang');
+        var postId = $btn.data('post-id') || config.postId;
+        var $status = $btn.siblings('.stm-delete-translation-status');
+
+        if (!config.postsApiRoot || !postId || !lang) {
+            setDeleteStatus($status, i18n.deleteFailed || 'Failed to delete translation', 'error');
+            return;
+        }
+
+        var confirmMsg = i18n.deleteConfirm || 'Delete this translation? This cannot be undone.';
+        if (!window.confirm(confirmMsg)) return;
+
+        $btn.prop('disabled', true);
+        setDeleteStatus($status, '', '');
+
+        $.ajax({
+            url: config.postsApiRoot + postId + '/translations/' + lang,
+            method: 'DELETE',
+            beforeSend: function(xhr) {
+                if (config.restNonce) xhr.setRequestHeader('X-WP-Nonce', config.restNonce);
+            },
+        }).done(function() {
+            clearTranslationTab(lang);
+            setTabEmpty(lang);
+            showSaveToast(i18n.deleted || 'Translation deleted');
+        }).fail(function() {
+            setDeleteStatus($status, i18n.deleteFailed || 'Failed to delete translation', 'error');
+        }).always(function() {
+            $btn.prop('disabled', false);
+        });
+    }
+
+    function clearTranslationTab(lang) {
+        var editorId = 'stm_content_' + lang;
+        if (typeof tinymce !== 'undefined' && tinymce.get(editorId)) {
+            tinymce.get(editorId).setContent('');
+        }
+        $('.stm-tab-content[data-lang="' + lang + '"] .stm-translation-field').val('');
+    }
+
+    function setTabEmpty(lang) {
+        var $tabButton = $('.stm-tab-button[data-lang="' + lang + '"]');
+        $tabButton
+            .removeClass('stm-tab-complete stm-tab-partial')
+            .addClass('stm-tab-empty');
+        $tabButton.find('.stm-tab-status').remove();
+    }
+
+    function setDeleteStatus($status, message, kind) {
+        if (!$status || !$status.length) return;
+        $status
+            .removeClass('is-success is-error')
+            .addClass(kind ? 'is-' + kind : '')
+            .text(message);
     }
 
     function setStatus($btn, message, kind) {

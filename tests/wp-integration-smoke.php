@@ -115,6 +115,7 @@ foreach ([
     '/stm/v1/translations/(?P<id>\d+)',
     '/stm/v1/posts/bulk-translations',
     '/stm/v1/posts/(?P<id>\d+)/translations',
+    '/stm/v1/posts/(?P<id>\d+)/translations/(?P<lang>[a-zA-Z]{2,3})',
     '/stm/v1/posts/(?P<id>\d+)/slugs',
     '/stm/v1/export',
     '/stm/v1/import',
@@ -128,7 +129,8 @@ $api_methods = [
     'get_strings', 'create_string', 'update_string', 'delete_string',
     'get_translations', 'create_translation', 'update_translation',
     'bulk_create_translations', 'bulk_post_translations',
-    'get_post_translations', 'save_post_translation',
+    'get_post_translations', 'save_post_translation', 'delete_post_translation',
+    'check_edit_post_permission',
     'get_post_slugs', 'save_post_slug',
     'export_json', 'import_json', 'process_import',
 ];

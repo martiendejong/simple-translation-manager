@@ -101,6 +101,15 @@ if (!defined('ABSPATH')) exit;
                         Auto-translate to <?php echo esc_html($lang->name); ?>
                     </button>
                     <span class="stm-auto-translate-status" aria-live="polite"></span>
+
+                    <button type="button"
+                            class="button button-link-delete stm-delete-translation-btn"
+                            data-lang="<?php echo esc_attr($lang->code); ?>"
+                            data-post-id="<?php echo esc_attr($post->ID); ?>">
+                        <span class="dashicons dashicons-trash" aria-hidden="true"></span>
+                        Delete <?php echo esc_html($lang->name); ?> translation
+                    </button>
+                    <span class="stm-delete-translation-status" aria-live="polite"></span>
                 </div>
 
                 <table class="form-table">
