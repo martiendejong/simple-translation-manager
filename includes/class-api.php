@@ -109,6 +109,12 @@ class API {
             'permission_callback' => [__CLASS__, 'check_permissions'],
         ]);
 
+        register_rest_route($namespace, '/posts/(?P<id>\d+)/translations/(?P<lang>[a-zA-Z]{2,3})', [
+            'methods' => 'DELETE',
+            'callback' => [__CLASS__, 'delete_post_translation'],
+            'permission_callback' => [__CLASS__, 'check_edit_post_permission'],
+        ]);
+
         // Post slugs per language
         register_rest_route($namespace, '/posts/(?P<id>\d+)/slugs', [
             'methods' => 'GET',
@@ -141,6 +147,14 @@ class API {
      */
     public static function check_permissions() {
         return Security::can_manage_translations();
+    }
+
+    /**
+     * Permission check for post-scoped translation writes (requires edit_post on {id})
+     */
+    public static function check_edit_post_permission($request) {
+        $post_id = intval($request['id']);
+        return current_user_can('edit_post', $post_id);
     }
 
     /**
@@ -513,6 +527,41 @@ class API {
         Cache::invalidate_post($post_id, $field);
 
         return rest_ensure_response(['success' => true]);
+    }
+
+    /**
+     * DELETE /posts/{id}/translations/{lang} - Remove a post's translation in one language
+     *
+     * Deletes every field (title/content/excerpt/slug) stored for this post+language.
+     */
+    public static function delete_post_translation($request) {
+        global $wpdb;
+
+        $post_id = intval($request['id']);
+        $language_code = sanitize_text_field($request['lang']);
+
+        if (!get_post($post_id)) {
+            return new \WP_Error('not_found', 'Post not found', ['status' => 404]);
+        }
+
+        if (!Security::validate_language_code($language_code)) {
+            return new \WP_Error('invalid_language', 'Invalid language code', ['status' => 400]);
+        }
+
+        $table = $wpdb->prefix . 'stm_post_translations';
+
+        $deleted = $wpdb->delete($table, [
+            'post_id'       => $post_id,
+            'language_code' => $language_code,
+        ]);
+
+        if ($deleted === false) {
+            return new \WP_Error('db_error', 'Failed to delete translation', ['status' => 500]);
+        }
+
+        Cache::invalidate_post($post_id);
+
+        return rest_ensure_response(['success' => true, 'deleted' => (int) $deleted]);
     }
 
     /**

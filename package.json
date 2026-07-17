@@ -1,0 +1,14 @@
+{
+  "name": "simple-translation-manager",
+  "private": true,
+  "description": "Jest unit tests for the STM post/page editor translation tab UI.",
+  "scripts": {
+    "test": "jest",
+    "test:coverage": "jest --coverage"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "jest-environment-jsdom": "^29.7.0",
+    "jquery": "^3.7.1"
+  }
+}
