@@ -14,6 +14,10 @@ if (!defined('OBJECT'))  define('OBJECT', 'OBJECT');
 if (!defined('ARRAY_A')) define('ARRAY_A', 'ARRAY_A');
 if (!defined('ARRAY_N')) define('ARRAY_N', 'ARRAY_N');
 
+if (!defined('STM_VERSION'))    define('STM_VERSION', '1.1.1');
+if (!defined('STM_PLUGIN_URL')) define('STM_PLUGIN_URL', 'http://example.test/wp-content/plugins/simple-translation-manager/');
+if (!defined('STM_PLUGIN_DIR')) define('STM_PLUGIN_DIR', dirname(__DIR__) . '/');
+
 if (!class_exists('WP_Error')) {
     class WP_Error {
         public $errors = [];

@@ -45,6 +45,7 @@ class PostEditorCrudTest extends TestCase {
         Functions\when('wp_cache_set')->justReturn(true);
         Functions\when('wp_cache_delete')->justReturn(true);
         Functions\when('get_option')->justReturn(false);
+        Functions\when('update_option')->justReturn(true);
         Functions\when('__')->returnArg(1);
 
         // stm_translations_nonce check inside PostEditor::save_translations()
@@ -59,10 +60,10 @@ class PostEditorCrudTest extends TestCase {
 
     private function seedLanguages() {
         $this->wpdb->seed('wp_stm_languages', [
-            'code' => 'en', 'name' => 'English', 'is_active' => 1, 'is_default' => 1, 'order_index' => 1,
+            'code' => 'en', 'name' => 'English', 'flag_emoji' => '🇬🇧', 'is_active' => 1, 'is_default' => 1, 'order_index' => 1,
         ]);
         $this->wpdb->seed('wp_stm_languages', [
-            'code' => 'nl', 'name' => 'Dutch', 'is_active' => 1, 'is_default' => 0, 'order_index' => 2,
+            'code' => 'nl', 'name' => 'Dutch', 'flag_emoji' => '🇳🇱', 'is_active' => 1, 'is_default' => 0, 'order_index' => 2,
         ]);
     }
 
@@ -204,6 +205,108 @@ class PostEditorCrudTest extends TestCase {
 
         Functions\when('current_user_can')->justReturn(false);
         $this->assertFalse(API::check_edit_post_permission($request));
+    }
+
+    public function test_register_routes_registers_delete_post_translation_route() {
+        $calls = [];
+        Functions\when('add_action')->justReturn(true);
+        Functions\when('register_rest_route')->alias(function ($namespace, $route, $args) use (&$calls) {
+            $calls[] = [$namespace, $route, $args];
+        });
+
+        API::register_routes();
+
+        $match = array_values(array_filter($calls, function ($c) {
+            return $c[1] === '/posts/(?P<id>\d+)/translations/(?P<lang>[a-zA-Z]{2,3})';
+        }));
+
+        $this->assertCount(1, $match, 'The new DELETE route must be registered exactly once.');
+        $this->assertSame('stm/v1', $match[0][0]);
+        $this->assertSame('DELETE', $match[0][2]['methods']);
+        $this->assertSame(['STM\\API', 'delete_post_translation'], $match[0][2]['callback']);
+        $this->assertSame(['STM\\API', 'check_edit_post_permission'], $match[0][2]['permission_callback']);
+    }
+
+    // -----------------------------------------------------------------
+    // Gutenberg panel data (PostEditor::enqueue_gutenberg_assets)
+    // -----------------------------------------------------------------
+
+    public function test_enqueue_gutenberg_assets_computes_per_language_status_and_localizes_panel_data() {
+        $this->seedLanguages(); // current post language = en; nl is the "other" language
+        $this->wpdb->seed('wp_stm_post_associations', [
+            'post_id' => 42, 'language_code' => 'en', 'translation_group' => 'g1', 'is_original' => 1,
+        ]);
+        $this->wpdb->seed('wp_stm_post_translations', [
+            'post_id' => 42, 'field_name' => 'post_title', 'language_code' => 'nl', 'translation' => 'Titel',
+        ]);
+
+        $_GET['post'] = '42';
+
+        Functions\when('get_current_screen')->justReturn((object) ['post_type' => 'post']);
+        Functions\when('post_type_supports')->justReturn(true);
+        Functions\when('wp_enqueue_script')->justReturn(true);
+
+        $captured = null;
+        Functions\when('wp_localize_script')->alias(function ($handle, $objName, $data) use (&$captured) {
+            if ($objName === 'stmGutenberg') {
+                $captured = $data;
+            }
+        });
+
+        PostEditor::enqueue_gutenberg_assets();
+
+        $this->assertNotNull($captured, 'stmGutenberg must be localized.');
+        $this->assertSame(42, $captured['postId']);
+        $this->assertCount(1, $captured['languages'], 'Only the non-current language should appear in the panel.');
+        $this->assertSame('nl', $captured['languages'][0]['code']);
+        $this->assertSame('partial', $captured['languages'][0]['status'], 'Title-only translation is partial, not complete.');
+
+        unset($_GET['post']);
+    }
+
+    public function test_enqueue_gutenberg_assets_skips_enqueue_when_post_type_unsupported() {
+        Functions\when('get_current_screen')->justReturn((object) ['post_type' => 'attachment']);
+        Functions\when('post_type_supports')->justReturn(false);
+
+        $enqueued = false;
+        Functions\when('wp_enqueue_script')->alias(function () use (&$enqueued) { $enqueued = true; });
+
+        PostEditor::enqueue_gutenberg_assets();
+
+        $this->assertFalse($enqueued);
+    }
+
+    // -----------------------------------------------------------------
+    // Classic editor enqueue (PostEditor::enqueue_assets) — delete-related config
+    // -----------------------------------------------------------------
+
+    public function test_enqueue_assets_localizes_delete_related_config() {
+        $this->seedLanguages();
+        $_GET['post'] = '42';
+
+        Functions\when('wp_enqueue_style')->justReturn(true);
+        Functions\when('wp_enqueue_script')->justReturn(true);
+        Functions\when('admin_url')->returnArg(1);
+        Functions\when('wp_create_nonce')->justReturn('nonce-abc');
+        Functions\when('esc_url_raw')->returnArg(1);
+        Functions\when('rest_url')->alias(function ($path) { return 'https://example.test/wp-json/' . $path; });
+
+        $captured = null;
+        Functions\when('wp_localize_script')->alias(function ($handle, $objName, $data) use (&$captured) {
+            if ($objName === 'stmPostEditor') {
+                $captured = $data;
+            }
+        });
+
+        PostEditor::enqueue_assets('post.php');
+
+        $this->assertNotNull($captured);
+        $this->assertSame(42, $captured['postId']);
+        $this->assertSame('https://example.test/wp-json/stm/v1/posts/', $captured['postsApiRoot']);
+        $this->assertSame('Translation deleted', $captured['i18n']['deleted']);
+        $this->assertSame('Failed to delete translation', $captured['i18n']['deleteFailed']);
+
+        unset($_GET['post']);
     }
 }
 
