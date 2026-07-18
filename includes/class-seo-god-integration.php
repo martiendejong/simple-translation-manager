@@ -104,7 +104,13 @@ class SeoGodIntegration {
             return $current;
         }
 
-        return self::current_lang();
+        $lang = self::current_lang();
+        if ( $lang === Settings::get_default_language() ) {
+            // Preserve the pre-hook fallback (e.g. get_locale()) on default-language pages
+            return $current;
+        }
+
+        return $lang;
     }
 
     // -------------------------------------------------------------------------
