@@ -11,6 +11,7 @@
     </testsuites>
     <source>
         <include>
+            <file>includes/class-admin.php</file>
             <file>includes/class-api.php</file>
             <file>includes/class-post-editor.php</file>
             <file>includes/class-string-scanner.php</file>
