@@ -12,6 +12,7 @@ use Brain\Monkey;
 use Brain\Monkey\Functions;
 use PHPUnit\Framework\TestCase;
 use STM\Admin;
+use STM\API;
 use STM\Database;
 use STM\Tests\Fakes\FakeWpdb;
 
@@ -95,5 +96,36 @@ class LanguagesScreenTest extends TestCase {
         $this->assertNotEmpty($match, 'Expected a table row for the German (de) language');
         $this->assertStringContainsString('—', $match[0]);
         $this->assertStringNotContainsString('✓', $match[0]);
+    }
+
+    public function test_create_language_clears_both_language_caches() {
+        Functions\when('sanitize_text_field')->returnArg(1);
+        Functions\when('rest_ensure_response')->returnArg(1);
+        Functions\when('flush_rewrite_rules')->justReturn(null);
+
+        $deleted_keys = [];
+        Functions\when('wp_cache_delete')->alias(function ($key) use (&$deleted_keys) {
+            $deleted_keys[] = $key;
+            return true;
+        });
+
+        $request = [
+            'code' => 'fr',
+            'name' => 'French',
+            'native_name' => 'Français',
+            'is_default' => 0,
+            'is_active' => 0,
+            'flag_emoji' => '',
+        ];
+
+        $response = API::create_language($request);
+
+        $this->assertSame(['id' => 4, 'success' => true], $response);
+        $this->assertContains('stm_active_languages', $deleted_keys);
+        $this->assertContains('stm_all_languages', $deleted_keys);
+
+        $created = $this->wpdb->all('stm_languages')[3];
+        $this->assertSame('fr', $created['code']);
+        $this->assertSame(0, $created['is_active']);
     }
 }
