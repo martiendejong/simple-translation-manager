@@ -59,3 +59,4 @@ require_once $pluginDir . 'class-api.php';
 require_once $pluginDir . 'class-post-editor.php';
 require_once $pluginDir . 'class-frontend.php';
 require_once $pluginDir . 'class-seo-god-integration.php';
+require_once $pluginDir . 'class-elementor-integration.php';
