@@ -10,6 +10,11 @@ existing row before inserting, so re-scanning never duplicates strings or overwr
 translation a human has since edited.
 Verified: `php -l` clean on all changed files; `vendor/bin/phpunit` 28/28 passing (15 baseline
 + 13 new StringScanner tests covering token parsing, comment/dynamic-arg exclusion, dedup,
-idempotent re-run, and manual-edit preservation). No live WordPress instance in this
+idempotent re-run, and manual-edit preservation). Added `class-string-scanner.php` to
+phpunit.xml's tracked `<source><include>` list (it was missing, which made the CI diff-coverage
+gate silently report "nothing to gate" instead of actually measuring the new code — the same
+gap that bounced a sibling PR in this repo); after the fix CI's diff-coverage gate genuinely
+measures 89.01% (162/182 lines) on the new file, comfortably over the 80% threshold. PR CI
+(PHP unit tests, JS unit tests, PHP lint) all green. No live WordPress instance in this
 environment, so the actual wp-admin Strings screen was not visually verified.
 Left: nothing outstanding for this task.
