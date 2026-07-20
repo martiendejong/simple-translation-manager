@@ -189,6 +189,48 @@ If no translation found and no fallback provided:
 
 ---
 
+## Elementor Integration
+
+### `STM\ElementorIntegration`
+
+Activates automatically when Elementor is detected (`did_action('elementor/loaded')` or
+`ELEMENTOR_VERSION`); no configuration needed. Works for regular pages/posts and for
+Elementor Library templates/global widgets alike, since everything is keyed by post ID.
+
+**How it works:**
+- Elementor's own `_elementor_data` post meta (the author's original content) is never
+  touched by this integration.
+- Translations are captured separately per language as a flat map
+  `{ elementId: { settingKey: translatedValue } }`, stored in the existing
+  `wp_stm_post_translations` table (`field_name = '_elementor_data'`), reusing the same
+  DB table and object-cache layer as other post-field translations.
+- On the frontend, `elementor/frontend/builder_content_data` overlays the current
+  visitor's language translations onto the live Elementor element tree. Only string
+  settings present in the translation map are swapped — Elementor's dynamic-tag
+  bindings (stored as nested arrays) and all layout/styling settings are left untouched,
+  so a partial translation never breaks the page and dynamic content widgets keep
+  resolving live.
+- The Elementor editor gets a standalone floating "Translations" panel
+  (`elementor/editor/before_enqueue_scripts`) listing translatable text fields
+  (a built-in allowlist of common content keys — `title`, `editor`, `text`,
+  `*_text`, `*_title`, `*_content`, `*_label`, `*_description`, `*_caption`, etc.)
+  per language.
+
+**REST Endpoints** (all require `edit_post` capability for the given post):
+```bash
+# Get translatable fields + saved translations for a language
+GET /wp-json/stm/v1/posts/{id}/elementor/{lang}
+
+# Save a language's translated field map
+POST /wp-json/stm/v1/posts/{id}/elementor/{lang}
+Body: {"translations": {"<elementId>": {"<settingKey>": "<translated value>"}}}
+
+# Remove a language's translations for a post
+DELETE /wp-json/stm/v1/posts/{id}/elementor/{lang}
+```
+
+---
+
 ## Cache Layer
 
 All translations are cached using WordPress Object Cache (compatible with Redis/Memcached).

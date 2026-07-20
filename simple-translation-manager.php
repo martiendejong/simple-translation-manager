@@ -3,7 +3,7 @@
  * Plugin Name: Simple Translation Manager
  * Plugin URI: https://martiendejong.nl
  * Description: Lightweight multilingual plugin with database storage and WordPress caching
- * Version: 1.1.1
+ * Version: 1.2.0
  * Author: Martien de Jong
  * Author URI: https://martiendejong.nl
  * License: GPL v2 or later
@@ -17,7 +17,7 @@ if (!defined('ABSPATH')) {
 }
 
 // Plugin constants
-define('STM_VERSION', '1.1.1');
+define('STM_VERSION', '1.2.0');
 define('STM_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('STM_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('STM_PLUGIN_FILE', __FILE__);
@@ -52,6 +52,7 @@ require_once STM_PLUGIN_DIR . 'includes/class-auto-translate.php';
 require_once STM_PLUGIN_DIR . 'includes/class-dashboard.php';
 require_once STM_PLUGIN_DIR . 'includes/class-hreflang.php';
 require_once STM_PLUGIN_DIR . 'includes/class-seo-god-integration.php';
+require_once STM_PLUGIN_DIR . 'includes/class-elementor-integration.php';
 
 // WP-CLI commands (only loaded if WP-CLI is available)
 if (defined('WP_CLI') && WP_CLI) {
@@ -146,5 +147,6 @@ function stm_init() {
     STM\Dashboard::init();
     STM\Hreflang::init();
     STM\SeoGodIntegration::init();
+    STM\ElementorIntegration::init();
 }
 add_action('plugins_loaded', 'stm_init');
