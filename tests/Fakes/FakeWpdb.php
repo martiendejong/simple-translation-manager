@@ -77,6 +77,14 @@ class FakeWpdb {
         return reset($row);
     }
 
+    public function get_row($query, $output = OBJECT) {
+        $rows = $this->select($query);
+        if (!$rows) {
+            return null;
+        }
+        return $output === ARRAY_A ? (array) $rows[0] : (object) $rows[0];
+    }
+
     public function get_col($query) {
         $rows = $this->select($query);
         $col = [];

@@ -54,6 +54,7 @@ $pluginDir = dirname(__DIR__) . '/includes/';
 require_once $pluginDir . 'class-security.php';
 require_once $pluginDir . 'class-settings.php';
 require_once $pluginDir . 'class-database.php';
+require_once $pluginDir . 'class-string-scanner.php';
 require_once $pluginDir . 'class-cache.php';
 require_once $pluginDir . 'class-api.php';
 require_once $pluginDir . 'class-post-editor.php';
