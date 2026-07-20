@@ -229,7 +229,7 @@ class Admin {
      * Page: Languages
      */
     public static function page_languages() {
-        $languages = Database::get_languages();
+        $languages = Database::get_all_languages();
         include STM_PLUGIN_DIR . 'templates/admin-languages.php';
     }
 
@@ -564,6 +564,7 @@ class Admin {
         ]);
 
         wp_cache_delete('stm_active_languages');
+        wp_cache_delete('stm_all_languages');
         wp_cache_delete('stm_default_language');
 
         wp_redirect(add_query_arg(
@@ -604,6 +605,7 @@ class Admin {
         $wpdb->delete($wpdb->prefix . 'stm_languages', ['code' => $code]);
 
         wp_cache_delete('stm_active_languages');
+        wp_cache_delete('stm_all_languages');
 
         wp_redirect(add_query_arg('stm_deleted', '1', wp_get_referer()));
         exit;
