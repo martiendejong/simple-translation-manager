@@ -21,6 +21,7 @@ class Admin {
         add_action('admin_enqueue_scripts', [__CLASS__, 'enqueue_assets']);
         add_action('admin_post_stm_save_translation', [__CLASS__, 'save_translation']);
         add_action('admin_post_stm_add_string', [__CLASS__, 'add_string']);
+        add_action('admin_post_stm_scan_strings', [__CLASS__, 'scan_strings']);
         add_action('admin_post_stm_import_json', [__CLASS__, 'import_json']);
         add_action('admin_post_stm_add_language', [__CLASS__, 'add_language']);
         add_action('admin_post_stm_delete_language', [__CLASS__, 'delete_language']);
@@ -455,6 +456,31 @@ class Admin {
         } catch (\Exception $e) {
             Security::log('Error adding string: ' . $e->getMessage(), 'error');
             wp_die('Failed to add string', 500);
+        }
+    }
+
+    /**
+     * Scan the active theme and plugin templates for translatable strings
+     * (admin form handler)
+     */
+    public static function scan_strings() {
+        if (!Security::verify_admin_action('stm_scan_strings')) {
+            wp_die('Unauthorized', 403);
+        }
+
+        try {
+            $result = StringScanner::scan_and_register();
+
+            wp_redirect(add_query_arg([
+                'stm_scanned' => '1',
+                'stm_scan_found' => $result['unique_found'],
+                'stm_scan_added' => $result['added'],
+            ], wp_get_referer()));
+            exit;
+        } catch (\Exception $e) {
+            Security::log('Error scanning for strings: ' . $e->getMessage(), 'error');
+            wp_redirect(add_query_arg('stm_error', 'scan_failed', wp_get_referer()));
+            exit;
         }
     }
 

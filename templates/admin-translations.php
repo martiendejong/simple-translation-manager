@@ -14,6 +14,28 @@ if (!defined('ABSPATH')) exit;
         </div>
     <?php endif; ?>
 
+    <?php if (isset($_GET['stm_scanned'])): ?>
+        <div class="notice notice-success is-dismissible">
+            <p>
+                Scan complete: <?php echo intval($_GET['stm_scan_found'] ?? 0); ?> strings found in the theme and plugin templates,
+                <?php echo intval($_GET['stm_scan_added'] ?? 0); ?> new strings added.
+            </p>
+        </div>
+    <?php endif; ?>
+
+    <?php if (($_GET['stm_error'] ?? '') === 'scan_failed'): ?>
+        <div class="notice notice-error is-dismissible">
+            <p>Scanning for strings failed. Check the server error log for details.</p>
+        </div>
+    <?php endif; ?>
+
+    <form method="post" action="<?php echo admin_url('admin-post.php'); ?>" style="margin-bottom: 15px;">
+        <?php wp_nonce_field('stm_scan_strings'); ?>
+        <input type="hidden" name="action" value="stm_scan_strings">
+        <button type="submit" class="button">Scan theme &amp; plugin for strings</button>
+        <span class="description">Finds <code>__stm()</code> / <code>_e_stm()</code> calls in the active theme and adds any not already listed below.</span>
+    </form>
+
     <div class="tablenav top">
         <form method="get" action="" style="display: flex; gap: 10px; align-items: center;">
             <input type="hidden" name="page" value="stm-translations">
@@ -62,7 +84,7 @@ if (!defined('ABSPATH')) exit;
             <?php if (empty($strings)): ?>
                 <tr>
                     <td colspan="<?php echo count($languages) + 3; ?>">
-                        No strings found. <a href="<?php echo admin_url('admin.php?page=stm-add-string'); ?>">Add first string</a>
+                        No strings found. Use "Scan theme &amp; plugin for strings" above to auto-detect strings already used in your theme, or <a href="#add-string">add the first one manually</a> below.
                     </td>
                 </tr>
             <?php else: ?>
@@ -146,7 +168,7 @@ if (!defined('ABSPATH')) exit;
         </div>
     <?php endif; ?>
 
-    <h2 style="margin-top: 40px;">Add New String</h2>
+    <h2 id="add-string" style="margin-top: 40px;">Add New String</h2>
     <form method="post" action="<?php echo admin_url('admin-post.php'); ?>">
         <?php wp_nonce_field('stm_add_string'); ?>
         <input type="hidden" name="action" value="stm_add_string">

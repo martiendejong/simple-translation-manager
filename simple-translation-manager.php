@@ -39,6 +39,7 @@ require_once STM_PLUGIN_DIR . 'includes/functions.php';
 require_once STM_PLUGIN_DIR . 'includes/class-security.php';
 require_once STM_PLUGIN_DIR . 'includes/class-settings.php';
 require_once STM_PLUGIN_DIR . 'includes/class-database.php';
+require_once STM_PLUGIN_DIR . 'includes/class-string-scanner.php';
 require_once STM_PLUGIN_DIR . 'includes/class-cache.php';
 require_once STM_PLUGIN_DIR . 'includes/class-admin.php';
 require_once STM_PLUGIN_DIR . 'includes/class-api.php';
@@ -64,6 +65,7 @@ if (defined('WP_CLI') && WP_CLI) {
 function stm_activate() {
     STM\Database::create_tables();
     STM\Database::seed_default_languages();
+    STM\StringScanner::scan_and_register();
     flush_rewrite_rules();
 }
 register_activation_hook(__FILE__, 'stm_activate');
