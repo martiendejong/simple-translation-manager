@@ -1,5 +1,10 @@
 # Agent Progress
 
+## 2026-07-20 — task 869cay7k8
+Done: PR #4's editor docs (EDITORS_GUIDE.md/TROUBLESHOOTING.md + PDFs) shipped in April but were never linked anywhere in the plugin UI — a 2026-07-20 verification comment confirmed zero PHP/JS references. Added a new "Documentation" submenu (`Admin::page_documentation()`, `templates/admin-documentation.php`) under WP Admin → Translations, linking both PDFs via `STM_PLUGIN_URL . 'docs/editors/pdf/...'` as the reviewer specified.
+Verified: `vendor/bin/phpunit` 74/74 pass (3 new: menu registration + both PDF links render). `php -l` clean on all changed/added files. Added `includes/class-admin.php` to phpunit.xml's diff-coverage `<source><include>` list (it was previously untracked, same silent-gate class of bug fixed for class-string-scanner.php in 869e6vpgg). No coverage driver (pcov/xdebug) available locally to re-run `bin/diff-coverage.php` numerically, but both new code paths (menu registration line, page render) are directly exercised by the new tests.
+Left: nothing outstanding for this task. Original deliverables (EDITORS_GUIDE.md, TROUBLESHOOTING.md, screenshots index, WordPress HTML/WXR, PDFs, build script) were already merged via PR #4.
+
 ## 2026-07-20 — task 869cay7hb
 Done: Elementor widget translation integration, PR #15 (`STM\ElementorIntegration` — translated content stored separately from Elementor's own `_elementor_data`, frontend overlay filter, editor translation panel, 3 REST endpoints).
 Verified: `vendor/bin/phpunit` 54/54 pass, `npx jest` 7/7 pass, `php -l` clean, CI green (lint + PHP tests + JS tests) on the PR.

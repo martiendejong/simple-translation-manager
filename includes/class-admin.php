@@ -93,6 +93,16 @@ class Admin {
             'stm-settings',
             [__CLASS__, 'page_settings']
         );
+
+        // Submenu: Documentation
+        add_submenu_page(
+            'stm-translations',
+            'Documentation',
+            'Documentation',
+            'manage_options',
+            'stm-documentation',
+            [__CLASS__, 'page_documentation']
+        );
     }
 
     /**
@@ -245,6 +255,13 @@ class Admin {
      */
     public static function page_settings() {
         include STM_PLUGIN_DIR . 'templates/admin-settings.php';
+    }
+
+    /**
+     * Page: Documentation
+     */
+    public static function page_documentation() {
+        include STM_PLUGIN_DIR . 'templates/admin-documentation.php';
     }
 
     /**
