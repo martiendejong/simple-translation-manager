@@ -13,6 +13,7 @@
         <include>
             <file>includes/class-api.php</file>
             <file>includes/class-post-editor.php</file>
+            <file>includes/class-string-scanner.php</file>
         </include>
     </source>
 </phpunit>
