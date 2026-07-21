@@ -20,6 +20,25 @@ Done: PR #13 got CHANGES REQUESTED — CI's diff-coverage gate failed because th
 Verified: `vendor/bin/phpunit` 19/19 tests pass (1 new). `php -l` clean. No coverage driver (pcov/xdebug) available locally to re-run `bin/diff-coverage.php`, but the new test executes line 204 directly (no branching in `create_language()` between lines 186-207 for valid input), which is the only touched line the gate flagged.
 Left: nothing.
 
+## 2026-07-21 — task 869e6vuk9
+Done: PR #17 — a "Preview in language" cycler at the top of the post/page/product/CPT
+meta box: prev/next buttons step through every configured language and a "View preview"
+link opens WordPress' own preview URL (`get_preview_post_link()` + a `lang` query arg) in
+a new tab, so an editor can quickly see how the entity actually renders in each language —
+distinct from the existing meta-box translation tabs (869ceqwwn/869cy7b5r) which only edit
+fields. Works from the first edit of a brand-new post too (falls back to the global `$post`
+auto-draft ID when `$_GET['post']` isn't set yet). The Gutenberg sidebar panel gets a
+matching "Preview" quick-link per language next to its existing "Edit" jump-to-tab button.
+Verified: `vendor/bin/phpunit` 79/79 pass (10 new, incl. `build_preview_languages()`, the
+new-post `$_GET` fallback, and two `render_meta_box()` template-render tests — added
+`templates/meta-box-translations.php` to phpunit.xml's tracked `<source><include>` list,
+since it had never been coverage-tracked at all before this PR). `npx jest` 13/13 pass (6
+new). `php -l` and `node --check` clean on all changed files. No coverage driver
+(pcov/xdebug) available locally to run the numeric gate, but manually verified every
+touched line against the tests. No live WordPress instance to click-through, matching
+every prior STM feature PR in this repo.
+Left: nothing outstanding for this task.
+
 ## 2026-07-20 — task 869e6vpgg
 Done: PR #14 — `includes/class-string-scanner.php` tokenizes the active theme (child+parent)
 and the plugin's own `templates/` dir for literal `__stm()`/`_e_stm()` calls, registers each

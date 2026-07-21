@@ -4,7 +4,9 @@
  * Registers a PluginDocumentSettingPanel showing per-language translation
  * status, with a jump-to-tab link into the classic meta box rendered below
  * the block editor (the meta box itself still handles all field editing —
- * this panel is a status/navigation surface, not a duplicate editor).
+ * this panel is a status/navigation surface, not a duplicate editor) plus a
+ * Preview link per language that opens the live front-end rendering in a new
+ * tab (the same "Preview in language" cycler the meta box exposes).
  */
 
 (function(wp) {
@@ -47,6 +49,12 @@
         }
     }
 
+    function openPreview(url) {
+        if (url) {
+            window.open(url, '_blank', 'noopener');
+        }
+    }
+
     function TranslationsPanel() {
         if (!languages.length) {
             return el(
@@ -68,7 +76,11 @@
                         el(Button, {
                             variant: 'link',
                             onClick: function() { jumpToTab(lang.code); },
-                        }, config.i18n && config.i18n.edit || 'Edit')
+                        }, config.i18n && config.i18n.edit || 'Edit'),
+                        lang.previewUrl ? el(Button, {
+                            variant: 'link',
+                            onClick: function() { openPreview(lang.previewUrl); },
+                        }, config.i18n && config.i18n.preview || 'Preview') : null
                     )
                 );
             })

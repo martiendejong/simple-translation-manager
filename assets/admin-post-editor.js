@@ -15,11 +15,14 @@
     var config = (typeof window.stmPostEditor !== 'undefined') ? window.stmPostEditor : {};
     var i18n = config.i18n || {};
     var toastTimer = null;
+    var previewLanguages = config.previewLanguages || [];
+    var previewIndex = 0;
 
     $(document).ready(function() {
         initTranslationTabs();
         initAutoTranslateButtons();
         initDeleteTranslationButtons();
+        initLanguagePreviewCycler();
 
         // Boot the editor for whichever tab is active on load
         var $first = $('.stm-tab-button.active').first();
@@ -92,6 +95,62 @@
             activeEditorLang = newLang;
             initEditor(newLang);
         });
+    }
+
+    // -----------------------------------------------------------------------
+    // Preview-in-language cycler
+    // -----------------------------------------------------------------------
+
+    function initLanguagePreviewCycler() {
+        var $cycler = $('.stm-language-preview-cycler');
+        if (!$cycler.length || !previewLanguages.length) return;
+
+        var currentLangCode = $('.stm-post-translations').data('current-lang');
+        var startIndex = 0;
+        for (var i = 0; i < previewLanguages.length; i++) {
+            if (previewLanguages[i].code === currentLangCode) {
+                startIndex = i;
+                break;
+            }
+        }
+        previewIndex = startIndex;
+
+        $cycler.on('click', '.stm-preview-prev', function(e) {
+            e.preventDefault();
+            previewIndex = (previewIndex - 1 + previewLanguages.length) % previewLanguages.length;
+            renderPreviewCycler();
+        });
+
+        $cycler.on('click', '.stm-preview-next', function(e) {
+            e.preventDefault();
+            previewIndex = (previewIndex + 1) % previewLanguages.length;
+            renderPreviewCycler();
+        });
+
+        $cycler.on('click', '.stm-preview-open', function(e) {
+            if ($(this).hasClass('is-disabled')) {
+                e.preventDefault();
+            }
+        });
+
+        renderPreviewCycler();
+    }
+
+    function renderPreviewCycler() {
+        var lang = previewLanguages[previewIndex];
+        if (!lang) return;
+
+        var $cycler = $('.stm-language-preview-cycler');
+        $cycler.find('.stm-preview-current').text((lang.flag_emoji ? lang.flag_emoji + ' ' : '') + lang.name);
+
+        var $open = $cycler.find('.stm-preview-open');
+        if (lang.previewUrl) {
+            $open.attr('href', lang.previewUrl).removeClass('is-disabled').attr('aria-disabled', 'false');
+            $cycler.find('.stm-preview-unsaved-note').attr('hidden', true);
+        } else {
+            $open.attr('href', '#').addClass('is-disabled').attr('aria-disabled', 'true');
+            $cycler.find('.stm-preview-unsaved-note').removeAttr('hidden');
+        }
     }
 
     function initEditor(lang) {

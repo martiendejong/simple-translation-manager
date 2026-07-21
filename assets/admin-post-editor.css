@@ -14,6 +14,61 @@
     border-radius: 4px;
 }
 
+/* Preview-in-language cycler */
+.stm-language-preview-cycler {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    padding: 12px 15px;
+    margin-bottom: 15px;
+    background: #f0f6fc;
+    border: 1px solid #c3dbef;
+    border-radius: 4px;
+}
+
+.stm-preview-cycler-label {
+    font-weight: 600;
+    color: #1d2327;
+}
+
+.stm-preview-prev,
+.stm-preview-next {
+    min-width: 32px;
+    padding: 0 6px;
+    line-height: 1.8;
+}
+
+.stm-preview-current {
+    font-weight: 600;
+    min-width: 120px;
+    text-align: center;
+}
+
+.stm-preview-open {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.stm-preview-open .dashicons {
+    font-size: 16px;
+    width: 16px;
+    height: 16px;
+    line-height: 1.4;
+}
+
+.stm-preview-open.is-disabled {
+    opacity: 0.5;
+    pointer-events: none;
+}
+
+.stm-preview-unsaved-note {
+    font-size: 12px;
+    font-style: italic;
+    color: #646970;
+}
+
 .stm-current-language p {
     margin: 0;
 }
@@ -323,6 +378,11 @@
         margin-top: 8px;
         display: block;
         width: 100%;
+    }
+
+    .stm-language-preview-cycler {
+        flex-direction: column;
+        align-items: flex-start;
     }
 
     .stm-save-toast {
