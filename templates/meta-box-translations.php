@@ -19,6 +19,22 @@ if (!defined('ABSPATH')) exit;
         <span class="stm-save-toast-text">Translations saved</span>
     </div>
 
+    <?php if (count($languages) > 1): ?>
+    <!-- Preview-in-language cycler: quickly step through languages to see
+         how the page looks, without opening a tab and editing fields. -->
+    <div class="stm-language-preview-cycler" data-post-id="<?php echo esc_attr($post->ID); ?>">
+        <span class="stm-preview-cycler-label">Preview in language:</span>
+        <button type="button" class="button stm-preview-prev" aria-label="Previous language">&#8249;</button>
+        <span class="stm-preview-current" aria-live="polite"></span>
+        <button type="button" class="button stm-preview-next" aria-label="Next language">&#8250;</button>
+        <a href="#" target="_blank" rel="noopener noreferrer" class="button button-primary stm-preview-open is-disabled" aria-disabled="true">
+            <span class="dashicons dashicons-visibility" aria-hidden="true"></span>
+            View preview
+        </a>
+        <span class="stm-preview-unsaved-note" hidden>Save this post to preview it live.</span>
+    </div>
+    <?php endif; ?>
+
     <!-- Current Post Language -->
     <div class="stm-current-language">
         <p>

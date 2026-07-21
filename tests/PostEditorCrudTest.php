@@ -245,6 +245,10 @@ class PostEditorCrudTest extends TestCase {
         Functions\when('get_current_screen')->justReturn((object) ['post_type' => 'post']);
         Functions\when('post_type_supports')->justReturn(true);
         Functions\when('wp_enqueue_script')->justReturn(true);
+        Functions\when('get_post')->justReturn((object) ['ID' => 42]);
+        Functions\when('get_preview_post_link')->alias(function ($post, $args = []) {
+            return 'https://example.test/?p=' . $post->ID . '&lang=' . ($args['lang'] ?? '');
+        });
 
         $captured = null;
         Functions\when('wp_localize_script')->alias(function ($handle, $objName, $data) use (&$captured) {
@@ -260,6 +264,7 @@ class PostEditorCrudTest extends TestCase {
         $this->assertCount(1, $captured['languages'], 'Only the non-current language should appear in the panel.');
         $this->assertSame('nl', $captured['languages'][0]['code']);
         $this->assertSame('partial', $captured['languages'][0]['status'], 'Title-only translation is partial, not complete.');
+        $this->assertSame('https://example.test/?p=42&lang=nl', $captured['languages'][0]['previewUrl']);
 
         unset($_GET['post']);
     }
@@ -290,6 +295,10 @@ class PostEditorCrudTest extends TestCase {
         Functions\when('wp_create_nonce')->justReturn('nonce-abc');
         Functions\when('esc_url_raw')->returnArg(1);
         Functions\when('rest_url')->alias(function ($path) { return 'https://example.test/wp-json/' . $path; });
+        Functions\when('get_post')->justReturn((object) ['ID' => 42]);
+        Functions\when('get_preview_post_link')->alias(function ($post, $args = []) {
+            return 'https://example.test/?p=' . $post->ID . '&lang=' . ($args['lang'] ?? '');
+        });
 
         $captured = null;
         Functions\when('wp_localize_script')->alias(function ($handle, $objName, $data) use (&$captured) {
@@ -305,8 +314,122 @@ class PostEditorCrudTest extends TestCase {
         $this->assertSame('https://example.test/wp-json/stm/v1/posts/', $captured['postsApiRoot']);
         $this->assertSame('Translation deleted', $captured['i18n']['deleted']);
         $this->assertSame('Failed to delete translation', $captured['i18n']['deleteFailed']);
+        $this->assertCount(2, $captured['previewLanguages'], 'Both configured languages appear in the cycler, including the current one.');
+        $this->assertSame('en', $captured['previewLanguages'][0]['code']);
+        $this->assertSame('https://example.test/?p=42&lang=en', $captured['previewLanguages'][0]['previewUrl']);
+        $this->assertSame('nl', $captured['previewLanguages'][1]['code']);
+        $this->assertSame('https://example.test/?p=42&lang=nl', $captured['previewLanguages'][1]['previewUrl']);
 
         unset($_GET['post']);
+    }
+
+    public function test_enqueue_assets_falls_back_to_global_post_for_a_new_unsaved_post() {
+        global $post;
+        $this->seedLanguages();
+        // post-new.php never puts an ID in $_GET, but WP has already created
+        // the auto-draft row and populated the $post global by this point.
+        $post = (object) ['ID' => 99];
+
+        Functions\when('wp_enqueue_style')->justReturn(true);
+        Functions\when('wp_enqueue_script')->justReturn(true);
+        Functions\when('admin_url')->returnArg(1);
+        Functions\when('wp_create_nonce')->justReturn('nonce-abc');
+        Functions\when('esc_url_raw')->returnArg(1);
+        Functions\when('rest_url')->alias(function ($path) { return 'https://example.test/wp-json/' . $path; });
+        Functions\when('get_post')->justReturn((object) ['ID' => 99]);
+        Functions\when('get_preview_post_link')->alias(function ($p, $args = []) {
+            return 'https://example.test/?p=' . $p->ID . '&lang=' . ($args['lang'] ?? '');
+        });
+
+        $captured = null;
+        Functions\when('wp_localize_script')->alias(function ($handle, $objName, $data) use (&$captured) {
+            if ($objName === 'stmPostEditor') {
+                $captured = $data;
+            }
+        });
+
+        PostEditor::enqueue_assets('post-new.php');
+
+        $this->assertNotNull($captured);
+        $this->assertSame(0, $captured['postId'], 'postId itself stays $_GET-based — unrelated existing behavior.');
+        $this->assertSame('https://example.test/?p=99&lang=en', $captured['previewLanguages'][0]['previewUrl']);
+
+        $post = null;
+    }
+
+    // -----------------------------------------------------------------
+    // Preview-in-language cycler data (PostEditor::build_preview_languages)
+    // -----------------------------------------------------------------
+
+    public function test_build_preview_languages_returns_url_per_language_for_a_saved_post() {
+        $this->seedLanguages();
+
+        Functions\when('get_post')->justReturn((object) ['ID' => 42]);
+        Functions\when('get_preview_post_link')->alias(function ($post, $args = []) {
+            return 'https://example.test/?p=' . $post->ID . '&lang=' . ($args['lang'] ?? '');
+        });
+
+        $result = PostEditor::build_preview_languages(42);
+
+        $this->assertCount(2, $result);
+        $this->assertSame('en', $result[0]['code']);
+        $this->assertSame('https://example.test/?p=42&lang=en', $result[0]['previewUrl']);
+        $this->assertSame('nl', $result[1]['code']);
+        $this->assertSame('https://example.test/?p=42&lang=nl', $result[1]['previewUrl']);
+    }
+
+    public function test_build_preview_languages_leaves_preview_url_empty_without_a_post_id() {
+        $this->seedLanguages();
+
+        $result = PostEditor::build_preview_languages(0);
+
+        $this->assertCount(2, $result);
+        $this->assertSame('', $result[0]['previewUrl']);
+        $this->assertSame('', $result[1]['previewUrl']);
+    }
+
+    // -----------------------------------------------------------------
+    // Meta box template rendering (PostEditor::render_meta_box)
+    // -----------------------------------------------------------------
+
+    private function stubTemplateEscaping() {
+        Functions\when('esc_html')->returnArg(1);
+        Functions\when('esc_attr')->returnArg(1);
+        Functions\when('esc_textarea')->returnArg(1);
+        Functions\when('admin_url')->justReturn('http://example.test/wp-admin/admin.php?page=stm-languages');
+        Functions\when('selected')->justReturn('');
+        Functions\when('wp_nonce_field')->justReturn('');
+    }
+
+    public function test_render_meta_box_includes_preview_cycler_when_multiple_languages_exist() {
+        if (!defined('ABSPATH')) {
+            define('ABSPATH', dirname(__DIR__) . '/');
+        }
+        $this->seedLanguages(); // en + nl
+        $this->stubTemplateEscaping();
+
+        ob_start();
+        PostEditor::render_meta_box((object) ['ID' => 42]);
+        $html = ob_get_clean();
+
+        $this->assertStringContainsString('stm-language-preview-cycler', $html);
+        $this->assertStringContainsString('data-post-id="42"', $html);
+    }
+
+    public function test_render_meta_box_omits_preview_cycler_for_a_single_language() {
+        if (!defined('ABSPATH')) {
+            define('ABSPATH', dirname(__DIR__) . '/');
+        }
+        $this->wpdb->seed('wp_stm_languages', [
+            'code' => 'en', 'name' => 'English', 'flag_emoji' => '🇬🇧', 'is_active' => 1, 'is_default' => 1, 'order_index' => 1,
+        ]);
+        $this->stubTemplateEscaping();
+
+        ob_start();
+        PostEditor::render_meta_box((object) ['ID' => 42]);
+        $html = ob_get_clean();
+
+        $this->assertStringNotContainsString('stm-language-preview-cycler', $html);
     }
 }
 

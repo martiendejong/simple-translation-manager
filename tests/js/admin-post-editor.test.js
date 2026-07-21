@@ -11,30 +11,41 @@ const SCRIPT_PATH = path.join(__dirname, '..', '..', 'assets', 'admin-post-edito
 function buildDom() {
     document.body.innerHTML = `
         <form id="post">
-            <div class="stm-save-toast" role="status" aria-live="polite" hidden>
-                <span class="stm-save-toast-icon"></span>
-                <span class="stm-save-toast-text">Translations saved</span>
-            </div>
+            <div class="stm-post-translations" data-current-lang="nl">
+                <div class="stm-save-toast" role="status" aria-live="polite" hidden>
+                    <span class="stm-save-toast-icon"></span>
+                    <span class="stm-save-toast-text">Translations saved</span>
+                </div>
 
-            <div class="stm-tabs" role="tablist">
-                <button type="button" class="stm-tab-button active stm-tab-empty" role="tab"
-                        aria-controls="stm-tab-panel-nl" data-lang="nl">Dutch</button>
-                <button type="button" class="stm-tab-button stm-tab-empty" role="tab"
-                        aria-controls="stm-tab-panel-fr" data-lang="fr">French</button>
-            </div>
+                <div class="stm-language-preview-cycler" data-post-id="42">
+                    <span class="stm-preview-cycler-label">Preview in language:</span>
+                    <button type="button" class="button stm-preview-prev" aria-label="Previous language">&lsaquo;</button>
+                    <span class="stm-preview-current" aria-live="polite"></span>
+                    <button type="button" class="button stm-preview-next" aria-label="Next language">&rsaquo;</button>
+                    <a href="#" target="_blank" rel="noopener noreferrer" class="button button-primary stm-preview-open is-disabled" aria-disabled="true">View preview</a>
+                    <span class="stm-preview-unsaved-note" hidden>Save this post to preview it live.</span>
+                </div>
 
-            <div class="stm-tab-content active" id="stm-tab-panel-nl" data-lang="nl">
-                <button type="button" class="button stm-delete-translation-btn" data-lang="nl" data-post-id="42"></button>
-                <span class="stm-delete-translation-status"></span>
-                <input id="stm_title_nl" class="stm-translation-field" data-field="post_title" value="Titel">
-                <textarea id="stm_content_nl" class="stm-editor-area stm-translation-field" data-field="post_content">Inhoud</textarea>
-            </div>
+                <div class="stm-tabs" role="tablist">
+                    <button type="button" class="stm-tab-button active stm-tab-empty" role="tab"
+                            aria-controls="stm-tab-panel-nl" data-lang="nl">Dutch</button>
+                    <button type="button" class="stm-tab-button stm-tab-empty" role="tab"
+                            aria-controls="stm-tab-panel-fr" data-lang="fr">French</button>
+                </div>
 
-            <div class="stm-tab-content" id="stm-tab-panel-fr" data-lang="fr">
-                <button type="button" class="button stm-delete-translation-btn" data-lang="fr" data-post-id="42"></button>
-                <span class="stm-delete-translation-status"></span>
-                <input id="stm_title_fr" class="stm-translation-field" data-field="post_title" value="">
-                <textarea id="stm_content_fr" class="stm-editor-area stm-translation-field" data-field="post_content"></textarea>
+                <div class="stm-tab-content active" id="stm-tab-panel-nl" data-lang="nl">
+                    <button type="button" class="button stm-delete-translation-btn" data-lang="nl" data-post-id="42"></button>
+                    <span class="stm-delete-translation-status"></span>
+                    <input id="stm_title_nl" class="stm-translation-field" data-field="post_title" value="Titel">
+                    <textarea id="stm_content_nl" class="stm-editor-area stm-translation-field" data-field="post_content">Inhoud</textarea>
+                </div>
+
+                <div class="stm-tab-content" id="stm-tab-panel-fr" data-lang="fr">
+                    <button type="button" class="button stm-delete-translation-btn" data-lang="fr" data-post-id="42"></button>
+                    <span class="stm-delete-translation-status"></span>
+                    <input id="stm_title_fr" class="stm-translation-field" data-field="post_title" value="">
+                    <textarea id="stm_content_fr" class="stm-editor-area stm-translation-field" data-field="post_content"></textarea>
+                </div>
             </div>
         </form>
     `;
@@ -97,6 +108,10 @@ describe('admin-post-editor.js', () => {
             postsApiRoot: 'https://example.test/wp-json/stm/v1/posts/',
             restUrl: 'https://example.test/wp-json/stm/v1/translate/auto',
             restNonce: 'nonce-123',
+            previewLanguages: [
+                { code: 'nl', name: 'Dutch', flag_emoji: '🇳🇱', previewUrl: 'https://example.test/?p=42&lang=nl' },
+                { code: 'fr', name: 'French', flag_emoji: '🇫🇷', previewUrl: '' },
+            ],
             i18n: {
                 deleteConfirm: 'Delete this translation?',
                 deleted: 'Translation deleted',
@@ -144,6 +159,63 @@ describe('admin-post-editor.js', () => {
 
             expect(global.wp.editor.initialize).not.toHaveBeenCalled();
             expect(global.wp.editor.remove).not.toHaveBeenCalled();
+        });
+    });
+
+    describe('language preview cycler', () => {
+        test('initializes on the current post language, with a live preview link', () => {
+            loadScript();
+
+            expect(global.$('.stm-preview-current').text()).toBe('🇳🇱 Dutch');
+            expect(global.$('.stm-preview-open').attr('href')).toBe('https://example.test/?p=42&lang=nl');
+            expect(global.$('.stm-preview-open').hasClass('is-disabled')).toBe(false);
+            expect(global.$('.stm-preview-unsaved-note').attr('hidden')).toBe('hidden');
+        });
+
+        test('next wraps around to the first language after the last', () => {
+            loadScript();
+
+            global.$('.stm-preview-next').trigger('click');
+            expect(global.$('.stm-preview-current').text()).toBe('🇫🇷 French');
+
+            global.$('.stm-preview-next').trigger('click');
+            expect(global.$('.stm-preview-current').text()).toBe('🇳🇱 Dutch');
+        });
+
+        test('prev wraps around to the last language from the first', () => {
+            loadScript();
+
+            global.$('.stm-preview-prev').trigger('click');
+
+            expect(global.$('.stm-preview-current').text()).toBe('🇫🇷 French');
+            expect(global.$('.stm-preview-open').attr('href')).toBe('#');
+        });
+
+        test('disables the preview link and shows the unsaved note for a language with no preview URL', () => {
+            loadScript();
+
+            global.$('.stm-preview-next').trigger('click');
+
+            expect(global.$('.stm-preview-open').hasClass('is-disabled')).toBe(true);
+            expect(global.$('.stm-preview-open').attr('aria-disabled')).toBe('true');
+            expect(global.$('.stm-preview-unsaved-note').attr('hidden')).toBeUndefined();
+        });
+
+        test('clicking the disabled preview link does not navigate', () => {
+            loadScript();
+            global.$('.stm-preview-next').trigger('click'); // move to French, which has no previewUrl
+
+            const clickEvent = global.$.Event('click');
+            global.$('.stm-preview-open').trigger(clickEvent);
+
+            expect(clickEvent.isDefaultPrevented()).toBe(true);
+        });
+
+        test('does nothing when there are no preview languages configured', () => {
+            window.stmPostEditor.previewLanguages = [];
+
+            expect(() => loadScript()).not.toThrow();
+            expect(global.$('.stm-preview-current').text()).toBe('');
         });
     });
 

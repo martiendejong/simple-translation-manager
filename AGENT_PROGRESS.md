@@ -21,15 +21,23 @@ Verified: `vendor/bin/phpunit` 19/19 tests pass (1 new). `php -l` clean. No cove
 Left: nothing.
 
 ## 2026-07-21 — task 869e6vuk9
-Done: (WIP) plan — Martien clarified this is NOT about the existing meta-box language tabs
-(869ceqwwn/869cy7b5r, already shipped): he wants to quickly cycle languages on the actual
-post/page/product/CPT itself to see how it renders, not just edit fields in a tab below.
-Plan: add a "Preview in language" cycler (prev/next + open-preview link) to the post editor,
-built from per-language preview URLs (`get_preview_post_link()` + `lang` query arg), reusing
-the existing `Frontend::get_current_language()` GET-param mechanism — surfaced in both the
-classic meta box (top) and the Gutenberg sidebar panel.
-Verified: not yet — implementation in progress.
-Left: build PHP data + templates + JS + tests.
+Done: PR #17 — a "Preview in language" cycler at the top of the post/page/product/CPT
+meta box: prev/next buttons step through every configured language and a "View preview"
+link opens WordPress' own preview URL (`get_preview_post_link()` + a `lang` query arg) in
+a new tab, so an editor can quickly see how the entity actually renders in each language —
+distinct from the existing meta-box translation tabs (869ceqwwn/869cy7b5r) which only edit
+fields. Works from the first edit of a brand-new post too (falls back to the global `$post`
+auto-draft ID when `$_GET['post']` isn't set yet). The Gutenberg sidebar panel gets a
+matching "Preview" quick-link per language next to its existing "Edit" jump-to-tab button.
+Verified: `vendor/bin/phpunit` 79/79 pass (10 new, incl. `build_preview_languages()`, the
+new-post `$_GET` fallback, and two `render_meta_box()` template-render tests — added
+`templates/meta-box-translations.php` to phpunit.xml's tracked `<source><include>` list,
+since it had never been coverage-tracked at all before this PR). `npx jest` 13/13 pass (6
+new). `php -l` and `node --check` clean on all changed files. No coverage driver
+(pcov/xdebug) available locally to run the numeric gate, but manually verified every
+touched line against the tests. No live WordPress instance to click-through, matching
+every prior STM feature PR in this repo.
+Left: nothing outstanding for this task.
 
 ## 2026-07-20 — task 869e6vpgg
 Done: PR #14 — `includes/class-string-scanner.php` tokenizes the active theme (child+parent)

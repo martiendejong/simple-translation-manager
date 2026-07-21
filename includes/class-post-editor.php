@@ -108,6 +108,12 @@ class PostEditor {
         $post_id = isset($_GET['post']) ? (int) $_GET['post'] : 0;
         $current_lang = $post_id ? self::get_post_language($post_id) : Settings::get_default_language();
 
+        // A brand-new post already has a real (auto-draft) ID by the time this
+        // screen renders, it's just not in $_GET yet — use it so the preview
+        // cycler works from the very first edit, not only after the first save.
+        global $post;
+        $preview_post_id = $post_id ?: ($post ? $post->ID : 0);
+
         wp_localize_script('stm-post-editor', 'stmPostEditor', [
             'ajaxUrl'      => admin_url('admin-ajax.php'),
             'nonce'        => wp_create_nonce('stm_post_editor_nonce'),
@@ -117,6 +123,7 @@ class PostEditor {
             'postId'       => $post_id,
             'sourceLang'   => $current_lang,
             'defaultLang'  => Settings::get_default_language(),
+            'previewLanguages' => self::build_preview_languages($preview_post_id),
             'i18n' => [
                 'translating'        => __('Translating…', 'simple-translation-manager'),
                 'translated'         => __('Translation complete', 'simple-translation-manager'),
@@ -132,6 +139,31 @@ class PostEditor {
     }
 
     /**
+     * Build the per-language list used by the "Preview in language" cycler.
+     *
+     * Each entry carries a ready-to-open front-end preview URL — WordPress'
+     * own get_preview_post_link() plus a `lang` query arg, so the same
+     * Frontend::get_current_language() GET-param lookup that already drives
+     * the live site renders that language's translated title/content.
+     */
+    public static function build_preview_languages($post_id) {
+        $languages = Database::get_languages();
+        $post = $post_id ? get_post($post_id) : null;
+
+        $preview_languages = [];
+        foreach ($languages as $lang) {
+            $preview_languages[] = [
+                'code'       => $lang->code,
+                'name'       => $lang->name,
+                'flag_emoji' => $lang->flag_emoji,
+                'previewUrl' => $post ? get_preview_post_link($post, ['lang' => $lang->code]) : '',
+            ];
+        }
+
+        return $preview_languages;
+    }
+
+    /**
      * Enqueue the Gutenberg PluginDocumentSettingPanel script
      */
     public static function enqueue_gutenberg_assets() {
@@ -143,6 +175,10 @@ class PostEditor {
         $post_id = isset($_GET['post']) ? (int) $_GET['post'] : 0;
         $current_lang = $post_id ? self::get_post_language($post_id) : Settings::get_default_language();
         $languages = Database::get_languages();
+
+        global $post;
+        $preview_post_id = $post_id ?: ($post ? $post->ID : 0);
+        $preview_post = $preview_post_id ? get_post($preview_post_id) : null;
 
         $panel_languages = [];
         foreach ($languages as $lang) {
@@ -167,6 +203,7 @@ class PostEditor {
                 'name'       => $lang->name,
                 'flag_emoji' => $lang->flag_emoji,
                 'status'     => $status,
+                'previewUrl' => $preview_post ? get_preview_post_link($preview_post, ['lang' => $lang->code]) : '',
             ];
         }
 
@@ -188,6 +225,7 @@ class PostEditor {
                 'empty'    => __('Not translated', 'simple-translation-manager'),
                 'none'     => __('No other languages configured.', 'simple-translation-manager'),
                 'edit'     => __('Edit', 'simple-translation-manager'),
+                'preview'  => __('Preview', 'simple-translation-manager'),
             ],
         ]);
     }
