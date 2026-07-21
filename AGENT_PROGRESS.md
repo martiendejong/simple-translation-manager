@@ -20,6 +20,17 @@ Done: PR #13 got CHANGES REQUESTED — CI's diff-coverage gate failed because th
 Verified: `vendor/bin/phpunit` 19/19 tests pass (1 new). `php -l` clean. No coverage driver (pcov/xdebug) available locally to re-run `bin/diff-coverage.php`, but the new test executes line 204 directly (no branching in `create_language()` between lines 186-207 for valid input), which is the only touched line the gate flagged.
 Left: nothing.
 
+## 2026-07-21 — task 869e6vuk9
+Done: (WIP) plan — Martien clarified this is NOT about the existing meta-box language tabs
+(869ceqwwn/869cy7b5r, already shipped): he wants to quickly cycle languages on the actual
+post/page/product/CPT itself to see how it renders, not just edit fields in a tab below.
+Plan: add a "Preview in language" cycler (prev/next + open-preview link) to the post editor,
+built from per-language preview URLs (`get_preview_post_link()` + `lang` query arg), reusing
+the existing `Frontend::get_current_language()` GET-param mechanism — surfaced in both the
+classic meta box (top) and the Gutenberg sidebar panel.
+Verified: not yet — implementation in progress.
+Left: build PHP data + templates + JS + tests.
+
 ## 2026-07-20 — task 869e6vpgg
 Done: PR #14 — `includes/class-string-scanner.php` tokenizes the active theme (child+parent)
 and the plugin's own `templates/` dir for literal `__stm()`/`_e_stm()` calls, registers each
