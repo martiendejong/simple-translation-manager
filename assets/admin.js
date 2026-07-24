@@ -1,5 +1,59 @@
 /* Simple Translation Manager — Admin JS */
 /* Handles: session persistence, inline language CRUD, nonce heartbeat refresh */
+
+var STM_KNOWN_LANGUAGES = [
+    { code: 'af', name: 'Afrikaans',   native: 'Afrikaans',       flag: '🇿🇦' },
+    { code: 'ar', name: 'Arabic',      native: 'العربية',          flag: '🇸🇦' },
+    { code: 'az', name: 'Azerbaijani', native: 'Azərbaycanca',    flag: '🇦🇿' },
+    { code: 'bg', name: 'Bulgarian',   native: 'Български',        flag: '🇧🇬' },
+    { code: 'bn', name: 'Bengali',     native: 'বাংলা',            flag: '🇧🇩' },
+    { code: 'cs', name: 'Czech',       native: 'Čeština',          flag: '🇨🇿' },
+    { code: 'da', name: 'Danish',      native: 'Dansk',            flag: '🇩🇰' },
+    { code: 'de', name: 'German',      native: 'Deutsch',          flag: '🇩🇪' },
+    { code: 'el', name: 'Greek',       native: 'Ελληνικά',         flag: '🇬🇷' },
+    { code: 'en', name: 'English',     native: 'English',          flag: '🇬🇧' },
+    { code: 'es', name: 'Spanish',     native: 'Español',          flag: '🇪🇸' },
+    { code: 'et', name: 'Estonian',    native: 'Eesti',            flag: '🇪🇪' },
+    { code: 'fa', name: 'Persian',     native: 'فارسی',            flag: '🇮🇷' },
+    { code: 'fi', name: 'Finnish',     native: 'Suomi',            flag: '🇫🇮' },
+    { code: 'fr', name: 'French',      native: 'Français',         flag: '🇫🇷' },
+    { code: 'ga', name: 'Irish',       native: 'Gaeilge',          flag: '🇮🇪' },
+    { code: 'he', name: 'Hebrew',      native: 'עברית',            flag: '🇮🇱' },
+    { code: 'hi', name: 'Hindi',       native: 'हिन्दी',            flag: '🇮🇳' },
+    { code: 'hr', name: 'Croatian',    native: 'Hrvatski',         flag: '🇭🇷' },
+    { code: 'hu', name: 'Hungarian',   native: 'Magyar',           flag: '🇭🇺' },
+    { code: 'hy', name: 'Armenian',    native: 'Հայերեն',          flag: '🇦🇲' },
+    { code: 'id', name: 'Indonesian',  native: 'Bahasa Indonesia', flag: '🇮🇩' },
+    { code: 'it', name: 'Italian',     native: 'Italiano',         flag: '🇮🇹' },
+    { code: 'ja', name: 'Japanese',    native: '日本語',             flag: '🇯🇵' },
+    { code: 'ka', name: 'Georgian',    native: 'ქართული',          flag: '🇬🇪' },
+    { code: 'ko', name: 'Korean',      native: '한국어',             flag: '🇰🇷' },
+    { code: 'lt', name: 'Lithuanian',  native: 'Lietuvių',         flag: '🇱🇹' },
+    { code: 'lv', name: 'Latvian',     native: 'Latviešu',         flag: '🇱🇻' },
+    { code: 'ms', name: 'Malay',       native: 'Bahasa Melayu',    flag: '🇲🇾' },
+    { code: 'mt', name: 'Maltese',     native: 'Malti',            flag: '🇲🇹' },
+    { code: 'nb', name: 'Norwegian',   native: 'Norsk',            flag: '🇳🇴' },
+    { code: 'nl', name: 'Dutch',       native: 'Nederlands',       flag: '🇳🇱' },
+    { code: 'pl', name: 'Polish',      native: 'Polski',           flag: '🇵🇱' },
+    { code: 'pt', name: 'Portuguese',  native: 'Português',        flag: '🇵🇹' },
+    { code: 'ro', name: 'Romanian',    native: 'Română',           flag: '🇷🇴' },
+    { code: 'ru', name: 'Russian',     native: 'Русский',          flag: '🇷🇺' },
+    { code: 'sk', name: 'Slovak',      native: 'Slovenčina',       flag: '🇸🇰' },
+    { code: 'sl', name: 'Slovenian',   native: 'Slovenščina',      flag: '🇸🇮' },
+    { code: 'sq', name: 'Albanian',    native: 'Shqip',            flag: '🇦🇱' },
+    { code: 'sr', name: 'Serbian',     native: 'Српски',           flag: '🇷🇸' },
+    { code: 'sv', name: 'Swedish',     native: 'Svenska',          flag: '🇸🇪' },
+    { code: 'sw', name: 'Swahili',     native: 'Kiswahili',        flag: '🇰🇪' },
+    { code: 'th', name: 'Thai',        native: 'ภาษาไทย',           flag: '🇹🇭' },
+    { code: 'tl', name: 'Filipino',    native: 'Filipino',         flag: '🇵🇭' },
+    { code: 'tr', name: 'Turkish',     native: 'Türkçe',           flag: '🇹🇷' },
+    { code: 'uk', name: 'Ukrainian',   native: 'Українська',       flag: '🇺🇦' },
+    { code: 'ur', name: 'Urdu',        native: 'اردو',              flag: '🇵🇰' },
+    { code: 'vi', name: 'Vietnamese',  native: 'Tiếng Việt',       flag: '🇻🇳' },
+    { code: 'zh', name: 'Chinese (Simplified)',  native: '中文（简体）', flag: '🇨🇳' },
+    { code: 'zt', name: 'Chinese (Traditional)', native: '中文（繁體）', flag: '🇹🇼' },
+];
+
 (function ($) {
     'use strict';
 
@@ -203,6 +257,65 @@
         var tab = $(this).data('tab');
         if (tab) savePrefs({ tab: tab });
     });
+
+    // =========================================================================
+    // Language picker autocomplete (Add Language form)
+    // =========================================================================
+    (function () {
+        var $search  = $('#stm-lang-search');
+        var $list    = $('#stm-lang-dropdown');
+        if (!$search.length) return;
+
+        function escHtml(s) {
+            return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+        }
+
+        function renderDropdown(query) {
+            var q = query.trim().toLowerCase();
+            if (!q) { $list.hide().empty(); return; }
+
+            var matches = STM_KNOWN_LANGUAGES.filter(function (l) {
+                return l.code.indexOf(q) === 0
+                    || l.name.toLowerCase().indexOf(q) !== -1
+                    || l.native.toLowerCase().indexOf(q) !== -1;
+            }).slice(0, 8);
+
+            if (!matches.length) { $list.hide().empty(); return; }
+
+            var html = matches.map(function (l) {
+                return '<div class="stm-lang-option" data-code="' + escHtml(l.code) + '"'
+                     + ' data-name="' + escHtml(l.name) + '"'
+                     + ' data-native="' + escHtml(l.native) + '"'
+                     + ' data-flag="' + escHtml(l.flag) + '">'
+                     + l.flag + ' ' + escHtml(l.name) + ' <span style="color:#888;font-size:12px;">(' + escHtml(l.code) + ') ' + escHtml(l.native) + '</span>'
+                     + '</div>';
+            }).join('');
+
+            $list.html(html).show();
+        }
+
+        $search.on('input', function () { renderDropdown($(this).val()); });
+
+        $search.on('keydown', function (e) {
+            if (e.key === 'Escape') { $list.hide().empty(); }
+        });
+
+        $(document).on('click', '.stm-lang-option', function () {
+            var $o = $(this);
+            $('#lang_code').val($o.data('code'));
+            $('#lang_name').val($o.data('name'));
+            $('#lang_native').val($o.data('native'));
+            $('#lang_flag').val($o.data('flag'));
+            $search.val($o.data('flag') + ' ' + $o.data('name'));
+            $list.hide().empty();
+        });
+
+        $(document).on('click', function (e) {
+            if (!$(e.target).closest('#stm-lang-search-wrap').length) {
+                $list.hide().empty();
+            }
+        });
+    }());
 
     // =========================================================================
     // AI test-connection button
