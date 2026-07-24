@@ -237,7 +237,7 @@ class Admin {
      * Page: Languages
      */
     public static function page_languages() {
-        $languages = Database::get_languages();
+        $languages = Database::get_all_languages();
         include STM_PLUGIN_DIR . 'templates/admin-languages.php';
     }
 
