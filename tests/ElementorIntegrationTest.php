@@ -39,6 +39,7 @@ class ElementorIntegrationTest extends TestCase {
         Functions\when('wp_cache_delete')->justReturn(true);
         Functions\when('get_option')->justReturn('en');
         Functions\when('get_query_var')->justReturn('');
+        Functions\when('is_preview')->justReturn(false);
         Functions\when('__')->returnArg(1);
         Functions\when('rest_ensure_response')->returnArg(1);
         Functions\when('wp_json_encode')->alias(function ($data) { return json_encode($data); });
@@ -287,6 +288,7 @@ class ElementorIntegrationTest extends TestCase {
     }
 
     public function test_filter_builder_content_data_unchanged_when_no_translation_saved() {
+        $this->seedLanguages();
         $_COOKIE['stm_lang'] = 'nl';
         $data = [['id' => 'abc123', 'settings' => ['title' => 'Hello']]];
 
@@ -296,6 +298,7 @@ class ElementorIntegrationTest extends TestCase {
     }
 
     public function test_filter_builder_content_data_merges_translation_for_current_language() {
+        $this->seedLanguages();
         $_COOKIE['stm_lang'] = 'nl';
         ElementorIntegration::save_language_data(42, 'nl', ['abc123' => ['title' => 'Hallo']]);
 

@@ -86,3 +86,18 @@ measures 89.01% (162/182 lines) on the new file, comfortably over the 80% thresh
 (PHP unit tests, JS unit tests, PHP lint) all green. No live WordPress instance in this
 environment, so the actual wp-admin Strings screen was not visually verified.
 Left: nothing outstanding for this task.
+
+## 2026-07-25 — task 869e9a954 (round 2, review feedback)
+Done: PR #19 review found `class-frontend.php`'s `get_current_language()` accepted any
+well-formed language code via `?lang=`, the rewrite query var, or the cookie — so once an
+admin saved content for an inactive language, any visitor could see it via `?lang=de`.
+Fixed: the resolved language is now only honored when it is active (`Database::get_languages()`),
+or when the request is an authenticated preview (`is_preview()` + `current_user_can('edit_post', $id)`
+on the queried post) — the mechanism the "Preview in language" cycler already relies on. Otherwise
+falls back to the default language, same as an unrecognized code always did.
+Verified: `vendor/bin/phpunit` 108/108 pass (11 new in `tests/FrontendTest.php` covering active/inactive/
+unknown codes across all three input paths, plus the preview-authorization edge cases; updated 2
+pre-existing tests in `SeoGodIntegrationTest.php`/`ElementorIntegrationTest.php` that assumed any
+cookie value was honored regardless of active status). `npx jest` 13/13 pass (unchanged). `php -l`
+clean on all changed files.
+Left: nothing outstanding for this task.
