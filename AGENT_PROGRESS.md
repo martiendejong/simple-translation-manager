@@ -1,5 +1,12 @@
 # Agent Progress
 
+## 2026-07-25 — task 869e9a954 (WIP)
+Plan: switch editor surfaces (meta box, Gutenberg panel, preview cycler, post-list columns) in
+`class-post-editor.php` from `Database::get_languages()` (active-only) to `get_all_languages()`
+so admins can write/save/preview content in inactive languages, while frontend surfaces stay on
+`get_languages()`. Also adding a minimal "toggle active" admin action to the Languages screen,
+since none exists yet and the task's own test plan requires marking a language inactive.
+
 ## 2026-07-24 — task 869e8wk1w
 Done: Deploy-time version tracking, PR #18. Plugin already had a manually-bumped `Version:` header + `STM_VERSION` constant (WP's own convention), but nothing JengoAGI's version detector recognizes (it only checks git tags, a VERSION file, package.json, or a csproj `<Version>`) and no automation kept the header/constant/package.json in sync. Added: root `VERSION` file (source of truth), `package.json` `"version"` field, `bin/bump-version.php` (`php bin/bump-version.php <major|minor|patch>` bumps all three files in lockstep via regex — CRLF-safe, preserves existing formatting), and `.github/workflows/release-tag.yml` (auto-creates+pushes a `vX.Y.Z` git tag whenever VERSION changes on a push to master).
 Verified: `vendor/bin/phpunit` 83/83 pass (4 new — consistency check + 3 bump-script functional tests using a temp-dir copy, incl. major/minor reset and unknown-part rejection). `npx jest` 13/13 pass (unaffected). `php -l` clean on every PHP file in the repo. `package.json` valid JSON. Workflow YAML parsed with a real YAML parser (not just `bash -n`) and its embedded script's bash syntax checked separately. CLI smoke-tested `php bin/bump-version.php patch` against a scratch copy of the real repo files end-to-end.
