@@ -25,6 +25,7 @@ class Admin {
         add_action('admin_post_stm_import_json', [__CLASS__, 'import_json']);
         add_action('admin_post_stm_add_language', [__CLASS__, 'add_language']);
         add_action('admin_post_stm_delete_language', [__CLASS__, 'delete_language']);
+        add_action('admin_post_stm_toggle_language_active', [__CLASS__, 'toggle_language_active']);
         add_action('admin_post_stm_save_ai_settings', [__CLASS__, 'save_ai_settings']);
         add_action('admin_notices', [__CLASS__, 'show_translation_warnings']);
     }
@@ -625,6 +626,52 @@ class Admin {
         wp_cache_delete('stm_all_languages');
 
         wp_redirect(add_query_arg('stm_deleted', '1', wp_get_referer()));
+        exit;
+    }
+
+    /**
+     * Toggle a language between active and inactive (admin form handler).
+     *
+     * Inactive languages stay invisible on the front end (switcher, URLs,
+     * hreflang) but remain fully editable/previewable in the post editor, so
+     * admins can prepare a language before switching it live.
+     */
+    public static function toggle_language_active() {
+        if (!Security::verify_admin_action('stm_toggle_language_active')) {
+            wp_die('Unauthorized', 403);
+        }
+
+        $code = sanitize_text_field($_POST['lang_code'] ?? '');
+
+        if (!Security::validate_language_code($code)) {
+            wp_die('Invalid language code', 400);
+        }
+
+        global $wpdb;
+        $table = $wpdb->prefix . 'stm_languages';
+
+        $lang = $wpdb->get_row($wpdb->prepare(
+            "SELECT is_active, is_default FROM {$table} WHERE code = %s",
+            $code
+        ));
+
+        $redirect_arg = 'stm_toggled';
+        $redirect_val = '1';
+
+        if (!$lang) {
+            $redirect_arg = 'stm_error';
+            $redirect_val = 'not_found';
+        } elseif ($lang->is_default && $lang->is_active) {
+            // The default language always needs to be reachable on the front end.
+            $redirect_arg = 'stm_error';
+            $redirect_val = 'cannot_deactivate_default';
+        } else {
+            $wpdb->update($table, ['is_active' => $lang->is_active ? 0 : 1], ['code' => $code]);
+            wp_cache_delete('stm_active_languages');
+            wp_cache_delete('stm_all_languages');
+        }
+
+        wp_redirect(add_query_arg($redirect_arg, $redirect_val, wp_get_referer()));
         exit;
     }
 

@@ -1,11 +1,28 @@
 # Agent Progress
 
-## 2026-07-25 — task 869e9a954 (WIP)
-Plan: switch editor surfaces (meta box, Gutenberg panel, preview cycler, post-list columns) in
-`class-post-editor.php` from `Database::get_languages()` (active-only) to `get_all_languages()`
-so admins can write/save/preview content in inactive languages, while frontend surfaces stay on
-`get_languages()`. Also adding a minimal "toggle active" admin action to the Languages screen,
-since none exists yet and the task's own test plan requires marking a language inactive.
+## 2026-07-25 — task 869e9a954
+Done: PR #19 — switched the 5 `Database::get_languages()` (active-only) call sites in
+`class-post-editor.php` (meta box, Gutenberg panel, preview cycler, both post-list columns) to
+`get_all_languages()`, so an inactive language's tab still renders and its content can be typed,
+saved (the save path never filtered by active status), and previewed. Frontend surfaces
+(`class-language-switcher.php`, `class-hreflang.php`, `class-frontend.php`) were left untouched —
+confirmed they already only call `get_languages()`. Also found the task's own "How to test" step
+("Mark a language inactive on the STM Languages screen") was unactionable: the Languages screen
+had no way to deactivate a language at all (`add_language()` always inserted `is_active=1`, no
+toggle UI/endpoint existed). Added `Admin::toggle_language_active()` (admin_post handler, guards
+the default language from being deactivated, invalidates both language caches) plus an
+Activate/Deactivate button per row in `templates/admin-languages.php`.
+Verified: `vendor/bin/phpunit` 97/97 pass (14 new: inactive-language coverage for the meta box,
+Gutenberg panel, preview cycler and both post-list columns; toggle-active activate/deactivate/
+default-guard/not-found/invalid-code/cache-invalidation paths, using a `wp_redirect`-throws-to-
+interrupt trick so the handler's trailing `exit;` never kills the test process). `npx jest`
+13/13 pass (unaffected — no JS touched). `php -l` clean on every changed file. No coverage driver
+(pcov/xdebug) available locally to run `bin/diff-coverage.php` numerically, but manually traced
+every touched line against the new tests; the single genuinely uncovered line is the shared
+trailing `exit;` in `toggle_language_active()` (unreachable without letting the real process
+exit), which the refactor already collapsed from 3 duplicate exit points down to 1. No live
+WordPress instance to click-through, matching every prior STM feature PR in this repo.
+Left: nothing outstanding for this task.
 
 ## 2026-07-24 — task 869e8wk1w
 Done: Deploy-time version tracking, PR #18. Plugin already had a manually-bumped `Version:` header + `STM_VERSION` constant (WP's own convention), but nothing JengoAGI's version detector recognizes (it only checks git tags, a VERSION file, package.json, or a csproj `<Version>`) and no automation kept the header/constant/package.json in sync. Added: root `VERSION` file (source of truth), `package.json` `"version"` field, `bin/bump-version.php` (`php bin/bump-version.php <major|minor|patch>` bumps all three files in lockstep via regex — CRLF-safe, preserves existing formatting), and `.github/workflows/release-tag.yml` (auto-creates+pushes a `vX.Y.Z` git tag whenever VERSION changes on a push to master).
