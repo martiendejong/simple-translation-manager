@@ -11,6 +11,7 @@ use Brain\Monkey;
 use Brain\Monkey\Functions;
 use PHPUnit\Framework\TestCase;
 use STM\SeoGodIntegration;
+use STM\Tests\Fakes\FakeWpdb;
 
 class SeoGodIntegrationTest extends TestCase {
 
@@ -18,12 +19,27 @@ class SeoGodIntegrationTest extends TestCase {
         parent::setUp();
         Monkey\setUp();
 
+        global $wpdb;
+        $wpdb = new FakeWpdb();
+
         $_GET    = [];
         $_COOKIE = [];
 
         Functions\when('get_query_var')->justReturn('');
         Functions\when('sanitize_text_field')->returnArg(1);
         Functions\when('get_option')->justReturn('en');
+        Functions\when('wp_cache_get')->justReturn(false);
+        Functions\when('wp_cache_set')->justReturn(true);
+        Functions\when('is_preview')->justReturn(false);
+
+        $wpdb->seed('wp_stm_languages', [
+            'code' => 'en', 'name' => 'English', 'native_name' => 'English',
+            'flag_emoji' => '', 'is_active' => 1, 'is_default' => 1, 'order_index' => 1,
+        ]);
+        $wpdb->seed('wp_stm_languages', [
+            'code' => 'fr', 'name' => 'French', 'native_name' => 'Français',
+            'flag_emoji' => '', 'is_active' => 1, 'is_default' => 0, 'order_index' => 2,
+        ]);
     }
 
     protected function tearDown(): void {

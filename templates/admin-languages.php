@@ -6,11 +6,14 @@ if (!defined('ABSPATH')) exit;
 
 $added   = isset($_GET['stm_added']);
 $deleted = isset($_GET['stm_deleted']);
+$toggled = isset($_GET['stm_toggled']);
 $error   = isset($_GET['stm_error']) ? sanitize_text_field($_GET['stm_error']) : '';
 $error_messages = [
-    'invalid_fields'          => 'Invalid language code or name.',
-    'db_error'                => 'Database error — language may already exist.',
-    'cannot_delete_default'   => 'Cannot delete the default language. Set another language as default first.',
+    'invalid_fields'              => 'Invalid language code or name.',
+    'db_error'                    => 'Database error — language may already exist.',
+    'cannot_delete_default'       => 'Cannot delete the default language. Set another language as default first.',
+    'cannot_deactivate_default'   => 'Cannot deactivate the default language. Set another language as default first.',
+    'not_found'                   => 'Language not found.',
 ];
 ?>
 
@@ -22,6 +25,9 @@ $error_messages = [
     <?php endif; ?>
     <?php if ($deleted): ?>
         <div class="notice notice-success is-dismissible"><p>Language deleted.</p></div>
+    <?php endif; ?>
+    <?php if ($toggled): ?>
+        <div class="notice notice-success is-dismissible"><p>Language status updated.</p></div>
     <?php endif; ?>
     <?php if ($error): ?>
         <div class="notice notice-error is-dismissible"><p><?php echo esc_html($error_messages[$error] ?? $error); ?></p></div>
@@ -52,6 +58,16 @@ $error_messages = [
                     <td><?php echo $lang->is_active ? '✓' : '—'; ?></td>
                     <td><?php echo esc_html($lang->order_index); ?></td>
                     <td>
+                        <?php if (!($lang->is_default && $lang->is_active)): ?>
+                            <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" style="display:inline;">
+                                <input type="hidden" name="action" value="stm_toggle_language_active">
+                                <input type="hidden" name="lang_code" value="<?php echo esc_attr($lang->code); ?>">
+                                <?php wp_nonce_field('stm_toggle_language_active'); ?>
+                                <button type="submit" class="button button-small">
+                                    <?php echo $lang->is_active ? 'Deactivate' : 'Activate'; ?>
+                                </button>
+                            </form>
+                        <?php endif; ?>
                         <?php if (!$lang->is_default): ?>
                             <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>"
                                   style="display:inline;"

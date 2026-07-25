@@ -41,4 +41,18 @@ class AdminMenuTest extends TestCase {
 
         $this->assertContains('stm-documentation', $registeredSlugs);
     }
+
+    public function test_init_registers_the_toggle_language_active_admin_post_hook() {
+        Functions\when('is_admin')->justReturn(true);
+
+        $registeredHooks = [];
+        Functions\when('add_action')->alias(function (...$args) use (&$registeredHooks) {
+            $registeredHooks[$args[0]] = $args[1];
+        });
+
+        Admin::init();
+
+        $this->assertArrayHasKey('admin_post_stm_toggle_language_active', $registeredHooks);
+        $this->assertSame([Admin::class, 'toggle_language_active'], $registeredHooks['admin_post_stm_toggle_language_active']);
+    }
 }

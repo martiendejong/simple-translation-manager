@@ -67,6 +67,14 @@ class PostEditorCrudTest extends TestCase {
         ]);
     }
 
+    /** Same as seedLanguages() plus a third, inactive language (German). */
+    private function seedLanguagesWithInactive() {
+        $this->seedLanguages();
+        $this->wpdb->seed('wp_stm_languages', [
+            'code' => 'de', 'name' => 'German', 'flag_emoji' => '🇩🇪', 'is_active' => 0, 'is_default' => 0, 'order_index' => 3,
+        ]);
+    }
+
     // -----------------------------------------------------------------
     // Create + read (PostEditor::save_translations / get_post_translation)
     // -----------------------------------------------------------------
@@ -269,6 +277,37 @@ class PostEditorCrudTest extends TestCase {
         unset($_GET['post']);
     }
 
+    public function test_enqueue_gutenberg_assets_includes_inactive_languages_in_the_panel() {
+        $this->seedLanguagesWithInactive();
+        $this->wpdb->seed('wp_stm_post_associations', [
+            'post_id' => 42, 'language_code' => 'en', 'translation_group' => 'g1', 'is_original' => 1,
+        ]);
+
+        $_GET['post'] = '42';
+
+        Functions\when('get_current_screen')->justReturn((object) ['post_type' => 'post']);
+        Functions\when('post_type_supports')->justReturn(true);
+        Functions\when('wp_enqueue_script')->justReturn(true);
+        Functions\when('get_post')->justReturn((object) ['ID' => 42]);
+        Functions\when('get_preview_post_link')->alias(function ($post, $args = []) {
+            return 'https://example.test/?p=' . $post->ID . '&lang=' . ($args['lang'] ?? '');
+        });
+
+        $captured = null;
+        Functions\when('wp_localize_script')->alias(function ($handle, $objName, $data) use (&$captured) {
+            if ($objName === 'stmGutenberg') {
+                $captured = $data;
+            }
+        });
+
+        PostEditor::enqueue_gutenberg_assets();
+
+        $codes = array_map(function ($l) { return $l['code']; }, $captured['languages']);
+        $this->assertSame(['nl', 'de'], $codes, 'Both other languages, including the inactive one, must appear in the panel.');
+
+        unset($_GET['post']);
+    }
+
     public function test_enqueue_gutenberg_assets_skips_enqueue_when_post_type_unsupported() {
         Functions\when('get_current_screen')->justReturn((object) ['post_type' => 'attachment']);
         Functions\when('post_type_supports')->justReturn(false);
@@ -388,6 +427,21 @@ class PostEditorCrudTest extends TestCase {
         $this->assertSame('', $result[1]['previewUrl']);
     }
 
+    public function test_build_preview_languages_includes_inactive_languages() {
+        $this->seedLanguagesWithInactive();
+
+        Functions\when('get_post')->justReturn((object) ['ID' => 42]);
+        Functions\when('get_preview_post_link')->alias(function ($post, $args = []) {
+            return 'https://example.test/?p=' . $post->ID . '&lang=' . ($args['lang'] ?? '');
+        });
+
+        $result = PostEditor::build_preview_languages(42);
+
+        $codes = array_map(function ($l) { return $l['code']; }, $result);
+        $this->assertSame(['en', 'nl', 'de'], $codes, 'The inactive German language must still appear in the preview cycler.');
+        $this->assertSame('https://example.test/?p=42&lang=de', $result[2]['previewUrl']);
+    }
+
     // -----------------------------------------------------------------
     // Meta box template rendering (PostEditor::render_meta_box)
     // -----------------------------------------------------------------
@@ -430,6 +484,62 @@ class PostEditorCrudTest extends TestCase {
         $html = ob_get_clean();
 
         $this->assertStringNotContainsString('stm-language-preview-cycler', $html);
+    }
+
+    public function test_render_meta_box_lists_an_inactive_language_tab_and_accepts_saved_content() {
+        if (!defined('ABSPATH')) {
+            define('ABSPATH', dirname(__DIR__) . '/');
+        }
+        $this->seedLanguagesWithInactive(); // en (default), nl, de (inactive)
+        $this->wpdb->seed('wp_stm_post_translations', [
+            'post_id' => 42, 'field_name' => 'post_title', 'language_code' => 'de', 'translation' => 'Deutscher Titel',
+        ]);
+        $this->stubTemplateEscaping();
+
+        ob_start();
+        PostEditor::render_meta_box((object) ['ID' => 42]);
+        $html = ob_get_clean();
+
+        $this->assertStringContainsString('data-lang="de"', $html, 'The inactive language must still get an editable tab.');
+        $this->assertStringContainsString('Deutscher Titel', $html, 'Content already saved for the inactive language must be shown, same as any other translation.');
+        $this->assertStringContainsString('stm_translations[de][post_title]', $html, 'The field name must exist so typed content for the inactive language can be submitted and saved.');
+    }
+
+    // -----------------------------------------------------------------
+    // Post-list columns (PostEditor::display_language_column)
+    // -----------------------------------------------------------------
+
+    public function test_display_language_column_resolves_flag_for_a_post_whose_own_language_is_inactive() {
+        $this->seedLanguagesWithInactive();
+        $this->wpdb->seed('wp_stm_post_associations', [
+            'post_id' => 42, 'language_code' => 'de', 'translation_group' => 'g1', 'is_original' => 1,
+        ]);
+
+        Functions\when('esc_html')->returnArg(1);
+
+        ob_start();
+        PostEditor::display_language_column('stm_language', 42);
+        $output = ob_get_clean();
+
+        $this->assertSame('🇩🇪 de', $output, 'A post written in an inactive language must still resolve its flag/emoji, not fall back to the raw code.');
+    }
+
+    public function test_display_language_column_counts_translations_saved_in_an_inactive_language() {
+        $this->seedLanguagesWithInactive();
+        $this->wpdb->seed('wp_stm_post_associations', [
+            'post_id' => 42, 'language_code' => 'en', 'translation_group' => 'g1', 'is_original' => 1,
+        ]);
+        $this->wpdb->seed('wp_stm_post_translations', [
+            'post_id' => 42, 'field_name' => 'post_title', 'language_code' => 'de', 'translation' => 'Deutscher Titel',
+        ]);
+
+        Functions\when('esc_html')->returnArg(1);
+
+        ob_start();
+        PostEditor::display_language_column('stm_translations', 42);
+        $output = ob_get_clean();
+
+        $this->assertStringContainsString('🇩🇪', $output, 'A translation saved only in an inactive language must still count as a translation on the post list.');
     }
 }
 

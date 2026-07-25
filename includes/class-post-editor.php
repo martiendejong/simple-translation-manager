@@ -63,7 +63,9 @@ class PostEditor {
     public static function render_meta_box($post) {
         wp_nonce_field('stm_save_translations', 'stm_translations_nonce');
 
-        $languages = Database::get_languages();
+        // All languages, active or not — an admin can prepare a new
+        // language's translations before it goes live on the front end.
+        $languages = Database::get_all_languages();
         $current_lang = self::get_post_language($post->ID);
         $translation_group = self::get_translation_group($post->ID);
 
@@ -147,7 +149,7 @@ class PostEditor {
      * the live site renders that language's translated title/content.
      */
     public static function build_preview_languages($post_id) {
-        $languages = Database::get_languages();
+        $languages = Database::get_all_languages();
         $post = $post_id ? get_post($post_id) : null;
 
         $preview_languages = [];
@@ -174,7 +176,7 @@ class PostEditor {
 
         $post_id = isset($_GET['post']) ? (int) $_GET['post'] : 0;
         $current_lang = $post_id ? self::get_post_language($post_id) : Settings::get_default_language();
-        $languages = Database::get_languages();
+        $languages = Database::get_all_languages();
 
         global $post;
         $preview_post_id = $post_id ?: ($post ? $post->ID : 0);
@@ -336,7 +338,7 @@ class PostEditor {
     public static function display_language_column($column, $post_id) {
         if ($column === 'stm_language') {
             $lang_code = self::get_post_language($post_id);
-            $languages = Database::get_languages();
+            $languages = Database::get_all_languages();
 
             foreach ($languages as $lang) {
                 if ($lang->code === $lang_code) {
@@ -355,7 +357,7 @@ class PostEditor {
                 return;
             }
 
-            $languages = Database::get_languages();
+            $languages = Database::get_all_languages();
             $current_lang = self::get_post_language($post_id);
             $has_translations = false;
 
