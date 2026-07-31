@@ -44,6 +44,8 @@ class FrontendTest extends TestCase {
         Functions\when('get_queried_object_id')->justReturn(0);
         Functions\when('current_user_can')->justReturn(false);
 
+        $this->resetCookieWrittenGuard();
+
         $this->wpdb->seed('wp_stm_languages', [
             'code' => 'en', 'name' => 'English', 'native_name' => 'English',
             'flag_emoji' => '', 'is_active' => 1, 'is_default' => 1, 'order_index' => 1,
@@ -153,5 +155,42 @@ class FrontendTest extends TestCase {
         Functions\when('current_user_can')->justReturn(true);
 
         $this->assertSame('en', Frontend::get_current_language());
+    }
+
+    // -----------------------------------------------------------------
+    // 869ebjzzc: ?lang= must only ever write the cookie once per request.
+    // A search/archive loop calls get_current_language() once per post
+    // (via the_title/post_type_link), so without a dedup guard a single
+    // request emits a dozen-plus identical Set-Cookie headers — which the
+    // production PHP-FPM/IIS front end turns into a 502 instead of a
+    // response. See the class-frontend.php $cookie_written guard.
+    // -----------------------------------------------------------------
+
+    public function test_lang_cookie_is_only_written_once_per_request() {
+        $_GET['lang'] = 'nl';
+
+        $this->resetCookieWrittenGuard();
+        $this->assertFalse($this->cookieWrittenGuard());
+
+        // Simulate a loop rendering several search results: each one calls
+        // get_current_language() independently, exactly like filter_title()
+        // and filter_permalink() do for every post in wordpress_search().
+        for ($i = 0; $i < 12; $i++) {
+            $this->assertSame('nl', Frontend::get_current_language());
+        }
+
+        // The guard must have latched after the very first call and stayed
+        // latched — proving at most one setcookie() call happened, not 12.
+        $this->assertTrue($this->cookieWrittenGuard());
+    }
+
+    private function cookieWrittenGuard(): bool {
+        $prop = new \ReflectionProperty(Frontend::class, 'cookie_written');
+        return $prop->getValue();
+    }
+
+    private function resetCookieWrittenGuard(): void {
+        $prop = new \ReflectionProperty(Frontend::class, 'cookie_written');
+        $prop->setValue(null, false);
     }
 }

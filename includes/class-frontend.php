@@ -54,6 +54,18 @@ class Frontend {
     }
 
     /**
+     * Whether the ?lang= cookie has already been (re)written during this
+     * request. get_current_language() runs once per post being rendered
+     * (once per get_permalink()/get_the_title() call in a search results
+     * or archive loop), so without this guard a single request can call
+     * setcookie() a dozen-plus times with an identical value. On this
+     * host's PHP-FPM/IIS front end that many repeated Set-Cookie headers
+     * on one response makes the reverse proxy treat the response as
+     * invalid and return a 502 — see the 869ebjzzc REST search crash.
+     */
+    private static $cookie_written = false;
+
+    /**
      * Read the requested language code from the rewrite query var, the
      * ?lang= GET param, or the persisted cookie — without yet checking
      * whether that language may actually be shown.
@@ -69,7 +81,7 @@ class Frontend {
         if ( isset( $_GET['lang'] ) ) {
             $lang = sanitize_text_field( $_GET['lang'] );
             if ( Security::validate_language_code( $lang ) ) {
-                setcookie( 'stm_lang', $lang, time() + ( 86400 * 30 ), '/' );
+                self::remember_language_choice( $lang );
                 return $lang;
             }
         }
@@ -83,6 +95,22 @@ class Frontend {
         }
 
         return '';
+    }
+
+    /**
+     * Persist the ?lang= choice in a cookie — at most once per request, and
+     * only when it is actually possible to send a header. Both guards exist
+     * because this is called from inside content filters (the_title,
+     * post_type_link, ...) that WordPress runs once per post in a loop, not
+     * once per request.
+     */
+    private static function remember_language_choice( $lang ) {
+        if ( self::$cookie_written || headers_sent() ) {
+            return;
+        }
+
+        self::$cookie_written = true;
+        setcookie( 'stm_lang', $lang, time() + ( 86400 * 30 ), '/' );
     }
 
     /**

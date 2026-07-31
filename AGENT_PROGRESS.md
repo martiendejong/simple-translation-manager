@@ -101,3 +101,20 @@ pre-existing tests in `SeoGodIntegrationTest.php`/`ElementorIntegrationTest.php`
 cookie value was honored regardless of active status). `npx jest` 13/13 pass (unchanged). `php -l`
 clean on all changed files.
 Left: nothing outstanding for this task.
+
+## 2026-07-31 — task 869ebjzzc (Bugatti Insights ClickUp board)
+Done: root-caused and fixed the public search REST endpoint 502ing on Bugatti Insights whenever
+`?lang=` was present. Not a REST-layer bug at all — `Frontend::get_requested_language()` calls
+`setcookie('stm_lang', ...)` every time `get_current_language()` runs, and a search-results loop
+calls it once per post (via the `the_title`/`post_type_link` filters in `get_the_title()`/
+`get_permalink()`). 12 search results = 12 duplicate `Set-Cookie` headers on one response, which
+this host's PHP-FPM/IIS front end turns into a 502 instead of relaying. Confirmed live via
+plugin activate/deactivate toggling (STM inactive = 200, active = 502) and a binary-search of
+hand-patched live deploys down to the exact `setcookie()` line. Fix: `remember_language_choice()`
+guards the cookie write with a `$cookie_written` static flag (once per request) + `headers_sent()`.
+Verified: `vendor/bin/phpunit` 109/109 pass (1 new test asserting the guard latches after the
+first of 12 simulated calls). Live: `lang=de`/`en`/`fr` each 3/3 return 200 JSON against
+test.bugattiinsights.com after deploying this fix; no-`lang` and an unrelated-param control both
+still 200.
+Left: nothing outstanding for this task. Follow-up 869ebjz6a (wiring `lang` into the search UI)
+can now build on this without inheriting the crash.
