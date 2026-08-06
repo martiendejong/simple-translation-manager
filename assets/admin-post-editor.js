@@ -274,18 +274,25 @@
         $.when.apply($, promises).done(function() {
             var results = (promises.length === 1) ? [arguments[0]] : Array.prototype.slice.call(arguments);
             var anyFailed = false;
+            var errorMessages = [];
             results.forEach(function(r) {
                 if (!r) return;
                 if (r.success && typeof r.translation === 'string' && r.translation.length > 0) {
                     applyTranslation(targetLang, r.field, r.translation);
                 } else if (r.success === false && (sourceFields[r.field] || '').length > 0) {
                     anyFailed = true;
+                    if (r.error && errorMessages.indexOf(r.error) === -1) {
+                        errorMessages.push(r.error);
+                    }
                 }
             });
 
             $btn.prop('disabled', false).removeClass('is-loading');
             if (anyFailed) {
-                setStatus($btn, i18n.translateFailed || 'Auto-translate failed', 'error');
+                var failureMessage = errorMessages.length > 0
+                    ? errorMessages.join('; ')
+                    : (i18n.translateFailed || 'Auto-translate failed');
+                setStatus($btn, failureMessage, 'error');
             } else {
                 setStatus($btn, i18n.translated || 'Translation complete', 'success');
             }
@@ -373,7 +380,9 @@
                 error: (resp && resp.error) || '',
             });
         }).fail(function() {
-            deferred.resolve({ field: field, success: false, translation: '', error: 'request failed' });
+            // No response at all (network/connection failure) — no error detail
+            // to surface, so handleAutoTranslate falls back to the generic message.
+            deferred.resolve({ field: field, success: false, translation: '', error: '' });
         });
 
         return deferred.promise();
