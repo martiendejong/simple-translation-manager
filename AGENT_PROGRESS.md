@@ -1,5 +1,22 @@
 # Agent Progress
 
+## 2026-08-06 — task 869eecx75
+Done: PR — auto-translate failures now surface the backend's real `error` string instead of the
+generic "Auto-translate failed" text. `handleAutoTranslate()` in `assets/admin-post-editor.js`
+collects the distinct non-empty `r.error` values across all failed fields and joins them (e.g. two
+fields hitting the same missing-API-key error show it once; two different provider errors show
+both, separated by "; "). True network failures (jQuery `.fail()` on the AJAX call, no response at
+all) now resolve with `error: ''` in `translateField()` so they fall through to the existing
+generic `i18n.translateFailed` fallback — the one case the task said should keep the generic text.
+Verified: `class-auto-translate.php`'s `translate_openai()`/`translate_deepl()` already return the
+real per-field error (missing key text, or the live OpenAI/DeepL error) — no backend change needed.
+Verified: `npx jest` 18/18 pass (13 existing + 5 new in `tests/js/admin-post-editor.test.js`: single
+real error shown, two different real errors joined, one real error survives alongside a no-detail
+network failure, pure network failure falls back to the generic message, success path unaffected).
+No PHP changed. No live WP instance to click-through, matching every prior STM JS-only PR in this
+repo.
+Left: nothing outstanding for this task.
+
 ## 2026-07-25 — task 869e9a954
 Done: PR #19 — switched the 5 `Database::get_languages()` (active-only) call sites in
 `class-post-editor.php` (meta box, Gutenberg panel, preview cycler, both post-list columns) to

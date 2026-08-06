@@ -11,6 +11,10 @@ const SCRIPT_PATH = path.join(__dirname, '..', '..', 'assets', 'admin-post-edito
 function buildDom() {
     document.body.innerHTML = `
         <form id="post">
+            <input id="title" value="Hello">
+            <textarea id="excerpt"></textarea>
+            <textarea id="content">Hello world</textarea>
+
             <div class="stm-post-translations" data-current-lang="nl">
                 <div class="stm-save-toast" role="status" aria-live="polite" hidden>
                     <span class="stm-save-toast-icon"></span>
@@ -41,6 +45,10 @@ function buildDom() {
                 </div>
 
                 <div class="stm-tab-content" id="stm-tab-panel-fr" data-lang="fr">
+                    <div class="stm-tab-toolbar stm-auto-translate-bar">
+                        <button type="button" class="button stm-auto-translate-btn" data-lang="fr" data-source-lang="nl" data-post-id="42">Auto-translate to French</button>
+                        <span class="stm-auto-translate-status" aria-live="polite"></span>
+                    </div>
                     <button type="button" class="button stm-delete-translation-btn" data-lang="fr" data-post-id="42"></button>
                     <span class="stm-delete-translation-status"></span>
                     <input id="stm_title_fr" class="stm-translation-field" data-field="post_title" value="">
@@ -58,6 +66,18 @@ function fakeJqXHR({ fail = false, response = {} } = {}) {
         always(cb) { cb(response); return xhr; },
     };
     return xhr;
+}
+
+// Auto-translate fires one REST call per non-empty source field (post_title,
+// post_content in the test DOM). Route each call to a canned response by the
+// `context` field name sent in the request body, so each field can fail (or
+// succeed) independently.
+function mockAutoTranslateAjax(responsesByField) {
+    return jest.spyOn(global.$, 'ajax').mockImplementation((opts) => {
+        const body = JSON.parse(opts.data);
+        const cfg = responsesByField[body.context] || { response: { success: true, translation: '' } };
+        return fakeJqXHR(cfg);
+    });
 }
 
 function loadScript() {
@@ -117,6 +137,11 @@ describe('admin-post-editor.js', () => {
                 deleted: 'Translation deleted',
                 deleteFailed: 'Failed to delete translation',
                 saved: 'Translations saved',
+                translating: 'Translating…',
+                translated: 'Translation complete',
+                translateFailed: 'Auto-translate failed',
+                nothingToTranslate: 'Nothing to translate',
+                overwriteConfirm: 'Overwrite existing translations?',
             },
         };
     });
@@ -277,6 +302,82 @@ describe('admin-post-editor.js', () => {
             global.$('.stm-delete-translation-btn[data-lang="nl"]').trigger('click');
 
             expect(setHeader).toHaveBeenCalledWith('X-WP-Nonce', 'nonce-123');
+        });
+    });
+
+    describe('auto-translate button — error messages', () => {
+        function statusFor(lang) {
+            return global.$('.stm-tab-content[data-lang="' + lang + '"] .stm-auto-translate-status');
+        }
+
+        test('shows the backend\'s real error instead of the generic failed text', () => {
+            mockAutoTranslateAjax({
+                post_title: { response: { success: false, error: 'OpenAI API key not configured. Go to Translations > Settings.' } },
+                post_content: { response: { success: false, error: 'OpenAI API key not configured. Go to Translations > Settings.' } },
+            });
+
+            loadScript();
+            global.$('.stm-auto-translate-btn[data-lang="fr"]').trigger('click');
+
+            const $status = statusFor('fr');
+            expect($status.text()).toBe('OpenAI API key not configured. Go to Translations > Settings.');
+            expect($status.text()).not.toBe('Auto-translate failed');
+            expect($status.hasClass('is-error')).toBe(true);
+        });
+
+        test('reflects a real reason for each field, not a silently collapsed "failed", when fields fail differently', () => {
+            mockAutoTranslateAjax({
+                post_title: { response: { success: false, error: 'Incorrect API key provided' } },
+                post_content: { response: { success: false, error: 'DeepL quota exceeded' } },
+            });
+
+            loadScript();
+            global.$('.stm-auto-translate-btn[data-lang="fr"]').trigger('click');
+
+            const $status = statusFor('fr');
+            expect($status.text()).toBe('Incorrect API key provided; DeepL quota exceeded');
+        });
+
+        test('still surfaces a real error even when a second field fails with no error detail', () => {
+            mockAutoTranslateAjax({
+                post_title: { response: { success: false, error: 'OpenAI API key not configured. Go to Translations > Settings.' } },
+                post_content: { fail: true, response: {} },
+            });
+
+            loadScript();
+            global.$('.stm-auto-translate-btn[data-lang="fr"]').trigger('click');
+
+            const $status = statusFor('fr');
+            expect($status.text()).toBe('OpenAI API key not configured. Go to Translations > Settings.');
+        });
+
+        test('falls back to a generic message on a true network-level failure with no response', () => {
+            mockAutoTranslateAjax({
+                post_title: { fail: true, response: {} },
+                post_content: { fail: true, response: {} },
+            });
+
+            loadScript();
+            global.$('.stm-auto-translate-btn[data-lang="fr"]').trigger('click');
+
+            const $status = statusFor('fr');
+            expect($status.text()).toBe('Auto-translate failed');
+            expect($status.hasClass('is-error')).toBe(true);
+        });
+
+        test('shows the success message when all fields translate cleanly', () => {
+            mockAutoTranslateAjax({
+                post_title: { response: { success: true, translation: 'Bonjour' } },
+                post_content: { response: { success: true, translation: 'Bonjour le monde' } },
+            });
+
+            loadScript();
+            global.$('.stm-auto-translate-btn[data-lang="fr"]').trigger('click');
+
+            const $status = statusFor('fr');
+            expect($status.text()).toBe('Translation complete');
+            expect($status.hasClass('is-success')).toBe(true);
+            expect(global.$('#stm_title_fr').val()).toBe('Bonjour');
         });
     });
 });
