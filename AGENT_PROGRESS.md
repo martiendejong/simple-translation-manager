@@ -157,3 +157,21 @@ test.bugattiinsights.com after deploying this fix; no-`lang` and an unrelated-pa
 still 200.
 Left: nothing outstanding for this task. Follow-up 869ebjz6a (wiring `lang` into the search UI)
 can now build on this without inheriting the crash.
+
+## 2026-08-08 — task 869efjuha
+Done: added `readme.txt` (WordPress.org headers: Contributors, Tags, Requires at least,
+Tested up to 6.7, Stable tag 1.2.1, License GPLv2 or later + License URI, plus
+Description/Installation/FAQ/Changelog sections) — fixes Plugin Check's `no_plugin_readme`,
+`missing_readme_header_tested`, `no_stable_tag`, `no_license` errors. Also wired readme.txt's
+Stable tag into `bin/bump-version.php`'s existing VERSION/package.json/plugin-header lockstep
+so future version bumps can't silently desync it again, and extended
+`tests/VersionConsistencyTest.php` to assert that.
+Verified: no live WP install / Plugin Check plugin available in this environment, so wrote
+`tests/verify-readme-headers.php` (standalone PHP, mirrors the readme header regex WP.org's
+parser uses) to check headlessly — passes, confirming Tested up to/Stable tag/License all
+parse and Stable tag (1.2.1) matches the plugin file's Version header. `php -l` clean on all
+changed files. `vendor/bin/phpunit` 110/110 pass (3 new: readme Stable-tag assertion in the
+static-agreement test, bump-lockstep now also asserts readme.txt, plus a no-readme-file
+back-compat case).
+Left: actual Plugin Check tool run (wp-admin plugin) still needs a live WordPress instance —
+not available here; recommend running it once against a staging site as final confirmation.
