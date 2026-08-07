@@ -303,7 +303,7 @@ class LanguageSwitcher extends \WP_Widget {
     private static function get_language_url($lang_code, $base_url) {
         if (Settings::is_url_routing_enabled()) {
             // Parse the base URL and prepend /lang_code/
-            $parsed = parse_url($base_url);
+            $parsed = wp_parse_url($base_url);
             $path   = ltrim($parsed['path'] ?? '/', '/');
             $query  = isset($parsed['query']) ? '?' . $parsed['query'] : '';
             return $parsed['scheme'] . '://' . $parsed['host'] . '/' . $lang_code . '/' . $path . $query;
