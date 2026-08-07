@@ -157,3 +157,14 @@ test.bugattiinsights.com after deploying this fix; no-`lang` and an unrelated-pa
 still 200.
 Left: nothing outstanding for this task. Follow-up 869ebjz6a (wiring `lang` into the search UI)
 can now build on this without inheriting the crash.
+
+## 2026-08-08 — task 869efjuhj
+Done: PR — replaced `date('Y-m-d')` with `gmdate('Y-m-d')` at
+`includes/class-dashboard.php:429` and `:470` (CSV export filenames for coverage/missing
+reports). UTC is correct here — the value only disambiguates a downloaded filename, never
+shown as content — and matches the existing `gmdate()` convention already used for export
+timestamps in `includes/class-import-export.php`.
+Verified: reused sibling tasks' `/tmp/phpcs-check` WPCS install —
+`WordPress.DateTime.RestrictedFunctions.date_date` 2 errors → 0 on this file. `php -l` clean.
+`vendor/bin/phpunit` 109/109 pass (unchanged). Output format unchanged (`Y-m-d`, regex-verified).
+Left: nothing outstanding for this task.
