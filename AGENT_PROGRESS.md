@@ -219,6 +219,26 @@ still 200.
 Left: nothing outstanding for this task. Follow-up 869ebjz6a (wiring `lang` into the search UI)
 can now build on this without inheriting the crash.
 
+## 2026-08-07 — task 869efjuhr
+Done: wrapped every superglobal access that feeds a sanitizing function with `wp_unslash()`
+across the 7 files the task cited (`class-dashboard.php`, `class-import-export.php`,
+`class-admin.php`, `class-post-editor.php`, `class-frontend.php`, `functions.php`,
+`class-language-switcher.php`) — `$_GET`/`$_POST`/`$_COOKIE`/`$_SERVER` reads that already went
+through `sanitize_text_field()`/`sanitize_key()`/`wp_verify_nonce()`/etc. Left `intval()`/`(int)`
+casts and `isset()` checks alone (unslash is a no-op for those). Per the task's review note,
+`$_FILES['import_file']['name']` / `$_FILES['stm_import_file']['name']` now go through
+`sanitize_file_name()` instead of `wp_unslash()`. Did not add sanitization where none existed
+before (a few `$_GET` filters in `class-admin.php` were bare-assigned with no sanitize call at
+all) — that's the separate `InputNotSanitized` rule, not in this ticket's scope.
+Verified: `php -l` clean on all 7 files. `vendor/bin/phpunit` 109/109 pass — 5 test files
+(`FrontendTest`, `LanguagesScreenTest`, `PostEditorCrudTest`, `ElementorIntegrationTest`,
+`SeoGodIntegrationTest`) needed a `Functions\when('wp_unslash')->returnArg(1);` stub added to
+their Brain\Monkey `setUp()`, since the suite has no real WordPress loaded. `npx jest` 18/18 pass
+(unaffected, JS-only). Standalone script proved the actual security property: with `wp_unslash()`
+a value containing an apostrophe/backslash round-trips exactly; without it, WP's magic-quotes
+slashing corrupts the stored value with stray backslashes.
+Left: nothing outstanding for this task.
+
 ## 2026-08-07 — task 869efjuhf
 Done: fixed the 3 Plugin Check ERROR-level SQL-injection findings (`WordPress.DB.PreparedSQL.NotPrepared`
 / `PluginCheck.Security.DirectDB.UnescapedDBParameter`). Two real gaps in `class-api.php`

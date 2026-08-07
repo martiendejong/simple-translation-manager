@@ -554,9 +554,9 @@ class ImportExport {
             wp_die('Unauthorized', 403);
         }
 
-        $source = sanitize_text_field($_POST['source_lang'] ?? 'en');
-        $target = sanitize_text_field($_POST['target_lang'] ?? 'nl');
-        $context = sanitize_text_field($_POST['context'] ?? '');
+        $source = sanitize_text_field(wp_unslash($_POST['source_lang'] ?? 'en'));
+        $target = sanitize_text_field(wp_unslash($_POST['target_lang'] ?? 'nl'));
+        $context = sanitize_text_field(wp_unslash($_POST['context'] ?? ''));
 
         $content = self::export_xliff($source, $target, $context);
 
@@ -571,8 +571,8 @@ class ImportExport {
             wp_die('Unauthorized', 403);
         }
 
-        $lang = sanitize_text_field($_POST['lang'] ?? 'nl');
-        $context = sanitize_text_field($_POST['context'] ?? '');
+        $lang = sanitize_text_field(wp_unslash($_POST['lang'] ?? 'nl'));
+        $context = sanitize_text_field(wp_unslash($_POST['context'] ?? ''));
 
         $content = self::export_po($lang, $context);
 
@@ -593,8 +593,8 @@ class ImportExport {
 
         $file = $_FILES['import_file'];
         $content = file_get_contents($file['tmp_name']);
-        $filename = strtolower($file['name']);
-        $lang = sanitize_text_field($_POST['lang'] ?? 'nl');
+        $filename = strtolower(sanitize_file_name($file['name']));
+        $lang = sanitize_text_field(wp_unslash($_POST['lang'] ?? 'nl'));
 
         if (strpos($filename, '.xliff') !== false || strpos($filename, '.xlf') !== false) {
             $result = self::import_xliff($content);
