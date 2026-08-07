@@ -343,7 +343,7 @@ Search engines penalize low-quality auto-translations.
 - **Developer integration (theme / REST API)** → [`../API.md`](../API.md)
 - **Bulk imports via WP-CLI** → [`../CLI-COMMANDS.md`](../CLI-COMMANDS.md)
 - **Overall plugin overview** → [`../../README.md`](../../README.md)
-- **Detailed blog translation reference** → [`../../README-BLOG.md`](../../README-BLOG.md)
+- **Detailed blog translation reference** → [`../BLOG.md`](../BLOG.md)
 
 ---
 
