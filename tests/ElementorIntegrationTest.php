@@ -33,6 +33,7 @@ class ElementorIntegrationTest extends TestCase {
         $_COOKIE = [];
 
         Functions\when('sanitize_text_field')->returnArg(1);
+        Functions\when('wp_unslash')->returnArg(1);
         Functions\when('wp_kses')->returnArg(1);
         Functions\when('wp_cache_get')->justReturn(false);
         Functions\when('wp_cache_set')->justReturn(true);

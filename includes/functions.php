@@ -208,7 +208,7 @@ if (!function_exists('stm_language_switcher')) {
     function stm_language_switcher($format = 'dropdown', $args = []) {
         $languages = stm_get_languages();
         $current_lang = stm_get_current_language();
-        $current_url = strtok($_SERVER['REQUEST_URI'], '?');
+        $current_url = strtok(wp_unslash($_SERVER['REQUEST_URI'] ?? ''), '?');
 
         // Remove language prefix from URL
         $clean_url = preg_replace('#^/[a-z]{2}(/|$)#', '/', $current_url);

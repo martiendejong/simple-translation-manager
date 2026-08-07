@@ -237,7 +237,7 @@ class PostEditor {
      */
     public static function save_translations($post_id, $post) {
         // Security checks
-        if (!isset($_POST['stm_translations_nonce']) || !wp_verify_nonce($_POST['stm_translations_nonce'], 'stm_save_translations')) {
+        if (!isset($_POST['stm_translations_nonce']) || !wp_verify_nonce(wp_unslash($_POST['stm_translations_nonce']), 'stm_save_translations')) {
             return;
         }
 
@@ -256,7 +256,7 @@ class PostEditor {
         }
 
         // Save post language
-        $post_language = isset($_POST['stm_post_language']) ? sanitize_text_field($_POST['stm_post_language']) : Settings::get_default_language();
+        $post_language = isset($_POST['stm_post_language']) ? sanitize_text_field(wp_unslash($_POST['stm_post_language'])) : Settings::get_default_language();
         self::set_post_language($post_id, $post_language, $translation_group);
 
         // Save translations
@@ -264,7 +264,9 @@ class PostEditor {
             global $wpdb;
             $table = $wpdb->prefix . 'stm_post_translations';
 
-            foreach ($_POST['stm_translations'] as $lang_code => $fields) {
+            $translations = wp_unslash($_POST['stm_translations']);
+
+            foreach ($translations as $lang_code => $fields) {
                 if (!Security::validate_language_code($lang_code)) {
                     continue;
                 }

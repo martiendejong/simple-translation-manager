@@ -37,7 +37,7 @@ class Dashboard {
             wp_die(__('Insufficient permissions.', 'simple-translation-manager'));
         }
 
-        $active_tab = sanitize_key($_GET['tab'] ?? 'overview');
+        $active_tab = sanitize_key(wp_unslash($_GET['tab'] ?? 'overview'));
         $allowed_tabs = ['overview', 'missing', 'recent'];
         if (!in_array($active_tab, $allowed_tabs, true)) {
             $active_tab = 'overview';
@@ -57,10 +57,10 @@ class Dashboard {
             $data['coverage'] = self::get_coverage_stats();
         } elseif ($active_tab === 'missing') {
             $filters = [
-                'language'  => sanitize_text_field($_GET['flang'] ?? ''),
-                'post_type' => sanitize_text_field($_GET['fptype'] ?? ''),
-                'date_from' => sanitize_text_field($_GET['fdate_from'] ?? ''),
-                'date_to'   => sanitize_text_field($_GET['fdate_to'] ?? ''),
+                'language'  => sanitize_text_field(wp_unslash($_GET['flang'] ?? '')),
+                'post_type' => sanitize_text_field(wp_unslash($_GET['fptype'] ?? '')),
+                'date_from' => sanitize_text_field(wp_unslash($_GET['fdate_from'] ?? '')),
+                'date_to'   => sanitize_text_field(wp_unslash($_GET['fdate_to'] ?? '')),
                 'paged'     => max(1, intval($_GET['paged'] ?? 1)),
                 'per_page'  => 50,
             ];
@@ -353,8 +353,8 @@ class Dashboard {
         global $wpdb;
 
         $post_id       = intval($_POST['post_id'] ?? 0);
-        $language_code = sanitize_text_field($_POST['language_code'] ?? '');
-        $field_name    = sanitize_key($_POST['field_name'] ?? 'title');
+        $language_code = sanitize_text_field(wp_unslash($_POST['language_code'] ?? ''));
+        $field_name    = sanitize_key(wp_unslash($_POST['field_name'] ?? 'title'));
         $translation   = wp_kses_post(wp_unslash($_POST['translation'] ?? ''));
 
         if ($post_id <= 0 || !Security::validate_language_code($language_code)) {
@@ -457,10 +457,10 @@ class Dashboard {
         }
 
         $filters = [
-            'language'  => sanitize_text_field($_GET['flang'] ?? ''),
-            'post_type' => sanitize_text_field($_GET['fptype'] ?? ''),
-            'date_from' => sanitize_text_field($_GET['fdate_from'] ?? ''),
-            'date_to'   => sanitize_text_field($_GET['fdate_to'] ?? ''),
+            'language'  => sanitize_text_field(wp_unslash($_GET['flang'] ?? '')),
+            'post_type' => sanitize_text_field(wp_unslash($_GET['fptype'] ?? '')),
+            'date_from' => sanitize_text_field(wp_unslash($_GET['fdate_from'] ?? '')),
+            'date_to'   => sanitize_text_field(wp_unslash($_GET['fdate_to'] ?? '')),
             'paged'     => 1,
             'per_page'  => 100000,
         ];

@@ -171,10 +171,10 @@ class Admin {
         global $wpdb;
 
         // Get filter values
-        $lang_filter = $_GET['lang'] ?? '';
-        $context_filter = $_GET['context'] ?? '';
-        $status_filter = $_GET['status'] ?? '';
-        $search = $_GET['search'] ?? '';
+        $lang_filter = wp_unslash($_GET['lang'] ?? '');
+        $context_filter = wp_unslash($_GET['context'] ?? '');
+        $status_filter = wp_unslash($_GET['status'] ?? '');
+        $search = wp_unslash($_GET['search'] ?? '');
 
         // Pagination
         $per_page = 50;
@@ -377,8 +377,8 @@ class Admin {
 
         // Validate and sanitize inputs
         $string_id = intval($_POST['string_id']);
-        $language_code = sanitize_text_field($_POST['language_code']);
-        $translation = Security::sanitize_translation($_POST['translation']);
+        $language_code = sanitize_text_field(wp_unslash($_POST['language_code']));
+        $translation = Security::sanitize_translation(wp_unslash($_POST['translation']));
 
         if (!Security::validate_language_code($language_code)) {
             wp_die('Invalid language code', 400);
@@ -442,9 +442,9 @@ class Admin {
         global $wpdb;
 
         // Validate and sanitize inputs
-        $string_key = Security::sanitize_translation_key($_POST['string_key']);
-        $context = Security::sanitize_context($_POST['context'] ?? 'general');
-        $description = sanitize_textarea_field($_POST['description'] ?? '');
+        $string_key = Security::sanitize_translation_key(wp_unslash($_POST['string_key']));
+        $context = Security::sanitize_context(wp_unslash($_POST['context'] ?? 'general'));
+        $description = sanitize_textarea_field(wp_unslash($_POST['description'] ?? ''));
 
         if (!Security::validate_translation_key($string_key)) {
             wp_die('Invalid translation key format', 400);
@@ -518,7 +518,7 @@ class Admin {
         $file = $_FILES['stm_import_file'];
 
         // Only allow JSON files
-        $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+        $ext = strtolower(pathinfo(sanitize_file_name($file['name']), PATHINFO_EXTENSION));
         if ($ext !== 'json') {
             wp_redirect(add_query_arg('stm_error', 'invalid_type', wp_get_referer()));
             exit;
@@ -556,10 +556,10 @@ class Admin {
 
         global $wpdb;
 
-        $code        = sanitize_text_field($_POST['lang_code'] ?? '');
-        $name        = sanitize_text_field($_POST['lang_name'] ?? '');
-        $native_name = sanitize_text_field($_POST['lang_native'] ?? $name);
-        $flag        = sanitize_text_field($_POST['lang_flag'] ?? '');
+        $code        = sanitize_text_field(wp_unslash($_POST['lang_code'] ?? ''));
+        $name        = sanitize_text_field(wp_unslash($_POST['lang_name'] ?? ''));
+        $native_name = sanitize_text_field(wp_unslash($_POST['lang_native'] ?? $name));
+        $flag        = sanitize_text_field(wp_unslash($_POST['lang_flag'] ?? ''));
         $is_default  = isset($_POST['lang_default']) ? 1 : 0;
 
         if (!Security::validate_language_code($code) || empty($name)) {
@@ -601,7 +601,7 @@ class Admin {
             wp_die('Unauthorized', 403);
         }
 
-        $code = sanitize_text_field($_POST['lang_code'] ?? '');
+        $code = sanitize_text_field(wp_unslash($_POST['lang_code'] ?? ''));
 
         if (!Security::validate_language_code($code)) {
             wp_die('Invalid language code', 400);
@@ -641,7 +641,7 @@ class Admin {
             wp_die('Unauthorized', 403);
         }
 
-        $code = sanitize_text_field($_POST['lang_code'] ?? '');
+        $code = sanitize_text_field(wp_unslash($_POST['lang_code'] ?? ''));
 
         if (!Security::validate_language_code($code)) {
             wp_die('Invalid language code', 400);
@@ -683,9 +683,9 @@ class Admin {
             wp_die('Unauthorized', 403);
         }
 
-        $provider   = sanitize_text_field($_POST['ai_provider'] ?? 'openai');
-        $openai_key = sanitize_text_field($_POST['openai_key'] ?? '');
-        $deepl_key  = sanitize_text_field($_POST['deepl_key'] ?? '');
+        $provider   = sanitize_text_field(wp_unslash($_POST['ai_provider'] ?? 'openai'));
+        $openai_key = sanitize_text_field(wp_unslash($_POST['openai_key'] ?? ''));
+        $deepl_key  = sanitize_text_field(wp_unslash($_POST['deepl_key'] ?? ''));
 
         AutoTranslate::save_settings($provider, $openai_key ?: null, $deepl_key ?: null);
 
