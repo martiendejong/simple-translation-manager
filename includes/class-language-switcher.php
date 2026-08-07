@@ -11,6 +11,8 @@
 
 namespace STM;
 
+if (!defined('ABSPATH')) exit;
+
 class LanguageSwitcher extends \WP_Widget {
 
     public static function init() {
