@@ -245,6 +245,7 @@ class API {
             ORDER BY s.context ASC, s.string_key ASC
         ";
 
+        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- $query (built above from %s placeholders in $where[] and their values in $params) is passed through $wpdb->prepare() with $params right here; the sniff can't trace a query built across multiple statements, but no raw value ever reaches the SQL string.
         $results = $wpdb->get_results($wpdb->prepare($query, $params));
 
         // Parse translations
@@ -822,6 +823,7 @@ class API {
 
         $where_sql = implode(' AND ', $where);
 
+        // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- $where_sql is assembled from %s placeholders in $where[] and their values in $params above; $wpdb->prepare() below resolves every placeholder before the query runs.
         $results = $wpdb->get_results($wpdb->prepare("
             SELECT s.string_key, t.language_code, t.translation
             FROM {$table_translations} t
