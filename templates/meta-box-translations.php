@@ -77,13 +77,13 @@ if (!defined('ABSPATH')) exit;
                 }
                 ?>
                 <button type="button"
-                        class="stm-tab-button <?php echo $first ? 'active' : ''; ?> <?php echo esc_attr($status_class); ?>"
+                        class="stm-tab-button <?php echo esc_attr($first ? 'active' : ''); ?> <?php echo esc_attr($status_class); ?>"
                         role="tab"
-                        aria-selected="<?php echo $first ? 'true' : 'false'; ?>"
+                        aria-selected="<?php echo esc_attr($first ? 'true' : 'false'); ?>"
                         aria-controls="stm-tab-panel-<?php echo esc_attr($lang->code); ?>"
                         data-lang="<?php echo esc_attr($lang->code); ?>">
                     <?php echo esc_html($lang->flag_emoji . ' ' . $lang->name); ?>
-                    <?php echo $status_icon; // already escaped ?>
+                    <?php echo wp_kses_post($status_icon); ?>
                 </button>
 
                 <?php $first = false; ?>
@@ -102,7 +102,7 @@ if (!defined('ABSPATH')) exit;
             $content = $translation['post_content'] ?? '';
             ?>
 
-            <div class="stm-tab-content <?php echo $first ? 'active' : ''; ?>"
+            <div class="stm-tab-content <?php echo esc_attr($first ? 'active' : ''); ?>"
                  id="stm-tab-panel-<?php echo esc_attr($lang->code); ?>"
                  role="tabpanel"
                  data-lang="<?php echo esc_attr($lang->code); ?>">
@@ -203,7 +203,7 @@ if (!defined('ABSPATH')) exit;
         <?php if (count($languages) <= 1): ?>
             <p class="description" style="margin-top: 20px;">
                 <strong>No other languages available.</strong>
-                Go to <a href="<?php echo admin_url('admin.php?page=stm-languages'); ?>">Languages</a> to add more.
+                Go to <a href="<?php echo esc_url(admin_url('admin.php?page=stm-languages')); ?>">Languages</a> to add more.
             </p>
         <?php endif; ?>
     </div>

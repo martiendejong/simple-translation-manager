@@ -450,6 +450,8 @@ class PostEditorCrudTest extends TestCase {
         Functions\when('esc_html')->returnArg(1);
         Functions\when('esc_attr')->returnArg(1);
         Functions\when('esc_textarea')->returnArg(1);
+        Functions\when('esc_url')->returnArg(1);
+        Functions\when('wp_kses_post')->returnArg(1);
         Functions\when('admin_url')->justReturn('http://example.test/wp-admin/admin.php?page=stm-languages');
         Functions\when('selected')->justReturn('');
         Functions\when('wp_nonce_field')->justReturn('');

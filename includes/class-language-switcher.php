@@ -42,10 +42,17 @@ class LanguageSwitcher extends \WP_Widget {
     }
 
     public function widget($args, $instance) {
+        // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- before_widget/after_widget
+        // are built by the active theme's register_sidebar() call, not user input; WP_Widget's own
+        // contract is that widgets echo them verbatim (every core widget does the same).
         echo $args['before_widget'];
 
         if (!empty($instance['title'])) {
-            echo $args['before_title'] . apply_filters('widget_title', $instance['title']) . $args['after_title'];
+            // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- before_title/after_title
+            // are theme-supplied wrapper markup (same as before_widget above); the title itself is
+            // wp_kses_post()'d since the widget_title filter is commonly used by themes/plugins to add
+            // inline markup (icons, spans) to the heading.
+            echo $args['before_title'] . wp_kses_post(apply_filters('widget_title', $instance['title'])) . $args['after_title'];
         }
 
         self::render([
@@ -54,6 +61,7 @@ class LanguageSwitcher extends \WP_Widget {
             'show_names' => isset($instance['show_names']) ? (bool) $instance['show_names'] : Settings::switcher_show_names(),
         ]);
 
+        // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- theme-supplied wrapper markup, see above.
         echo $args['after_widget'];
     }
 
@@ -209,9 +217,9 @@ class LanguageSwitcher extends \WP_Widget {
             $label = self::label($lang, $show_flags, $show_names);
             printf(
                 '<li class="%s"><a href="%s">%s</a></li>',
-                $lang->code === $current ? 'current' : '',
+                esc_attr($lang->code === $current ? 'current' : ''),
                 esc_url($url),
-                $label
+                esc_html(html_entity_decode($label, ENT_QUOTES | ENT_HTML5))
             );
         }
         echo '</ul>';
@@ -226,7 +234,7 @@ class LanguageSwitcher extends \WP_Widget {
             printf(
                 '<option value="%s"%s>%s</option>',
                 esc_attr($url),
-                $lang->code === $current ? ' selected' : '',
+                esc_attr($lang->code === $current ? ' selected' : ''),
                 esc_html(html_entity_decode($label, ENT_QUOTES | ENT_HTML5))
             );
         }
@@ -242,9 +250,9 @@ class LanguageSwitcher extends \WP_Widget {
             printf(
                 '<a href="%s" class="stm-lang-btn%s" lang="%s">%s</a>',
                 esc_url($url),
-                $lang->code === $current ? ' current' : '',
+                esc_attr($lang->code === $current ? ' current' : ''),
                 esc_attr($lang->code),
-                $label
+                esc_html(html_entity_decode($label, ENT_QUOTES | ENT_HTML5))
             );
         }
         echo '</div>';
@@ -257,7 +265,7 @@ class LanguageSwitcher extends \WP_Widget {
             printf(
                 '<a href="%s" class="%s" title="%s">%s</a>',
                 esc_url($url),
-                $lang->code === $current ? 'current' : '',
+                esc_attr($lang->code === $current ? 'current' : ''),
                 esc_attr($lang->name),
                 esc_html($lang->flag_emoji)
             );

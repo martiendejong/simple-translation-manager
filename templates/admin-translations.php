@@ -29,7 +29,7 @@ if (!defined('ABSPATH')) exit;
         </div>
     <?php endif; ?>
 
-    <form method="post" action="<?php echo admin_url('admin-post.php'); ?>" style="margin-bottom: 15px;">
+    <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" style="margin-bottom: 15px;">
         <?php wp_nonce_field('stm_scan_strings'); ?>
         <input type="hidden" name="action" value="stm_scan_strings">
         <button type="submit" class="button">Scan theme &amp; plugin for strings</button>
@@ -60,11 +60,11 @@ if (!defined('ABSPATH')) exit;
             <input type="submit" class="button" value="Filter">
 
             <?php if (!empty($search) || !empty($context_filter)): ?>
-                <a href="<?php echo admin_url('admin.php?page=stm-translations'); ?>" class="button">Clear</a>
+                <a href="<?php echo esc_url(admin_url('admin.php?page=stm-translations')); ?>" class="button">Clear</a>
             <?php endif; ?>
 
             <span style="margin-left: auto;">
-                Showing <?php echo count($strings); ?> of <?php echo $total_items; ?> strings
+                Showing <?php echo absint(count($strings)); ?> of <?php echo absint($total_items); ?> strings
             </span>
         </form>
     </div>
@@ -83,7 +83,7 @@ if (!defined('ABSPATH')) exit;
         <tbody>
             <?php if (empty($strings)): ?>
                 <tr>
-                    <td colspan="<?php echo count($languages) + 3; ?>">
+                    <td colspan="<?php echo absint(count($languages) + 3); ?>">
                         No strings found. Use "Scan theme &amp; plugin for strings" above to auto-detect strings already used in your theme, or <a href="#add-string">add the first one manually</a> below.
                     </td>
                 </tr>
@@ -98,11 +98,11 @@ if (!defined('ABSPATH')) exit;
                             $translation = $translations_map[$string->id][$lang->code] ?? null;
                             ?>
                             <td>
-                                <form method="post" action="<?php echo admin_url('admin-post.php'); ?>" style="margin:0;">
+                                <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" style="margin:0;">
                                     <?php wp_nonce_field('stm_save_translation'); ?>
                                     <input type="hidden" name="action" value="stm_save_translation">
-                                    <input type="hidden" name="string_id" value="<?php echo $string->id; ?>">
-                                    <input type="hidden" name="language_code" value="<?php echo $lang->code; ?>">
+                                    <input type="hidden" name="string_id" value="<?php echo absint($string->id); ?>">
+                                    <input type="hidden" name="language_code" value="<?php echo esc_attr($lang->code); ?>">
 
                                     <input type="text"
                                            name="translation"
@@ -122,8 +122,8 @@ if (!defined('ABSPATH')) exit;
                             $percentage = $total > 0 ? round(($translated / $total) * 100) : 0;
                             ?>
                             <span class="translation-progress">
-                                <?php echo $translated; ?>/<?php echo $total; ?>
-                                (<?php echo $percentage; ?>%)
+                                <?php echo absint($translated); ?>/<?php echo absint($total); ?>
+                                (<?php echo absint($percentage); ?>%)
                             </span>
                         </td>
                     </tr>
@@ -135,7 +135,7 @@ if (!defined('ABSPATH')) exit;
     <?php if ($total_pages > 1): ?>
         <div class="tablenav bottom">
             <div class="tablenav-pages">
-                <span class="displaying-num"><?php echo $total_items; ?> items</span>
+                <span class="displaying-num"><?php echo absint($total_items); ?> items</span>
                 <?php
                 $base_url = add_query_arg([
                     'page' => 'stm-translations',
@@ -153,9 +153,9 @@ if (!defined('ABSPATH')) exit;
                 echo '<span class="paging-input">';
                 echo '<label for="current-page-selector" class="screen-reader-text">Current Page</label>';
                 echo '<input class="current-page" id="current-page-selector" type="text"
-                      name="paged" value="' . $current_page . '" size="' . strlen($total_pages) . '"
+                      name="paged" value="' . absint($current_page) . '" size="' . absint(strlen((string) $total_pages)) . '"
                       aria-describedby="table-paging" readonly>';
-                echo '<span class="tablenav-paging-text"> of <span class="total-pages">' . $total_pages . '</span></span>';
+                echo '<span class="tablenav-paging-text"> of <span class="total-pages">' . absint($total_pages) . '</span></span>';
                 echo '</span>';
 
                 // Last page
@@ -169,7 +169,7 @@ if (!defined('ABSPATH')) exit;
     <?php endif; ?>
 
     <h2 id="add-string" style="margin-top: 40px;">Add New String</h2>
-    <form method="post" action="<?php echo admin_url('admin-post.php'); ?>">
+    <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
         <?php wp_nonce_field('stm_add_string'); ?>
         <input type="hidden" name="action" value="stm_add_string">
 

@@ -34,7 +34,7 @@ class Dashboard {
      */
     public static function render_page() {
         if (!Security::can_manage_translations()) {
-            wp_die(__('Insufficient permissions.', 'simple-translation-manager'));
+            wp_die(esc_html__('Insufficient permissions.', 'simple-translation-manager'));
         }
 
         $active_tab = sanitize_key($_GET['tab'] ?? 'overview');
@@ -421,7 +421,7 @@ class Dashboard {
      */
     public static function export_coverage_csv() {
         if (!Security::verify_admin_action('stm_export_coverage_csv')) {
-            wp_die(__('Unauthorized', 'simple-translation-manager'), 403);
+            wp_die(esc_html__('Unauthorized', 'simple-translation-manager'), 403);
         }
 
         $stats = self::get_coverage_stats(false);
@@ -453,7 +453,7 @@ class Dashboard {
      */
     public static function export_missing_csv() {
         if (!Security::verify_admin_action('stm_export_missing_csv')) {
-            wp_die(__('Unauthorized', 'simple-translation-manager'), 403);
+            wp_die(esc_html__('Unauthorized', 'simple-translation-manager'), 403);
         }
 
         $filters = [
