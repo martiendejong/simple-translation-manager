@@ -170,7 +170,9 @@ class Admin {
     public static function page_translations() {
         global $wpdb;
 
-        // Get filter values
+        // Get filter values. Read-only list filtering (no state change), so a
+        // nonce is not required here — see WordPress.Security.NonceVerification docs.
+        // phpcs:disable WordPress.Security.NonceVerification.Recommended
         $lang_filter = wp_unslash($_GET['lang'] ?? '');
         $context_filter = wp_unslash($_GET['context'] ?? '');
         $status_filter = wp_unslash($_GET['status'] ?? '');
@@ -179,6 +181,7 @@ class Admin {
         // Pagination
         $per_page = 50;
         $current_page = max(1, intval($_GET['paged'] ?? 1));
+        // phpcs:enable WordPress.Security.NonceVerification.Recommended
         $offset = ($current_page - 1) * $per_page;
 
         // Get languages
@@ -369,7 +372,7 @@ class Admin {
      * Save translation (AJAX/POST handler)
      */
     public static function save_translation() {
-        if (!Security::verify_admin_action('stm_save_translation')) {
+        if (!check_admin_referer('stm_save_translation') || !current_user_can('manage_options')) {
             wp_die('Unauthorized', 403);
         }
 
@@ -435,7 +438,7 @@ class Admin {
      * Add new string
      */
     public static function add_string() {
-        if (!Security::verify_admin_action('stm_add_string')) {
+        if (!check_admin_referer('stm_add_string') || !current_user_can('manage_options')) {
             wp_die('Unauthorized', 403);
         }
 
@@ -482,7 +485,7 @@ class Admin {
      * (admin form handler)
      */
     public static function scan_strings() {
-        if (!Security::verify_admin_action('stm_scan_strings')) {
+        if (!check_admin_referer('stm_scan_strings') || !current_user_can('manage_options')) {
             wp_die('Unauthorized', 403);
         }
 
@@ -506,7 +509,7 @@ class Admin {
      * Import JSON file (admin form handler)
      */
     public static function import_json() {
-        if (!Security::verify_admin_action('stm_import_json')) {
+        if (!check_admin_referer('stm_import_json') || !current_user_can('manage_options')) {
             wp_die('Unauthorized', 403);
         }
 
@@ -550,7 +553,7 @@ class Admin {
      * Add language (admin form handler)
      */
     public static function add_language() {
-        if (!Security::verify_admin_action('stm_add_language')) {
+        if (!check_admin_referer('stm_add_language') || !current_user_can('manage_options')) {
             wp_die('Unauthorized', 403);
         }
 
@@ -597,7 +600,7 @@ class Admin {
      * Delete language (admin form handler)
      */
     public static function delete_language() {
-        if (!Security::verify_admin_action('stm_delete_language')) {
+        if (!check_admin_referer('stm_delete_language') || !current_user_can('manage_options')) {
             wp_die('Unauthorized', 403);
         }
 
@@ -637,7 +640,7 @@ class Admin {
      * admins can prepare a language before switching it live.
      */
     public static function toggle_language_active() {
-        if (!Security::verify_admin_action('stm_toggle_language_active')) {
+        if (!check_admin_referer('stm_toggle_language_active') || !current_user_can('manage_options')) {
             wp_die('Unauthorized', 403);
         }
 
@@ -679,7 +682,7 @@ class Admin {
      * Save AI/auto-translate settings
      */
     public static function save_ai_settings() {
-        if (!Security::verify_admin_action('stm_ai_settings')) {
+        if (!check_admin_referer('stm_ai_settings') || !current_user_can('manage_options')) {
             wp_die('Unauthorized', 403);
         }
 
