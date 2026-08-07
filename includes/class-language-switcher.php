@@ -286,7 +286,7 @@ class LanguageSwitcher extends \WP_Widget {
 
     private static function get_current_url() {
         $protocol = is_ssl() ? 'https://' : 'http://';
-        $uri      = $_SERVER['REQUEST_URI'];
+        $uri      = wp_unslash( $_SERVER['REQUEST_URI'] ?? '' );
 
         // Strip ?lang= parameter
         $uri = preg_replace('/([?&])lang=[^&]*(&|$)/', '$1', $uri);
@@ -297,7 +297,7 @@ class LanguageSwitcher extends \WP_Widget {
             $uri = preg_replace('#^/[a-z]{2,3}(/|$)#', '/', $uri);
         }
 
-        return $protocol . $_SERVER['HTTP_HOST'] . $uri;
+        return $protocol . wp_unslash( $_SERVER['HTTP_HOST'] ?? '' ) . $uri;
     }
 
     private static function get_language_url($lang_code, $base_url) {
