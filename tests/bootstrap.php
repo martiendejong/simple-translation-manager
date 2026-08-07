@@ -62,3 +62,4 @@ require_once $pluginDir . 'class-frontend.php';
 require_once $pluginDir . 'class-seo-god-integration.php';
 require_once $pluginDir . 'class-elementor-integration.php';
 require_once $pluginDir . 'class-dashboard.php';
+require_once $pluginDir . 'class-import-export.php';

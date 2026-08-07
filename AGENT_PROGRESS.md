@@ -1,5 +1,80 @@
 # Agent Progress
 
+## 2026-08-08 — task 869efjuhy
+Done: `export_coverage_csv()`/`export_missing_csv()` in class-dashboard.php streamed CSV rows
+via `fopen('php://output', 'w')` / `fputcsv()` / `fclose()`, which Plugin Check flags
+(`WordPress.WP.AlternativeFunctions.file_system_operations_fclose`, lines 447/508). The
+task's suggested `$wp_filesystem->put_contents($file_path, ...)` doesn't actually fit — the
+destination is the HTTP response body (`php://output`), not a real file on disk, and routing
+it through WP_Filesystem would silently break on hosts using the FTP/SSH filesystem method
+(WP_Filesystem can't write a local PHP stream over FTP). Instead: extracted the CSV-row
+assembly into `build_coverage_csv_export()`/`build_missing_csv_export()` (pure, testable,
+side-effect free) plus a private `csv_row()` RFC-4180 formatter, and the handlers now just
+`echo` the built string — no fopen/fwrite/fclose at all. That traded the fclose warning for
+a new `WordPress.Security.EscapeOutput.OutputNotEscaped` error on the two `echo` lines
+(expected: `esc_html()` would corrupt CSV commas/quotes), suppressed with a scoped
+`phpcs:ignore` + reason, matching the task's own guidance that real non-HTML output/file
+operations are the legitimate use case for that escape hatch.
+Verified: real `vendor/bin/phpcs --standard=WordPress-Extra --sniffs=WordPress.WP.AlternativeFunctions`
+confirmed 2 fclose warnings on the pre-fix file (installed by a sibling PR that landed
+mid-session) and 0 on the fixed file; the broader `WordPress.Security.EscapeOutput` +
+`WordPress.WP.AlternativeFunctions` sweep also went from 5 findings to the same 3 pre-existing
+`wp_die(__(...))` findings the file already had before this change (untouched, not introduced
+by this PR). `vendor/bin/phpunit` 141/141 pass (5 new in `tests/DashboardTest.php` covering
+the header row, empty input, RFC-4180 quoting of commas/quotes, and the missing-post skip
+path). `npx jest` 18/18 pass (unaffected). `php -l` clean on every changed file and the full
+repo. Added `class-dashboard.php` to `tests/bootstrap.php` and `phpunit.xml`'s diff-coverage
+`<source><include>` list — it had zero test coverage tracking before this PR, the same
+silent-gate gap this repo has fixed for other files before. No coverage driver (pcov/xdebug)
+available locally to run `bin/diff-coverage.php` numerically, but manually traced every
+touched line against the new tests. No live WordPress instance to click-through, matching
+every prior STM PR in this repo without one.
+Left: nothing outstanding for this task. Branch merged `origin/master` mid-session (two
+sibling PRs landed: #25 SQL injection fix, #27 nonce verification) — resolved two trivial
+additive conflicts in `phpunit.xml`/`tests/bootstrap.php` (both branches added a require/include
+entry near the same line).
+
+## 2026-08-08 — task 869efjuhp
+Done: Nonce verification, PR opened. Every state-changing handler in class-admin.php,
+class-import-export.php and class-dashboard.php already called `Security::verify_admin_action()`,
+which itself calls `check_admin_referer()` — so CSRF protection already existed at runtime. The
+real gap was that PHPCS's `WordPress.Security.NonceVerification` sniff (and WordPress Plugin
+Check, which uses the same sniff) cannot see through a static-method wrapper — it only recognizes
+direct, unqualified calls to `wp_verify_nonce()`/`check_admin_referer()`/`check_ajax_referer()` —
+so a real Plugin Check run would still report `NonceVerification.Missing` on all 13 handlers
+despite the code being secure. Fixed by inlining `check_admin_referer($nonce)` directly at each
+call site (combined with the existing `current_user_can()` check in one condition, matching the
+original wrapper's exact semantics) and removing the now-unused `Security::verify_admin_action()`.
+The remaining `NonceVerification.Recommended` warnings were all genuinely read-only GET-based list
+filters/tab selection/post-redirect-GET display flags (page_translations(), Dashboard::render_page(),
+both templates) — suppressed with justified `phpcs:ignore`/`phpcs:disable` comments per the task's
+own review guidance, since a nonce is not meaningful for idempotent, bookmarkable filter URLs.
+Also added `phpcs.xml.dist` (scoped to only the `WordPress.Security.NonceVerification` sniff on
+these 5 files — not the full WordPress-Extra ruleset, to avoid unrelated scope creep), `composer
+require --dev` for PHPCS + wp-coding-standards/wpcs, a `composer run phpcs` script, and a
+`nonce-verification` CI job so this stays enforced going forward instead of being a one-time check.
+Verified: `vendor/bin/phpcs --standard=phpcs.xml.dist` — 0 errors, 0 warnings (was 27 errors + 32
+warnings before the fix). `vendor/bin/phpunit` 109/109 pass (no behavior change; one pre-existing
+test — `test_toggle_language_active_dies_when_nonce_or_capability_check_fails` — caught a real bug
+in an earlier draft of this refactor where the inlined `check_admin_referer()` return value wasn't
+being checked, which would have silently dropped nonce enforcement whenever `check_admin_referer`'s
+own `$die=true` default didn't fire; fixed by combining both checks in one `if`). `php -l` clean on
+every changed file. YAML-parsed the new CI job (not just `bash -n`). `npx jest` not runnable in this
+worktree (no `node_modules`, pre-existing gap unrelated to this PHP-only change) — no JS was touched.
+Follow-up: the inlined `check_admin_referer()` calls put 7 previously-untested `class-admin.php`
+handlers (`save_translation`, `add_string`, `scan_strings`, `import_json`, `add_language`,
+`delete_language`, `save_ai_settings` — only `toggle_language_active` had coverage before) onto
+CI's diff-coverage gate for the first time, and it failed at 12.5%. Added
+`tests/AdminFormHandlersTest.php` (one happy-path + one nonce-denied test per handler, reusing the
+FakeWpdb/Brain Monkey pattern from `LanguagesScreenTest.php`); had to introduce a `RedirectInterrupt
+extends \Error` interrupt signal instead of `\RuntimeException`, since `save_translation()`/
+`add_string()`/`scan_strings()` wrap their success-path `wp_redirect()` in `try { } catch
+(\Exception $e)`, which was silently swallowing a `\RuntimeException`-based interrupt and
+misreporting it as a DB failure. Verified: PR #27 CI all green (PHP unit tests incl. diff-coverage
+gate, JS unit tests, PHP lint, Nonce verification/PHPCS), `vendor/bin/phpunit` 124/124 pass locally.
+Left: nothing outstanding for this task.
+
+
 ## 2026-08-07 — task 869efjuhb
 Done: PR — added `if (!defined('ABSPATH')) exit;` to the 5 files Plugin Check flagged as
 `missing_direct_file_access_protection`: `includes/functions.php`,
@@ -157,3 +232,59 @@ test.bugattiinsights.com after deploying this fix; no-`lang` and an unrelated-pa
 still 200.
 Left: nothing outstanding for this task. Follow-up 869ebjz6a (wiring `lang` into the search UI)
 can now build on this without inheriting the crash.
+
+## 2026-08-07 — task 869efjuhf
+Done: fixed the 3 Plugin Check ERROR-level SQL-injection findings (`WordPress.DB.PreparedSQL.NotPrepared`
+/ `PluginCheck.Security.DirectDB.UnescapedDBParameter`). Two real gaps in `class-api.php`
+(`get_translations()`'s total-count query, `export_json()`) built a `$where_sql` fragment via nested
+per-condition `$wpdb->prepare()` calls, then interpolated it into a final query string passed straight
+to `get_results()`/`get_var()` with no outer `prepare()` at all; `get_strings()` had the same pattern.
+Rebuilt all three to collect raw `%s`/`%d` fragments + a parallel `$params` array and call `$wpdb->prepare()`
+once on the assembled query. Separately, `class-dashboard.php` (3 call sites) and `class-import-export.php`
+(2 call sites) already wrapped every query in `prepare()`, but used `...$array` spread to unpack replacement
+values — Plugin Check's sniff can't statically verify a spread-unpacked arg list, so it reports the same
+ERROR even though the query was safe. Replaced every `...$array` with the equivalent single-array form
+`prepare($sql, $array)` (natively supported by `wpdb::prepare()`), preserving exact argument order.
+Verified: `vendor/bin/phpunit` 121/121 pass (12 new — `tests/ApiSqlSafetyTest.php` asserts a SQL-metacharacter
+payload in `context`/`lang` always lands inside an escaped, single-quoted literal and never leaves a bare
+`%s`; `tests/DashboardImportExportSqlSafetyTest.php` deliberately verified — see note below — the
+spread→array rewrite preserves argument order for the IN-clause/date-filter/lang placeholders).
+Deliberately introduced an argument-order bug during review (swapped `array_merge([$lang->code], $post_types)`
+to the wrong order) and confirmed the new test failed, then reverted — proves the test actually
+guards the refactor, not just exercises it. `php -l` clean on all changed files. Added
+`class-dashboard.php`/`class-import-export.php` to `phpunit.xml`'s tracked `<source><include>` list (was
+missing, same CI diff-coverage silent-pass gap noted in the 869e6vpgg entry above) and added both classes
+to `tests/bootstrap.php`'s requires. No coverage driver (pcov/xdebug) available locally to run the numeric
+gate, but every touched line in all 3 production files is exercised by the new tests, confirmed by reading
+the diff against the assertions.
+
+**Round 2 — actually ran the real sniffs.** Reused the disposable scratch phpcs project at
+`C:/temp/phpcs-check` (documented in `knowledge/wordpress-plugin-check-date-sniff-gmdate-vs-wp-date-semantics.md`,
+built by a sibling task the same day) and installed `publishpress/publishpress-phpcs-standards`, which vendors
+the real WordPress.org Plugin Check ruleset as phpcs standard `PluginCheck` — the first time this task's fix was
+checked against the actual named rules instead of reasoning about them. Result: the `...$array` spread theory was
+wrong. Diffing before/after with `--standard=WordPress-Extra --sniffs=WordPress.DB.PreparedSQL` and
+`--standard=PluginCheck --sniffs=PluginCheck.Security.DirectDB` showed the spread→array rewrite made **zero**
+difference — both sniffs flag based on where `$sql`/`$query`/`$where_sql` was *assigned* (a separate multi-line
+statement, not an inline literal argument to `prepare()`), not on how the replacement array is unpacked. Real
+remaining ERRORs (5 total, all after the Round 1 fixes were already in place): `class-api.php` line 248
+(`get_strings`) and line 825 (`export_json`), `class-dashboard.php` line 266 (`get_missing_translations`),
+`class-import-export.php` line 94 (`export_xliff`) and line 175 (`export_po`, not previously identified as
+ERROR-level in Round 1). Added `// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,
+PluginCheck.Security.DirectDB.UnescapedDBParameter -- <reason>` (or just the PluginCheck code, where WPCS's
+strict `.NotPrepared` sub-code didn't fire) directly above each — exactly the escape hatch the task's own
+description authorizes ("document this with phpcs:ignore if prepare() cannot be applied"), since these are
+dynamic IN-clauses / multi-line conditional queries where fully inlining the SQL as a literal `prepare()`
+argument isn't practical.
+Verified: `vendor/bin/phpcs --standard=PluginCheck --sniffs=PluginCheck.Security.DirectDB` — 5→0 ERRORS (16
+WARNINGS unchanged, all table-prefix-only interpolation, matching the task's own "acceptable, can be
+suppressed" note). `vendor/bin/phpcs --standard=WordPress-Extra --sniffs=WordPress.DB.PreparedSQL` — the
+strict `.NotPrepared` sub-code (the one the task's Tech notes actually cite) 3→0; the broader
+`.InterpolatedNotPrepared` sub-code (26 remaining, table-name-only) is the WPCS equivalent of the same
+"warning, not required" category. Full `--standard=PluginCheck` (no sniff filter) on all 3 files: 0 ERRORS,
+16 WARNINGS — confirms no new Plugin Check rule was tripped. `vendor/bin/phpunit` 121/121 still pass (comments
+only, no logic change). `php -l` clean.
+Left: nothing outstanding for this task.
+Left: nothing outstanding for this task. `class-dashboard.php:117` (`$wpdb->get_var("...{$wpdb->prefix}stm_strings")`)
+remains a WARNING-level table-prefix-only interpolation, intentionally left as-is per the task's own scope
+(Done-when only requires no ERROR, not zero warnings).
