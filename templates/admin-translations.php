@@ -8,6 +8,13 @@ if (!defined('ABSPATH')) exit;
 <div class="wrap">
     <h1>Translation Strings</h1>
 
+    <?php
+    // These flags are only ever read back from a redirect the actual form
+    // handlers issue after they have already verified their own nonce
+    // (see Admin::save_translation()/scan_strings()); displaying them here
+    // is read-only and causes no state change, so no nonce is required.
+    // phpcs:disable WordPress.Security.NonceVerification.Recommended
+    ?>
     <?php if (isset($_GET['updated'])): ?>
         <div class="notice notice-success is-dismissible">
             <p>Translation updated successfully.</p>
@@ -28,6 +35,7 @@ if (!defined('ABSPATH')) exit;
             <p>Scanning for strings failed. Check the server error log for details.</p>
         </div>
     <?php endif; ?>
+    <?php // phpcs:enable WordPress.Security.NonceVerification.Recommended ?>
 
     <form method="post" action="<?php echo admin_url('admin-post.php'); ?>" style="margin-bottom: 15px;">
         <?php wp_nonce_field('stm_scan_strings'); ?>
