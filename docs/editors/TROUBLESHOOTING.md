@@ -304,7 +304,7 @@ available hooks.
 
 1. Re-read [`EDITORS_GUIDE.md`](./EDITORS_GUIDE.md) — most "it doesn't work"
    questions are answered in the Best Practices section.
-2. Skim [`../../README-BLOG.md`](../../README-BLOG.md) for the end-to-end
+2. Skim [`../BLOG.md`](../BLOG.md) for the end-to-end
    translation flow.
 3. Check the browser's developer console (F12 → Console tab) for red error
    messages — copy them verbatim if you escalate.
