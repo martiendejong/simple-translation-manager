@@ -91,7 +91,8 @@ class ImportExport {
         array_unshift($params, $target_lang);
         array_unshift($params, $source_lang);
 
-        $results = $wpdb->get_results($wpdb->prepare($query, ...$params));
+        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- $query (built above from %s placeholders in $where[] plus the language-code placeholders) is passed through $wpdb->prepare() with $params right here; no raw value ever reaches the SQL string.
+        $results = $wpdb->get_results($wpdb->prepare($query, $params));
 
         // Build XLIFF XML
         $xml = new \SimpleXMLElement('<?xml version="1.0" encoding="UTF-8"?><xliff/>');
@@ -172,6 +173,7 @@ class ImportExport {
 
         $where_sql = implode(' AND ', $where);
 
+        // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- $where_sql is assembled from %s placeholders in $where[] and their values in $params above; $wpdb->prepare() below resolves every placeholder before the query runs.
         $results = $wpdb->get_results($wpdb->prepare("
             SELECT s.string_key, s.context, s.description,
                    t.translation, t.status
@@ -179,7 +181,7 @@ class ImportExport {
             LEFT JOIN {$table_translations} t ON s.id = t.string_id AND t.language_code = %s
             WHERE {$where_sql}
             ORDER BY s.context, s.string_key
-        ", ...$params));
+        ", $params));
 
         $output = [];
 

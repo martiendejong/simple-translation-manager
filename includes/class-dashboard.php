@@ -114,7 +114,7 @@ class Dashboard {
             $total_posts = (int) $wpdb->get_var($wpdb->prepare(
                 "SELECT COUNT(*) FROM {$wpdb->posts}
                  WHERE post_status = 'publish' AND post_type IN ({$placeholders})",
-                ...$post_types
+                $post_types
             ));
         }
 
@@ -139,8 +139,7 @@ class Dashboard {
                        AND pt.field_name = 'title'
                        AND p.post_status = 'publish'
                        AND p.post_type IN ({$placeholders})",
-                    $lang->code,
-                    ...$post_types
+                    array_merge([$lang->code], $post_types)
                 ));
             }
 
@@ -153,8 +152,7 @@ class Dashboard {
                        AND pt.field_name = 'content'
                        AND p.post_status = 'publish'
                        AND p.post_type IN ({$placeholders})",
-                    $lang->code,
-                    ...$post_types
+                    array_merge([$lang->code], $post_types)
                 ));
             }
 
@@ -269,7 +267,8 @@ class Dashboard {
             // Add lang param for both EXISTS subquery and the outer NOT EXISTS
             $args_full = array_merge($args, [$lang->code]);
 
-            $results = $wpdb->get_results($wpdb->prepare($sql, ...$args_full));
+            // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- $sql (built above) uses array_fill()+implode() for its dynamic-length IN clause and %s/%d placeholders elsewhere; $args_full supplies the matching values and $wpdb->prepare() resolves them all right here.
+            $results = $wpdb->get_results($wpdb->prepare($sql, $args_full));
 
             foreach ($results as $row) {
                 $rows[] = [

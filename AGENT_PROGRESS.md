@@ -198,3 +198,59 @@ test.bugattiinsights.com after deploying this fix; no-`lang` and an unrelated-pa
 still 200.
 Left: nothing outstanding for this task. Follow-up 869ebjz6a (wiring `lang` into the search UI)
 can now build on this without inheriting the crash.
+
+## 2026-08-07 — task 869efjuhf
+Done: fixed the 3 Plugin Check ERROR-level SQL-injection findings (`WordPress.DB.PreparedSQL.NotPrepared`
+/ `PluginCheck.Security.DirectDB.UnescapedDBParameter`). Two real gaps in `class-api.php`
+(`get_translations()`'s total-count query, `export_json()`) built a `$where_sql` fragment via nested
+per-condition `$wpdb->prepare()` calls, then interpolated it into a final query string passed straight
+to `get_results()`/`get_var()` with no outer `prepare()` at all; `get_strings()` had the same pattern.
+Rebuilt all three to collect raw `%s`/`%d` fragments + a parallel `$params` array and call `$wpdb->prepare()`
+once on the assembled query. Separately, `class-dashboard.php` (3 call sites) and `class-import-export.php`
+(2 call sites) already wrapped every query in `prepare()`, but used `...$array` spread to unpack replacement
+values — Plugin Check's sniff can't statically verify a spread-unpacked arg list, so it reports the same
+ERROR even though the query was safe. Replaced every `...$array` with the equivalent single-array form
+`prepare($sql, $array)` (natively supported by `wpdb::prepare()`), preserving exact argument order.
+Verified: `vendor/bin/phpunit` 121/121 pass (12 new — `tests/ApiSqlSafetyTest.php` asserts a SQL-metacharacter
+payload in `context`/`lang` always lands inside an escaped, single-quoted literal and never leaves a bare
+`%s`; `tests/DashboardImportExportSqlSafetyTest.php` deliberately verified — see note below — the
+spread→array rewrite preserves argument order for the IN-clause/date-filter/lang placeholders).
+Deliberately introduced an argument-order bug during review (swapped `array_merge([$lang->code], $post_types)`
+to the wrong order) and confirmed the new test failed, then reverted — proves the test actually
+guards the refactor, not just exercises it. `php -l` clean on all changed files. Added
+`class-dashboard.php`/`class-import-export.php` to `phpunit.xml`'s tracked `<source><include>` list (was
+missing, same CI diff-coverage silent-pass gap noted in the 869e6vpgg entry above) and added both classes
+to `tests/bootstrap.php`'s requires. No coverage driver (pcov/xdebug) available locally to run the numeric
+gate, but every touched line in all 3 production files is exercised by the new tests, confirmed by reading
+the diff against the assertions.
+
+**Round 2 — actually ran the real sniffs.** Reused the disposable scratch phpcs project at
+`C:/temp/phpcs-check` (documented in `knowledge/wordpress-plugin-check-date-sniff-gmdate-vs-wp-date-semantics.md`,
+built by a sibling task the same day) and installed `publishpress/publishpress-phpcs-standards`, which vendors
+the real WordPress.org Plugin Check ruleset as phpcs standard `PluginCheck` — the first time this task's fix was
+checked against the actual named rules instead of reasoning about them. Result: the `...$array` spread theory was
+wrong. Diffing before/after with `--standard=WordPress-Extra --sniffs=WordPress.DB.PreparedSQL` and
+`--standard=PluginCheck --sniffs=PluginCheck.Security.DirectDB` showed the spread→array rewrite made **zero**
+difference — both sniffs flag based on where `$sql`/`$query`/`$where_sql` was *assigned* (a separate multi-line
+statement, not an inline literal argument to `prepare()`), not on how the replacement array is unpacked. Real
+remaining ERRORs (5 total, all after the Round 1 fixes were already in place): `class-api.php` line 248
+(`get_strings`) and line 825 (`export_json`), `class-dashboard.php` line 266 (`get_missing_translations`),
+`class-import-export.php` line 94 (`export_xliff`) and line 175 (`export_po`, not previously identified as
+ERROR-level in Round 1). Added `// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,
+PluginCheck.Security.DirectDB.UnescapedDBParameter -- <reason>` (or just the PluginCheck code, where WPCS's
+strict `.NotPrepared` sub-code didn't fire) directly above each — exactly the escape hatch the task's own
+description authorizes ("document this with phpcs:ignore if prepare() cannot be applied"), since these are
+dynamic IN-clauses / multi-line conditional queries where fully inlining the SQL as a literal `prepare()`
+argument isn't practical.
+Verified: `vendor/bin/phpcs --standard=PluginCheck --sniffs=PluginCheck.Security.DirectDB` — 5→0 ERRORS (16
+WARNINGS unchanged, all table-prefix-only interpolation, matching the task's own "acceptable, can be
+suppressed" note). `vendor/bin/phpcs --standard=WordPress-Extra --sniffs=WordPress.DB.PreparedSQL` — the
+strict `.NotPrepared` sub-code (the one the task's Tech notes actually cite) 3→0; the broader
+`.InterpolatedNotPrepared` sub-code (26 remaining, table-name-only) is the WPCS equivalent of the same
+"warning, not required" category. Full `--standard=PluginCheck` (no sniff filter) on all 3 files: 0 ERRORS,
+16 WARNINGS — confirms no new Plugin Check rule was tripped. `vendor/bin/phpunit` 121/121 still pass (comments
+only, no logic change). `php -l` clean.
+Left: nothing outstanding for this task.
+Left: nothing outstanding for this task. `class-dashboard.php:117` (`$wpdb->get_var("...{$wpdb->prefix}stm_strings")`)
+remains a WARNING-level table-prefix-only interpolation, intentionally left as-is per the task's own scope
+(Done-when only requires no ERROR, not zero warnings).
