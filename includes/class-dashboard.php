@@ -429,7 +429,7 @@ class Dashboard {
 
         $stats = self::get_coverage_stats(false);
 
-        self::stream_csv_headers('stm-coverage-' . date('Y-m-d') . '.csv');
+        self::stream_csv_headers('stm-coverage-' . gmdate('Y-m-d') . '.csv');
         $out = fopen('php://output', 'w');
 
         fputcsv($out, ['Language Code', 'Language', 'Field', 'Translated', 'Total', 'Percent']);
@@ -470,7 +470,7 @@ class Dashboard {
 
         $result = self::get_missing_translations($filters);
 
-        self::stream_csv_headers('stm-missing-' . date('Y-m-d') . '.csv');
+        self::stream_csv_headers('stm-missing-' . gmdate('Y-m-d') . '.csv');
         $out = fopen('php://output', 'w');
 
         fputcsv($out, [
@@ -511,6 +511,7 @@ class Dashboard {
         fclose($out);
         exit;
     }
+    // @codeCoverageIgnoreEnd
 
     /**
      * Helpers
