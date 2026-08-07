@@ -49,6 +49,7 @@ class AdminFormHandlersTest extends TestCase {
         Functions\when('wp_cache_delete')->justReturn(true);
         Functions\when('sanitize_text_field')->returnArg(1);
         Functions\when('sanitize_textarea_field')->returnArg(1);
+        Functions\when('sanitize_file_name')->returnArg(1);
         Functions\when('wp_kses')->returnArg(1);
         Functions\when('wp_unslash')->returnArg(1);
         Functions\when('get_current_user_id')->justReturn(1);
