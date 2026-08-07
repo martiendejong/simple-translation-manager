@@ -91,7 +91,7 @@ class ImportExport {
         array_unshift($params, $target_lang);
         array_unshift($params, $source_lang);
 
-        $results = $wpdb->get_results($wpdb->prepare($query, ...$params));
+        $results = $wpdb->get_results($wpdb->prepare($query, $params));
 
         // Build XLIFF XML
         $xml = new \SimpleXMLElement('<?xml version="1.0" encoding="UTF-8"?><xliff/>');
@@ -179,7 +179,7 @@ class ImportExport {
             LEFT JOIN {$table_translations} t ON s.id = t.string_id AND t.language_code = %s
             WHERE {$where_sql}
             ORDER BY s.context, s.string_key
-        ", ...$params));
+        ", $params));
 
         $output = [];
 

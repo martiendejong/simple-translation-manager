@@ -223,9 +223,11 @@ class API {
         $table_strings = $wpdb->prefix . 'stm_strings';
         $table_translations = $wpdb->prefix . 'stm_translations';
 
-        $where = ['1=1'];
+        $where  = ['1=1'];
+        $params = [];
         if ($context) {
-            $where[] = $wpdb->prepare('s.context = %s', $context);
+            $where[]  = 's.context = %s';
+            $params[] = $context;
         }
 
         $where_sql = implode(' AND ', $where);
@@ -243,7 +245,7 @@ class API {
             ORDER BY s.context ASC, s.string_key ASC
         ";
 
-        $results = $wpdb->get_results($query);
+        $results = $wpdb->get_results($wpdb->prepare($query, $params));
 
         // Parse translations
         foreach ($results as &$row) {
@@ -379,12 +381,15 @@ class API {
         $page      = max(1, intval($request->get_param('page') ?? 1));
         $offset    = ($page - 1) * $per_page;
 
-        $where = ['1=1'];
+        $where  = ['1=1'];
+        $params = [];
         if ($string_id) {
-            $where[] = $wpdb->prepare('t.string_id = %d', $string_id);
+            $where[]  = 't.string_id = %d';
+            $params[] = $string_id;
         }
         if ($lang) {
-            $where[] = $wpdb->prepare('t.language_code = %s', $lang);
+            $where[]  = 't.language_code = %s';
+            $params[] = $lang;
         }
 
         $where_sql = implode(' AND ', $where);
@@ -396,13 +401,13 @@ class API {
             WHERE {$where_sql}
             ORDER BY s.context ASC, s.string_key ASC, t.language_code ASC
             LIMIT %d OFFSET %d",
-            $per_page,
-            $offset
+            array_merge($params, [$per_page, $offset])
         ));
 
-        $total = $wpdb->get_var(
-            "SELECT COUNT(*) FROM {$wpdb->prefix}stm_translations t WHERE {$where_sql}"
-        );
+        $total = $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM {$wpdb->prefix}stm_translations t WHERE {$where_sql}",
+            $params
+        ));
 
         $response = rest_ensure_response($results);
         $response->header('X-WP-Total', $total);
@@ -804,22 +809,25 @@ class API {
         $table_strings = $wpdb->prefix . 'stm_strings';
         $table_translations = $wpdb->prefix . 'stm_translations';
 
-        $where = ['t.status = "published"'];
+        $where  = ['t.status = "published"'];
+        $params = [];
         if ($lang) {
-            $where[] = $wpdb->prepare('t.language_code = %s', $lang);
+            $where[]  = 't.language_code = %s';
+            $params[] = $lang;
         }
         if ($context) {
-            $where[] = $wpdb->prepare('s.context = %s', $context);
+            $where[]  = 's.context = %s';
+            $params[] = $context;
         }
 
         $where_sql = implode(' AND ', $where);
 
-        $results = $wpdb->get_results("
+        $results = $wpdb->get_results($wpdb->prepare("
             SELECT s.string_key, t.language_code, t.translation
             FROM {$table_translations} t
             INNER JOIN {$table_strings} s ON t.string_id = s.id
             WHERE {$where_sql}
-        ");
+        ", $params));
 
         $export = [];
         foreach ($results as $row) {

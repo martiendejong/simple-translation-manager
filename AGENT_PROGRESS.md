@@ -135,3 +135,31 @@ test.bugattiinsights.com after deploying this fix; no-`lang` and an unrelated-pa
 still 200.
 Left: nothing outstanding for this task. Follow-up 869ebjz6a (wiring `lang` into the search UI)
 can now build on this without inheriting the crash.
+
+## 2026-08-07 — task 869efjuhf
+Done: fixed the 3 Plugin Check ERROR-level SQL-injection findings (`WordPress.DB.PreparedSQL.NotPrepared`
+/ `PluginCheck.Security.DirectDB.UnescapedDBParameter`). Two real gaps in `class-api.php`
+(`get_translations()`'s total-count query, `export_json()`) built a `$where_sql` fragment via nested
+per-condition `$wpdb->prepare()` calls, then interpolated it into a final query string passed straight
+to `get_results()`/`get_var()` with no outer `prepare()` at all; `get_strings()` had the same pattern.
+Rebuilt all three to collect raw `%s`/`%d` fragments + a parallel `$params` array and call `$wpdb->prepare()`
+once on the assembled query. Separately, `class-dashboard.php` (3 call sites) and `class-import-export.php`
+(2 call sites) already wrapped every query in `prepare()`, but used `...$array` spread to unpack replacement
+values — Plugin Check's sniff can't statically verify a spread-unpacked arg list, so it reports the same
+ERROR even though the query was safe. Replaced every `...$array` with the equivalent single-array form
+`prepare($sql, $array)` (natively supported by `wpdb::prepare()`), preserving exact argument order.
+Verified: `vendor/bin/phpunit` 121/121 pass (12 new — `tests/ApiSqlSafetyTest.php` asserts a SQL-metacharacter
+payload in `context`/`lang` always lands inside an escaped, single-quoted literal and never leaves a bare
+`%s`; `tests/DashboardImportExportSqlSafetyTest.php` deliberately verified — see note below — the
+spread→array rewrite preserves argument order for the IN-clause/date-filter/lang placeholders).
+Deliberately introduced an argument-order bug during review (swapped `array_merge([$lang->code], $post_types)`
+to the wrong order) and confirmed the new test failed, then reverted — proves the test actually
+guards the refactor, not just exercises it. `php -l` clean on all changed files. Added
+`class-dashboard.php`/`class-import-export.php` to `phpunit.xml`'s tracked `<source><include>` list (was
+missing, same CI diff-coverage silent-pass gap noted in the 869e6vpgg entry above) and added both classes
+to `tests/bootstrap.php`'s requires. No coverage driver (pcov/xdebug) available locally to run the numeric
+gate, but every touched line in all 3 production files is exercised by the new tests, confirmed by reading
+the diff against the assertions.
+Left: nothing outstanding for this task. `class-dashboard.php:117` (`$wpdb->get_var("...{$wpdb->prefix}stm_strings")`)
+remains a WARNING-level table-prefix-only interpolation, intentionally left as-is per the task's own scope
+(Done-when only requires no ERROR, not zero warnings).
