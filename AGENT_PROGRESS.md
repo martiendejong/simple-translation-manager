@@ -135,3 +135,20 @@ test.bugattiinsights.com after deploying this fix; no-`lang` and an unrelated-pa
 still 200.
 Left: nothing outstanding for this task. Follow-up 869ebjz6a (wiring `lang` into the search UI)
 can now build on this without inheriting the crash.
+
+## 2026-08-07 — task 869efjuj2
+Done: replaced hardcoded `http://localhost/` URLs in `tests/verify-multilang-audit.php` with a
+configurable `STM_TEST_BASE_URL` constant (`getenv('WP_TEST_URL') ?: 'http://localhost/'`), per
+the Plugin Check finding (`PluginCheck.CodeAnalysis.Localhost.Found`). Also moved
+`README-BLOG.md` out of the plugin root into `docs/BLOG.md` (fixed its 3 inbound references in
+`docs/editors/*.md`) to clear the unexpected-markdown-file warning.
+Note: this task's own description also cited `tests/verify-lang-prefix-cpt-routing.php` and
+`tests/verify-translated-slug-routing.php`, but neither file has ever existed in this repo
+(`git log --all` confirms) — they were added directly to the WordPress deployment's copy of this
+plugin at `tripplanner/portofgiethoorn/wordpress/plugins/simple-translation-manager/` by
+Tripplanner-board tasks 869ecwc03/869eec0wf and never synced back here. Fixed the same issue
+there too, in a separate PR (martiendejong/tripplanner#134), since that's the copy Plugin Check
+actually scanned (its cited line numbers match that copy exactly).
+Verified: `php -l` clean; ran the test file with no env var (default) and with
+`WP_TEST_URL=https://ci.example.org/` set — 39/39 pass both ways, no regressions.
+Left: nothing outstanding in this repo for this task.
