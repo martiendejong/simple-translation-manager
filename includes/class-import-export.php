@@ -548,7 +548,7 @@ class ImportExport {
     // =========================================================================
 
     public static function handle_export_xliff() {
-        if (!Security::verify_admin_action('stm_export_xliff')) {
+        if (!check_admin_referer('stm_export_xliff') || !current_user_can('manage_options')) {
             wp_die('Unauthorized', 403);
         }
 
@@ -565,7 +565,7 @@ class ImportExport {
     }
 
     public static function handle_export_po() {
-        if (!Security::verify_admin_action('stm_export_po')) {
+        if (!check_admin_referer('stm_export_po') || !current_user_can('manage_options')) {
             wp_die('Unauthorized', 403);
         }
 
@@ -581,7 +581,7 @@ class ImportExport {
     }
 
     public static function handle_import_file() {
-        if (!Security::verify_admin_action('stm_import_file')) {
+        if (!check_admin_referer('stm_import_file') || !current_user_can('manage_options')) {
             wp_die('Unauthorized', 403);
         }
 

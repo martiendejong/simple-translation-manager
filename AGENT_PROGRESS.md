@@ -1,5 +1,46 @@
 # Agent Progress
 
+## 2026-08-08 — task 869efjuhp
+Done: Nonce verification, PR opened. Every state-changing handler in class-admin.php,
+class-import-export.php and class-dashboard.php already called `Security::verify_admin_action()`,
+which itself calls `check_admin_referer()` — so CSRF protection already existed at runtime. The
+real gap was that PHPCS's `WordPress.Security.NonceVerification` sniff (and WordPress Plugin
+Check, which uses the same sniff) cannot see through a static-method wrapper — it only recognizes
+direct, unqualified calls to `wp_verify_nonce()`/`check_admin_referer()`/`check_ajax_referer()` —
+so a real Plugin Check run would still report `NonceVerification.Missing` on all 13 handlers
+despite the code being secure. Fixed by inlining `check_admin_referer($nonce)` directly at each
+call site (combined with the existing `current_user_can()` check in one condition, matching the
+original wrapper's exact semantics) and removing the now-unused `Security::verify_admin_action()`.
+The remaining `NonceVerification.Recommended` warnings were all genuinely read-only GET-based list
+filters/tab selection/post-redirect-GET display flags (page_translations(), Dashboard::render_page(),
+both templates) — suppressed with justified `phpcs:ignore`/`phpcs:disable` comments per the task's
+own review guidance, since a nonce is not meaningful for idempotent, bookmarkable filter URLs.
+Also added `phpcs.xml.dist` (scoped to only the `WordPress.Security.NonceVerification` sniff on
+these 5 files — not the full WordPress-Extra ruleset, to avoid unrelated scope creep), `composer
+require --dev` for PHPCS + wp-coding-standards/wpcs, a `composer run phpcs` script, and a
+`nonce-verification` CI job so this stays enforced going forward instead of being a one-time check.
+Verified: `vendor/bin/phpcs --standard=phpcs.xml.dist` — 0 errors, 0 warnings (was 27 errors + 32
+warnings before the fix). `vendor/bin/phpunit` 109/109 pass (no behavior change; one pre-existing
+test — `test_toggle_language_active_dies_when_nonce_or_capability_check_fails` — caught a real bug
+in an earlier draft of this refactor where the inlined `check_admin_referer()` return value wasn't
+being checked, which would have silently dropped nonce enforcement whenever `check_admin_referer`'s
+own `$die=true` default didn't fire; fixed by combining both checks in one `if`). `php -l` clean on
+every changed file. YAML-parsed the new CI job (not just `bash -n`). `npx jest` not runnable in this
+worktree (no `node_modules`, pre-existing gap unrelated to this PHP-only change) — no JS was touched.
+Follow-up: the inlined `check_admin_referer()` calls put 7 previously-untested `class-admin.php`
+handlers (`save_translation`, `add_string`, `scan_strings`, `import_json`, `add_language`,
+`delete_language`, `save_ai_settings` — only `toggle_language_active` had coverage before) onto
+CI's diff-coverage gate for the first time, and it failed at 12.5%. Added
+`tests/AdminFormHandlersTest.php` (one happy-path + one nonce-denied test per handler, reusing the
+FakeWpdb/Brain Monkey pattern from `LanguagesScreenTest.php`); had to introduce a `RedirectInterrupt
+extends \Error` interrupt signal instead of `\RuntimeException`, since `save_translation()`/
+`add_string()`/`scan_strings()` wrap their success-path `wp_redirect()` in `try { } catch
+(\Exception $e)`, which was silently swallowing a `\RuntimeException`-based interrupt and
+misreporting it as a DB failure. Verified: PR #27 CI all green (PHP unit tests incl. diff-coverage
+gate, JS unit tests, PHP lint, Nonce verification/PHPCS), `vendor/bin/phpunit` 124/124 pass locally.
+Left: nothing outstanding for this task.
+
+
 ## 2026-08-07 — task 869efjuhb
 Done: PR — added `if (!defined('ABSPATH')) exit;` to the 5 files Plugin Check flagged as
 `missing_direct_file_access_protection`: `includes/functions.php`,
