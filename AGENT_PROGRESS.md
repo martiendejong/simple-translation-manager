@@ -27,6 +27,17 @@ being checked, which would have silently dropped nonce enforcement whenever `che
 own `$die=true` default didn't fire; fixed by combining both checks in one `if`). `php -l` clean on
 every changed file. YAML-parsed the new CI job (not just `bash -n`). `npx jest` not runnable in this
 worktree (no `node_modules`, pre-existing gap unrelated to this PHP-only change) — no JS was touched.
+Follow-up: the inlined `check_admin_referer()` calls put 7 previously-untested `class-admin.php`
+handlers (`save_translation`, `add_string`, `scan_strings`, `import_json`, `add_language`,
+`delete_language`, `save_ai_settings` — only `toggle_language_active` had coverage before) onto
+CI's diff-coverage gate for the first time, and it failed at 12.5%. Added
+`tests/AdminFormHandlersTest.php` (one happy-path + one nonce-denied test per handler, reusing the
+FakeWpdb/Brain Monkey pattern from `LanguagesScreenTest.php`); had to introduce a `RedirectInterrupt
+extends \Error` interrupt signal instead of `\RuntimeException`, since `save_translation()`/
+`add_string()`/`scan_strings()` wrap their success-path `wp_redirect()` in `try { } catch
+(\Exception $e)`, which was silently swallowing a `\RuntimeException`-based interrupt and
+misreporting it as a DB failure. Verified: PR #27 CI all green (PHP unit tests incl. diff-coverage
+gate, JS unit tests, PHP lint, Nonce verification/PHPCS), `vendor/bin/phpunit` 124/124 pass locally.
 Left: nothing outstanding for this task.
 
 
