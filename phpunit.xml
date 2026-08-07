@@ -13,6 +13,7 @@
         <include>
             <file>includes/class-admin.php</file>
             <file>includes/class-api.php</file>
+            <file>includes/class-dashboard.php</file>
             <file>includes/class-post-editor.php</file>
             <file>includes/class-string-scanner.php</file>
             <file>templates/meta-box-translations.php</file>
