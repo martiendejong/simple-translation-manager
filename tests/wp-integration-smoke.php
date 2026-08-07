@@ -22,6 +22,8 @@
  * is safe.
  */
 
+if (!defined('ABSPATH')) exit;
+
 if (PHP_SAPI !== 'cli') {
     exit("Run from the command line: php tests/wp-integration-smoke.php\n");
 }

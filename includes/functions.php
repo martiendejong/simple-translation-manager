@@ -5,6 +5,8 @@
  * These are the public API functions that themes use
  */
 
+if (!defined('ABSPATH')) exit;
+
 if (!function_exists('stm_get_current_language')) {
     function stm_get_current_language() {
         return STM\Frontend::get_current_language();

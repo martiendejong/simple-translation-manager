@@ -1,5 +1,27 @@
 # Agent Progress
 
+## 2026-08-07 — task 869efjuhb
+Done: PR — added `if (!defined('ABSPATH')) exit;` to the 5 files Plugin Check flagged as
+`missing_direct_file_access_protection`: `includes/functions.php`,
+`includes/class-language-switcher.php`, `includes/class-cli.php`,
+`tests/wp-integration-smoke.php`, `test-bulk-api.php`. Matches the existing
+`templates/*.php` convention (single-line, no braces) rather than the task's WP-core-spaced
+snippet, for consistency with the rest of the repo. The two `namespace STM;` files
+(`class-language-switcher.php`, `class-cli.php`) needed the guard placed *after* the
+namespace declaration, not before — PHP requires `namespace` to be the first statement in
+the file (only `declare()`/comments may precede it), so a literal "top of file" placement
+would have been a fatal parse error.
+Verified: `php -l` clean on all 5 changed files and every other `.php` file in the repo.
+`vendor/bin/phpunit` 109/109 pass (unchanged — no test logic touched). `npx jest` 18/18 pass
+(unchanged). No live WordPress instance to browser-verify the blank-page behavior, matching
+every prior STM PR in this repo without one.
+Left: `tests/wp-integration-smoke.php` and `test-bulk-api.php` both self-bootstrap WordPress
+(`require_once wp-load.php`) when run standalone — adding the guard means neither can be
+executed directly anymore (ABSPATH is never defined before they load it themselves). This
+was explicit in the task ("test files are not shipped in production zips but should still
+have the guard for WP.org compliance"), so left as instructed; a developer needing to run
+either script locally will need to temporarily comment out the guard line.
+
 ## 2026-08-06 — task 869eecx75
 Done: PR — auto-translate failures now surface the backend's real `error` string instead of the
 generic "Auto-translate failed" text. `handleAutoTranslate()` in `assets/admin-post-editor.js`

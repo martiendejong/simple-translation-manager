@@ -9,6 +9,8 @@
 
 namespace STM;
 
+if (!defined('ABSPATH')) exit;
+
 if (!class_exists('WP_CLI')) {
     return;
 }
