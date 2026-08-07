@@ -14,6 +14,7 @@ namespace STM\Tests\Fakes;
 class FakeWpdb {
 
     public $prefix = 'wp_';
+    public $posts = 'wp_posts';
     public $insert_id = 0;
     public $last_error = '';
 
