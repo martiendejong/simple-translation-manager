@@ -331,12 +331,22 @@ Verified: `php -l` clean; ran the test file with no env var (default) and with
 Left: nothing outstanding in this repo for this task.
 
 ## 2026-08-08 — task 869efjuhj
-Done: PR — replaced `date('Y-m-d')` with `gmdate('Y-m-d')` at
-`includes/class-dashboard.php:429` and `:470` (CSV export filenames for coverage/missing
+Done: PR #29 — replaced `date('Y-m-d')` with `gmdate('Y-m-d')` at
+`includes/class-dashboard.php:432` and `:473` (CSV export filenames for coverage/missing
 reports). UTC is correct here — the value only disambiguates a downloaded filename, never
 shown as content — and matches the existing `gmdate()` convention already used for export
 timestamps in `includes/class-import-export.php`.
-Verified: reused sibling tasks' `/tmp/phpcs-check` WPCS install —
-`WordPress.DateTime.RestrictedFunctions.date_date` 2 errors → 0 on this file. `php -l` clean.
-`vendor/bin/phpunit` 109/109 pass (unchanged). Output format unchanged (`Y-m-d`, regex-verified).
+Review round: two sibling PRs (869efjuhf SQL-safety, 869efjuhr wp_unslash) landed on master
+while this PR sat in review and added `class-dashboard.php` to CI's diff-coverage gate for
+the first time, so these two touched lines needed real test coverage that didn't exist when
+the PR was opened. `export_missing_csv()`'s line is now covered for free by
+`tests/DashboardImportExportHandlersTest.php` (869efjuhr's own new test, which stubs
+`nocache_headers()` to throw right after the `gmdate()`-built filename argument evaluates,
+stopping just short of the unreachable-in-tests `exit;`). Added
+`tests/DashboardExportCoverageCsvTest.php`, the same technique applied to the untested sibling
+`export_coverage_csv()`.
+Verified: `WordPress.DateTime.RestrictedFunctions.date_date` 2 errors → 0 on this file
+(reused sibling tasks' WPCS install). `php -l` clean. `vendor/bin/phpunit` 143/143 pass on
+the merged branch (1 new test added this round). Diff coverage on `class-dashboard.php`'s
+2 touched lines: both now hit.
 Left: nothing outstanding for this task.

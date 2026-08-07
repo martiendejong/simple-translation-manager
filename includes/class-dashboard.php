@@ -422,11 +422,6 @@ class Dashboard {
     /**
      * Export coverage summary as CSV.
      */
-    // @codeCoverageIgnoreStart
-    // Raw admin-post handler ending in `exit;` — can't run to completion
-    // under PHPUnit (no live WordPress request/response cycle), so it's
-    // excluded from the diff-coverage gate. The UTC-date logic it depends
-    // on (export_filename()) is unit-tested directly below.
     public static function export_coverage_csv() {
         if (!check_admin_referer('stm_export_coverage_csv') || !current_user_can('manage_options')) {
             wp_die(__('Unauthorized', 'simple-translation-manager'), 403);
@@ -434,7 +429,7 @@ class Dashboard {
 
         $stats = self::get_coverage_stats(false);
 
-        self::stream_csv_headers(self::export_filename('stm-coverage'));
+        self::stream_csv_headers('stm-coverage-' . gmdate('Y-m-d') . '.csv');
         $out = fopen('php://output', 'w');
 
         fputcsv($out, ['Language Code', 'Language', 'Field', 'Translated', 'Total', 'Percent']);
@@ -455,13 +450,10 @@ class Dashboard {
         fclose($out);
         exit;
     }
-    // @codeCoverageIgnoreEnd
 
     /**
      * Export missing translations as CSV (source text included for translation agencies).
      */
-    // @codeCoverageIgnoreStart
-    // See export_coverage_csv() above — same exit-terminated-handler reason.
     public static function export_missing_csv() {
         if (!check_admin_referer('stm_export_missing_csv') || !current_user_can('manage_options')) {
             wp_die(__('Unauthorized', 'simple-translation-manager'), 403);
@@ -478,7 +470,7 @@ class Dashboard {
 
         $result = self::get_missing_translations($filters);
 
-        self::stream_csv_headers(self::export_filename('stm-missing'));
+        self::stream_csv_headers('stm-missing-' . gmdate('Y-m-d') . '.csv');
         $out = fopen('php://output', 'w');
 
         fputcsv($out, [
@@ -549,15 +541,6 @@ class Dashboard {
             'missing'    => max(0, $total - $translated),
             'pct'        => $pct,
         ];
-    }
-
-    /**
-     * Build a UTC-dated CSV export filename. UTC (not site timezone) is
-     * correct here — the date only disambiguates a downloaded filename,
-     * never shown as content.
-     */
-    private static function export_filename($prefix) {
-        return $prefix . '-' . gmdate('Y-m-d') . '.csv';
     }
 
     private static function stream_csv_headers($filename) {
