@@ -1,5 +1,25 @@
 # Agent Progress
 
+## 2026-08-08 — task 869efjuhx
+Done: PR — replaced `parse_url()` with `wp_parse_url()` in
+`includes/class-language-switcher.php:304` (`get_language_url()`'s URL-routing branch), the
+`WordPress.WP.AlternativeFunctions.parse_url_parse_url` Plugin Check error. The task's other
+cited location, `simple-translation-manager.php:226`, no longer has a `parse_url()` call at
+all — that file is 153 lines on current `master`, and a repo-wide grep found zero remaining
+raw `parse_url()` calls outside `vendor/`; the audit's line numbers had drifted from earlier
+refactors (`includes/class-hreflang.php` already correctly used `wp_parse_url()`).
+Verified: reused the sibling Plugin Check tasks' `/tmp/phpcs-check` WPCS install — the real
+`WordPress.WP.AlternativeFunctions.parse_url_parse_url` sniff went 1 warning → 0 on the
+changed file, and a repo-wide sniff run confirms no `parse_url` warnings remain anywhere
+(2 unrelated warnings for a different rule instance — `file_get_contents`/`unlink` — are out
+of this task's scope). `php -l` clean. `vendor/bin/phpunit` 109/109 pass (unchanged — this
+class isn't wired into the PHPUnit bootstrap, since it extends `WP_Widget`). New standalone
+harness `tests/verify-869efjuhx-wp-parse-url.php` stubs a faithful `wp_parse_url()` and
+reflection-invokes the private `get_language_url()` method directly: 3/3 pass, proving the
+URL-routing output (language-prefixed path + query string, both `http`/`https`) is unchanged
+by the swap. Existing `tests/verify-multilang-audit.php` standalone harness still 39/39 pass.
+Left: nothing outstanding for this task.
+
 ## 2026-08-07 — task 869efjuhb
 Done: PR — added `if (!defined('ABSPATH')) exit;` to the 5 files Plugin Check flagged as
 `missing_direct_file_access_protection`: `includes/functions.php`,
