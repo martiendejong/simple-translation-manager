@@ -1,5 +1,19 @@
 # Agent Progress
 
+## 2026-08-08 — task 869efjuhu
+Done: PR — replaced all 16 `wp_redirect()` calls with `wp_safe_redirect()` across
+`includes/class-admin.php` (15 calls) and `includes/class-import-export.php` (1 call).
+Every call already had `exit;` immediately after it, so no changes needed there. All
+redirects build their target from `wp_get_referer()` via `add_query_arg()` — internal
+admin-page redirects only, no OAuth/external-URL redirects anywhere in the plugin — so
+no `allowed_redirect_hosts` filter was needed. Updated the one test that stubs the
+redirect call (`tests/LanguagesScreenTest.php::stubRedirectToThrow()`) to stub
+`wp_safe_redirect` instead of `wp_redirect`.
+Verified: real WPCS `WordPress.Security.SafeRedirect` sniff (reused `/tmp/phpcs-check`)
+— 16 warnings on the pre-fix files, 0 after. `vendor/bin/phpunit` 109/109 pass. `php -l`
+clean on all 3 changed files.
+Left: nothing.
+
 ## 2026-08-07 — task 869efjuhb
 Done: PR — added `if (!defined('ABSPATH')) exit;` to the 5 files Plugin Check flagged as
 `missing_direct_file_access_protection`: `includes/functions.php`,

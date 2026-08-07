@@ -423,7 +423,7 @@ class Admin {
                 Cache::invalidate_string($string->string_key, $string->context);
             }
 
-            wp_redirect(add_query_arg('updated', '1', wp_get_referer()));
+            wp_safe_redirect(add_query_arg('updated', '1', wp_get_referer()));
             exit;
         } catch (\Exception $e) {
             Security::log('Error saving translation: ' . $e->getMessage(), 'error');
@@ -469,7 +469,7 @@ class Admin {
                 throw new \Exception('Database operation failed');
             }
 
-            wp_redirect(add_query_arg('added', '1', wp_get_referer()));
+            wp_safe_redirect(add_query_arg('added', '1', wp_get_referer()));
             exit;
         } catch (\Exception $e) {
             Security::log('Error adding string: ' . $e->getMessage(), 'error');
@@ -489,7 +489,7 @@ class Admin {
         try {
             $result = StringScanner::scan_and_register();
 
-            wp_redirect(add_query_arg([
+            wp_safe_redirect(add_query_arg([
                 'stm_scanned' => '1',
                 'stm_scan_found' => $result['unique_found'],
                 'stm_scan_added' => $result['added'],
@@ -497,7 +497,7 @@ class Admin {
             exit;
         } catch (\Exception $e) {
             Security::log('Error scanning for strings: ' . $e->getMessage(), 'error');
-            wp_redirect(add_query_arg('stm_error', 'scan_failed', wp_get_referer()));
+            wp_safe_redirect(add_query_arg('stm_error', 'scan_failed', wp_get_referer()));
             exit;
         }
     }
@@ -511,7 +511,7 @@ class Admin {
         }
 
         if (empty($_FILES['stm_import_file']['tmp_name'])) {
-            wp_redirect(add_query_arg('stm_error', 'no_file', wp_get_referer()));
+            wp_safe_redirect(add_query_arg('stm_error', 'no_file', wp_get_referer()));
             exit;
         }
 
@@ -520,7 +520,7 @@ class Admin {
         // Only allow JSON files
         $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
         if ($ext !== 'json') {
-            wp_redirect(add_query_arg('stm_error', 'invalid_type', wp_get_referer()));
+            wp_safe_redirect(add_query_arg('stm_error', 'invalid_type', wp_get_referer()));
             exit;
         }
 
@@ -528,18 +528,18 @@ class Admin {
         $data = json_decode($json, true);
 
         if (!is_array($data)) {
-            wp_redirect(add_query_arg('stm_error', 'invalid_json', wp_get_referer()));
+            wp_safe_redirect(add_query_arg('stm_error', 'invalid_json', wp_get_referer()));
             exit;
         }
 
         $result = API::process_import($data);
 
         if (isset($result['error'])) {
-            wp_redirect(add_query_arg('stm_error', urlencode($result['error']), wp_get_referer()));
+            wp_safe_redirect(add_query_arg('stm_error', urlencode($result['error']), wp_get_referer()));
             exit;
         }
 
-        wp_redirect(add_query_arg([
+        wp_safe_redirect(add_query_arg([
             'imported' => $result['created'] + $result['updated'],
             'stm_errors' => count($result['errors']),
         ], wp_get_referer()));
@@ -563,7 +563,7 @@ class Admin {
         $is_default  = isset($_POST['lang_default']) ? 1 : 0;
 
         if (!Security::validate_language_code($code) || empty($name)) {
-            wp_redirect(add_query_arg('stm_error', 'invalid_fields', wp_get_referer()));
+            wp_safe_redirect(add_query_arg('stm_error', 'invalid_fields', wp_get_referer()));
             exit;
         }
 
@@ -585,7 +585,7 @@ class Admin {
         wp_cache_delete('stm_all_languages');
         wp_cache_delete('stm_default_language');
 
-        wp_redirect(add_query_arg(
+        wp_safe_redirect(add_query_arg(
             $result === false ? 'stm_error' : 'stm_added',
             $result === false ? 'db_error'  : '1',
             wp_get_referer()
@@ -616,7 +616,7 @@ class Admin {
         ));
 
         if ($is_default) {
-            wp_redirect(add_query_arg('stm_error', 'cannot_delete_default', wp_get_referer()));
+            wp_safe_redirect(add_query_arg('stm_error', 'cannot_delete_default', wp_get_referer()));
             exit;
         }
 
@@ -625,7 +625,7 @@ class Admin {
         wp_cache_delete('stm_active_languages');
         wp_cache_delete('stm_all_languages');
 
-        wp_redirect(add_query_arg('stm_deleted', '1', wp_get_referer()));
+        wp_safe_redirect(add_query_arg('stm_deleted', '1', wp_get_referer()));
         exit;
     }
 
@@ -671,7 +671,7 @@ class Admin {
             wp_cache_delete('stm_all_languages');
         }
 
-        wp_redirect(add_query_arg($redirect_arg, $redirect_val, wp_get_referer()));
+        wp_safe_redirect(add_query_arg($redirect_arg, $redirect_val, wp_get_referer()));
         exit;
     }
 
@@ -689,7 +689,7 @@ class Admin {
 
         AutoTranslate::save_settings($provider, $openai_key ?: null, $deepl_key ?: null);
 
-        wp_redirect(add_query_arg('stm_saved', '1', wp_get_referer()));
+        wp_safe_redirect(add_query_arg('stm_saved', '1', wp_get_referer()));
         exit;
     }
 }
