@@ -562,6 +562,10 @@ class ImportExport {
 
         header('Content-Type: application/xliff+xml; charset=utf-8');
         header("Content-Disposition: attachment; filename=stm-{$source}-{$target}.xliff");
+        // Generated XLIFF/XML file streamed verbatim as a download (Content-Type is not text/html);
+        // esc_html() would corrupt the XML markup. export_xliff() builds the document via DOM/XML APIs,
+        // not raw concatenation.
+        // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
         echo $content;
         exit;
     }
@@ -578,6 +582,10 @@ class ImportExport {
 
         header('Content-Type: text/x-po; charset=utf-8');
         header("Content-Disposition: attachment; filename=stm-{$lang}.po");
+        // Generated PO file streamed verbatim as a download (Content-Type is not text/html);
+        // esc_html() would corrupt the PO syntax. export_po() already escapes each field via
+        // its own escape_po_string().
+        // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
         echo $content;
         exit;
     }
