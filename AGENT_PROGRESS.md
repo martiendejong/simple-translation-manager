@@ -14,6 +14,29 @@ Verified: real WPCS `WordPress.Security.SafeRedirect` sniff (reused `/tmp/phpcs-
 clean on all 3 changed files.
 Left: nothing.
 
+## 2026-08-08 — task 869efjuhu (round 2)
+Done: review on PR #30 flagged the diff-coverage gate failing (6.67%, needs >=80%) —
+13 of the 15 touched `wp_safe_redirect()` lines in `class-admin.php` had no test calling
+their handler. Added `tests/AdminHandlersTest.php` (14 new tests) exercising every
+untested handler: `save_translation()`, `add_string()`, `scan_strings()` (success +
+exception branch, forced via the `stm_scan_directories` filter pointing at a
+non-existent dir), `import_json()` (all 5 branches: no file, wrong extension, malformed
+JSON, unrecognized format, success), `add_language()`, `delete_language()`,
+`save_ai_settings()`.
+Key gotcha: `save_translation()`, `add_string()`, and `scan_strings()`'s success path
+wrap their `wp_safe_redirect()` call in `try { } catch (\Exception $e)`, so the existing
+`stubRedirectToThrow()` pattern (throwing `\RuntimeException`) got silently swallowed by
+the handler's own catch block and rerouted into an undefined `wp_die()` call. Fixed by
+throwing a dedicated `RedirectInterrupt extends \Error` instead — `\Error` is not an
+`\Exception` so `catch (\Exception $e)` doesn't intercept it.
+Verified: `vendor/bin/phpunit` 123/123 pass (109 existing + 14 new). No pcov/xdebug
+available on this host to run the Clover-based diff-coverage script itself, so coverage
+was confirmed by manual line-trace: every one of the 15 flagged lines is now hit by a
+passing, branch-specific assertion (e.g. asserting `stm_error=scan_failed` only appears
+when the exception branch — not the success branch — actually ran).
+Left: CI's `bin/diff-coverage.php` gate itself should be watched on this PR to confirm
+the automated number agrees with the manual trace.
+
 ## 2026-08-07 — task 869efjuhb
 Done: PR — added `if (!defined('ABSPATH')) exit;` to the 5 files Plugin Check flagged as
 `missing_direct_file_access_protection`: `includes/functions.php`,
