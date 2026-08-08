@@ -165,7 +165,7 @@ class LanguagesScreenTest extends TestCase {
     // -----------------------------------------------------------------
 
     /**
-     * wp_redirect() is a real function call, unlike the `exit;` that always
+     * wp_safe_redirect() is a real function call, unlike the `exit;` that always
      * follows it in Admin's admin_post handlers — stubbing it to throw lets
      * a test observe every side effect the handler made (DB write, cache
      * invalidation) without the raw `exit;` statement killing the PHPUnit
@@ -176,7 +176,7 @@ class LanguagesScreenTest extends TestCase {
         Functions\when('add_query_arg')->alias(function ($key, $value, $url) {
             return $url . '?' . $key . '=' . $value;
         });
-        Functions\when('wp_redirect')->alias(function ($url) use (&$capturedUrl) {
+        Functions\when('wp_safe_redirect')->alias(function ($url) use (&$capturedUrl) {
             $capturedUrl = $url;
             throw new \RuntimeException('redirect:' . $url);
         });
