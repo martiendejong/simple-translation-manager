@@ -620,7 +620,7 @@ class ImportExport {
             $msg .= ' Errors: ' . implode('; ', $result['errors']);
         }
 
-        wp_redirect(add_query_arg(['imported' => '1', 'message' => urlencode($msg)], wp_get_referer()));
+        wp_safe_redirect(add_query_arg(['imported' => '1', 'message' => urlencode($msg)], wp_get_referer()));
         exit;
     }
 }

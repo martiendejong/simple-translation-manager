@@ -18,8 +18,8 @@ use STM\Tests\Fakes\FakeWpdb;
 
 /**
  * Some handlers (save_translation(), add_string(), scan_strings()) wrap
- * their success-path wp_redirect()/exit in a try { } catch (\Exception $e),
- * so the interrupt signal used to stop execution at wp_redirect() in tests
+ * their success-path wp_safe_redirect()/exit in a try { } catch (\Exception $e),
+ * so the interrupt signal used to stop execution at wp_safe_redirect() in tests
  * must NOT be an \Exception subclass (it would be silently swallowed and
  * misreported as a DB failure). \Error is never caught by catch (\Exception).
  */
@@ -79,7 +79,7 @@ class AdminFormHandlersTest extends TestCase {
             list($key, $value, $url) = $args;
             return $url . '?' . $key . '=' . $value;
         });
-        Functions\when('wp_redirect')->alias(function ($url) use (&$capturedUrl) {
+        Functions\when('wp_safe_redirect')->alias(function ($url) use (&$capturedUrl) {
             $capturedUrl = $url;
             throw new RedirectInterrupt('redirect:' . $url);
         });
@@ -201,6 +201,35 @@ class AdminFormHandlersTest extends TestCase {
         }, 'stm_scan_strings');
     }
 
+    public function test_scan_strings_redirects_with_error_when_scanning_throws() {
+        Functions\when('check_admin_referer')->justReturn(true);
+        Functions\when('current_user_can')->justReturn(true);
+
+        // get_scan_directories() applies the 'stm_scan_directories' filter
+        // *after* its own is_dir() checks, so a filter is the only way to
+        // hand it a directory that doesn't exist — which makes
+        // find_php_files()'s RecursiveDirectoryIterator throw and exercises
+        // the catch (\Exception) branch below.
+        Functions\when('apply_filters')->alias(function ($tag, $value) {
+            if ($tag === 'stm_scan_directories') {
+                $value[] = sys_get_temp_dir() . '/stm-does-not-exist-' . uniqid();
+            }
+            return $value;
+        });
+
+        $captured = null;
+        $this->stubRedirectToThrow($captured);
+
+        try {
+            Admin::scan_strings();
+            $this->fail('Expected the redirect stub to interrupt execution.');
+        } catch (RedirectInterrupt $e) {
+            // expected
+        }
+
+        $this->assertStringContainsString('stm_error=scan_failed', $captured);
+    }
+
     // =========================================================================
     // import_json()
     // =========================================================================
@@ -220,6 +249,89 @@ class AdminFormHandlersTest extends TestCase {
         }
 
         $this->assertStringContainsString('stm_error=no_file', $captured);
+    }
+
+    public function test_import_json_redirects_with_error_for_non_json_extension() {
+        Functions\when('check_admin_referer')->justReturn(true);
+        Functions\when('current_user_can')->justReturn(true);
+
+        $captured = null;
+        $this->stubRedirectToThrow($captured);
+
+        $tmpFile = tempnam(sys_get_temp_dir(), 'stm_import');
+        file_put_contents($tmpFile, 'irrelevant');
+
+        $_FILES['stm_import_file'] = [
+            'tmp_name' => $tmpFile,
+            'name'     => 'strings.txt',
+        ];
+
+        try {
+            Admin::import_json();
+            $this->fail('Expected the redirect stub to interrupt execution.');
+        } catch (RedirectInterrupt $e) {
+            // expected
+        } finally {
+            unlink($tmpFile);
+        }
+
+        $this->assertStringContainsString('stm_error=invalid_type', $captured);
+    }
+
+    public function test_import_json_redirects_with_error_for_malformed_json() {
+        Functions\when('check_admin_referer')->justReturn(true);
+        Functions\when('current_user_can')->justReturn(true);
+
+        $captured = null;
+        $this->stubRedirectToThrow($captured);
+
+        $tmpFile = tempnam(sys_get_temp_dir(), 'stm_import');
+        file_put_contents($tmpFile, '{not valid json');
+
+        $_FILES['stm_import_file'] = [
+            'tmp_name' => $tmpFile,
+            'name'     => 'strings.json',
+        ];
+
+        try {
+            Admin::import_json();
+            $this->fail('Expected the redirect stub to interrupt execution.');
+        } catch (RedirectInterrupt $e) {
+            // expected
+        } finally {
+            unlink($tmpFile);
+        }
+
+        $this->assertStringContainsString('stm_error=invalid_json', $captured);
+    }
+
+    public function test_import_json_redirects_with_error_when_format_unrecognized() {
+        Functions\when('check_admin_referer')->justReturn(true);
+        Functions\when('current_user_can')->justReturn(true);
+
+        $captured = null;
+        $this->stubRedirectToThrow($captured);
+
+        // Valid JSON, but neither the {lang,translations} shape nor a map of
+        // valid language codes -> API::process_import() reports it as an error.
+        $tmpFile = tempnam(sys_get_temp_dir(), 'stm_import');
+        file_put_contents($tmpFile, '[]');
+
+        $_FILES['stm_import_file'] = [
+            'tmp_name' => $tmpFile,
+            'name'     => 'strings.json',
+        ];
+
+        try {
+            Admin::import_json();
+            $this->fail('Expected the redirect stub to interrupt execution.');
+        } catch (RedirectInterrupt $e) {
+            // expected
+        } finally {
+            unlink($tmpFile);
+        }
+
+        $this->assertStringContainsString('stm_error=', $captured);
     }
 
     public function test_import_json_imports_uploaded_translations() {
@@ -292,6 +404,27 @@ class AdminFormHandlersTest extends TestCase {
         }, 'stm_add_language');
     }
 
+    public function test_add_language_redirects_with_error_for_invalid_fields() {
+        Functions\when('check_admin_referer')->justReturn(true);
+        Functions\when('current_user_can')->justReturn(true);
+
+        $captured = null;
+        $this->stubRedirectToThrow($captured);
+
+        $_POST['lang_code'] = 'toolong';
+        $_POST['lang_name'] = 'Whatever';
+
+        try {
+            Admin::add_language();
+            $this->fail('Expected the redirect stub to interrupt execution.');
+        } catch (RedirectInterrupt $e) {
+            // expected
+        }
+
+        $this->assertStringContainsString('stm_error=invalid_fields', $captured);
+        $this->assertCount(1, $this->wpdb->all('stm_languages'), 'No language row should have been inserted.');
+    }
+
     // =========================================================================
     // delete_language()
     // =========================================================================
@@ -328,6 +461,26 @@ class AdminFormHandlersTest extends TestCase {
         $this->assertDeniedWithoutNonce(function () {
             Admin::delete_language();
         }, 'stm_delete_language');
+    }
+
+    public function test_delete_language_refuses_to_delete_the_default_language() {
+        Functions\when('check_admin_referer')->justReturn(true);
+        Functions\when('current_user_can')->justReturn(true);
+
+        $captured = null;
+        $this->stubRedirectToThrow($captured);
+
+        $_POST['lang_code'] = 'en';
+
+        try {
+            Admin::delete_language();
+            $this->fail('Expected the redirect stub to interrupt execution.');
+        } catch (RedirectInterrupt $e) {
+            // expected
+        }
+
+        $this->assertStringContainsString('stm_error=cannot_delete_default', $captured);
+        $this->assertCount(1, $this->wpdb->all('stm_languages'));
     }
 
     // =========================================================================

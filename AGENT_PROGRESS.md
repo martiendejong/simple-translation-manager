@@ -1,5 +1,45 @@
 # Agent Progress
 
+## 2026-08-08 — task 869efjuhu
+Done: PR — replaced all 16 `wp_redirect()` calls with `wp_safe_redirect()` across
+`includes/class-admin.php` (15 calls) and `includes/class-import-export.php` (1 call).
+Every call already had `exit;` immediately after it, so no changes needed there. All
+redirects build their target from `wp_get_referer()` via `add_query_arg()` — internal
+admin-page redirects only, no OAuth/external-URL redirects anywhere in the plugin — so
+no `allowed_redirect_hosts` filter was needed. Updated the one test that stubs the
+redirect call (`tests/LanguagesScreenTest.php::stubRedirectToThrow()`) to stub
+`wp_safe_redirect` instead of `wp_redirect`.
+Verified: real WPCS `WordPress.Security.SafeRedirect` sniff (reused `/tmp/phpcs-check`)
+— 16 warnings on the pre-fix files, 0 after. `vendor/bin/phpunit` 109/109 pass. `php -l`
+clean on all 3 changed files.
+Left: nothing.
+
+## 2026-08-08 — task 869efjuhu (round 2)
+Done: review on PR #30 flagged the diff-coverage gate failing (6.67%, needs >=80%).
+First wrote a standalone `tests/AdminHandlersTest.php`, then merged `origin/master` (7
+sibling PRs had landed meanwhile, `develop` doesn't exist in this repo — `master` is
+trunk) and discovered task 869efjuhp had *already* inlined `check_admin_referer()` into
+these same handlers and added its own `tests/AdminFormHandlersTest.php` covering most of
+them with the identical `RedirectInterrupt extends \Error` pattern — same class name, same
+namespace, a guaranteed fatal redeclaration. Deleted my duplicate file and instead: (1)
+fixed `AdminFormHandlersTest.php` and `DashboardImportExportHandlersTest.php`, both of
+which stubbed `wp_redirect` (correct when they were written, since `class-admin.php`/
+`class-import-export.php` still called `wp_redirect()` at that time) — after this PR's
+rename the production code calls `wp_safe_redirect()`, so every test hitting a redirect
+line fatally errored with "Call to undefined function wp_safe_redirect()"; re-pointed both
+stubs at `wp_safe_redirect`; (2) added the 6 branches neither sibling file covered (scan
+exception, `import_json` invalid-type/invalid-json/unrecognized-format, `add_language`
+invalid-fields, `delete_language` cannot-delete-default) directly into
+`AdminFormHandlersTest.php` rather than keeping a separate file.
+Verified: `vendor/bin/phpunit` 149/149 pass (full suite, post-merge). `vendor/bin/phpcs
+--standard=phpcs.xml.dist` (nonce-verification gate) 0 errors/0 warnings. Real WPCS
+`WordPress.Security.SafeRedirect` sniff on both changed files: 0 warnings. No pcov/xdebug
+on this host to run the Clover-based diff-coverage script itself, so line coverage was
+confirmed by manual trace against `git grep -n wp_safe_redirect includes/class-admin.php`:
+all 15 originally-flagged lines are now hit by a passing, branch-specific assertion.
+Left: CI's `bin/diff-coverage.php` gate itself should be watched on this PR to confirm
+the automated number agrees with the manual trace.
+
 ## 2026-08-08 — task 869efjuhd
 Done: PR — escaped every unescaped output flagged by Plugin Check plus a handful of
 same-class instances it apparently missed on the first pass. `admin_url()` calls wrapped in

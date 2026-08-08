@@ -18,8 +18,8 @@
  * the same raw-`exit;`-after-header() shape but call the real, un-mockable
  * PHP-internal header() directly with no user-function seam beforehand —
  * left uncovered here; the diff-coverage gate's 80% threshold is still met
- * without them.) handle_import_file() ends with wp_redirect()+exit, so it
- * reuses the RedirectInterrupt trick AdminFormHandlersTest.php already
+ * without them.) handle_import_file() ends with wp_safe_redirect()+exit, so
+ * it reuses the RedirectInterrupt trick AdminFormHandlersTest.php already
  * established for that exact shape.
  */
 
@@ -181,7 +181,7 @@ class DashboardImportExportHandlersTest extends TestCase {
     }
 
     // =========================================================================
-    // ImportExport::handle_import_file() — wp_redirect()+exit, same
+    // ImportExport::handle_import_file() — wp_safe_redirect()+exit, same
     // RedirectInterrupt trick as AdminFormHandlersTest.php
     // =========================================================================
 
@@ -194,7 +194,7 @@ class DashboardImportExportHandlersTest extends TestCase {
         });
 
         $captured = null;
-        Functions\when('wp_redirect')->alias(function ($url) use (&$captured) {
+        Functions\when('wp_safe_redirect')->alias(function ($url) use (&$captured) {
             $captured = $url;
             throw new HandlerRedirectInterrupt('redirect:' . $url);
         });
