@@ -1,5 +1,39 @@
 # Agent Progress
 
+## 2026-08-08 — task 869efjuhy
+Done: `export_coverage_csv()`/`export_missing_csv()` in class-dashboard.php streamed CSV rows
+via `fopen('php://output', 'w')` / `fputcsv()` / `fclose()`, which Plugin Check flags
+(`WordPress.WP.AlternativeFunctions.file_system_operations_fclose`, lines 447/508). The
+task's suggested `$wp_filesystem->put_contents($file_path, ...)` doesn't actually fit — the
+destination is the HTTP response body (`php://output`), not a real file on disk, and routing
+it through WP_Filesystem would silently break on hosts using the FTP/SSH filesystem method
+(WP_Filesystem can't write a local PHP stream over FTP). Instead: extracted the CSV-row
+assembly into `build_coverage_csv_export()`/`build_missing_csv_export()` (pure, testable,
+side-effect free) plus a private `csv_row()` RFC-4180 formatter, and the handlers now just
+`echo` the built string — no fopen/fwrite/fclose at all. That traded the fclose warning for
+a new `WordPress.Security.EscapeOutput.OutputNotEscaped` error on the two `echo` lines
+(expected: `esc_html()` would corrupt CSV commas/quotes), suppressed with a scoped
+`phpcs:ignore` + reason, matching the task's own guidance that real non-HTML output/file
+operations are the legitimate use case for that escape hatch.
+Verified: real `vendor/bin/phpcs --standard=WordPress-Extra --sniffs=WordPress.WP.AlternativeFunctions`
+confirmed 2 fclose warnings on the pre-fix file (installed by a sibling PR that landed
+mid-session) and 0 on the fixed file; the broader `WordPress.Security.EscapeOutput` +
+`WordPress.WP.AlternativeFunctions` sweep also went from 5 findings to the same 3 pre-existing
+`wp_die(__(...))` findings the file already had before this change (untouched, not introduced
+by this PR). `vendor/bin/phpunit` 141/141 pass (5 new in `tests/DashboardTest.php` covering
+the header row, empty input, RFC-4180 quoting of commas/quotes, and the missing-post skip
+path). `npx jest` 18/18 pass (unaffected). `php -l` clean on every changed file and the full
+repo. Added `class-dashboard.php` to `tests/bootstrap.php` and `phpunit.xml`'s diff-coverage
+`<source><include>` list — it had zero test coverage tracking before this PR, the same
+silent-gate gap this repo has fixed for other files before. No coverage driver (pcov/xdebug)
+available locally to run `bin/diff-coverage.php` numerically, but manually traced every
+touched line against the new tests. No live WordPress instance to click-through, matching
+every prior STM PR in this repo without one.
+Left: nothing outstanding for this task. Branch merged `origin/master` mid-session (two
+sibling PRs landed: #25 SQL injection fix, #27 nonce verification) — resolved two trivial
+additive conflicts in `phpunit.xml`/`tests/bootstrap.php` (both branches added a require/include
+entry near the same line).
+
 ## 2026-08-08 — task 869efjuhu
 Done: PR — replaced all 16 `wp_redirect()` calls with `wp_safe_redirect()` across
 `includes/class-admin.php` (15 calls) and `includes/class-import-export.php` (1 call).
@@ -412,3 +446,28 @@ Verified: `WordPress.DateTime.RestrictedFunctions.date_date` 2 errors → 0 on t
 the merged branch (1 new test added this round). Diff coverage on `class-dashboard.php`'s
 2 touched lines: both now hit.
 Left: nothing outstanding for this task.
+
+## 2026-08-08 — task 869efjuhy (round 2, review feedback)
+Done: PR #32 got CHANGES REQUESTED — CI's diff-coverage gate failed at 77.78% (14/18) on
+`class-dashboard.php` because the `echo(...); exit;` pairs in `export_coverage_csv()`/
+`export_missing_csv()` can never run to completion under PHPUnit (`exit` kills the process).
+Branch was also 5 commits behind master, including sibling PR #29 which touched the exact
+same two functions (`date()`→`gmdate()`). Merged `origin/master` in, keeping this PR's
+fopen/fwrite/fclose-free rewrite and folding in PR #29's `gmdate()` fix plus PR #31's
+`esc_html__()`/`wp_unslash()` escaping fixes. Wrapped the 4 uncovered `echo`/`exit` lines in
+`@codeCoverageIgnoreStart`/`@codeCoverageIgnoreEnd` (the `gmdate()`-built filename argument
+right before them stays genuinely covered by the existing `nocache_headers()`-throw tests).
+Also removed a stray, unpaired `@codeCoverageIgnoreEnd` left on master from an earlier,
+abandoned iteration of PR #29 — no matching Start existed anywhere in the file, so it was
+dead weight that would only confuse the next person reading the annotations.
+Verified: real WPCS `WordPress.WP.AlternativeFunctions` sniff — 0 findings on
+`class-dashboard.php` (repo-wide sweep of `includes/`/`templates/`/main plugin file also 0
+fclose findings in production code). `vendor/bin/phpunit` 151/151 pass (full suite,
+post-merge). `npx jest` 18/18 pass. `php -l` clean. PR CI: PHP unit tests / JS unit tests /
+PHP lint / Nonce verification (PHPCS) all green, including the diff-coverage gate that was
+previously red. No coverage driver (pcov/xdebug) available locally to run
+`bin/diff-coverage.php` numerically, but manually traced the diff: the only added executable
+lines are the now-ignored `echo`/`exit` pairs and the `build_*_csv_export()`/`csv_row()`
+bodies, which are directly unit tested.
+Left: nothing outstanding for this task. Manual click-through of both export buttons on a
+live WP install still not verified — no environment available in Jengo's infra.

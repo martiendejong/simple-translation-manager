@@ -430,13 +430,26 @@ class Dashboard {
         $stats = self::get_coverage_stats(false);
 
         self::stream_csv_headers('stm-coverage-' . gmdate('Y-m-d') . '.csv');
-        $out = fopen('php://output', 'w');
+        // @codeCoverageIgnoreStart
+        // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- CSV file content, not HTML; esc_html() would corrupt commas/quotes in the exported data.
+        echo self::build_coverage_csv_export($stats);
+        exit;
+        // @codeCoverageIgnoreEnd
+    }
 
-        fputcsv($out, ['Language Code', 'Language', 'Field', 'Translated', 'Total', 'Percent']);
+    /**
+     * Build the coverage-summary CSV content for export_coverage_csv().
+     *
+     * Kept separate (and side-effect free) so it can be unit tested directly —
+     * the request handler above is the only place that needs to send headers
+     * and terminate the request.
+     */
+    public static function build_coverage_csv_export(array $stats) {
+        $csv = self::csv_row(['Language Code', 'Language', 'Field', 'Translated', 'Total', 'Percent']);
 
         foreach ($stats['by_language'] as $row) {
             foreach (['title', 'content', 'strings'] as $field) {
-                fputcsv($out, [
+                $csv .= self::csv_row([
                     $row['code'],
                     $row['name'],
                     $field,
@@ -447,8 +460,7 @@ class Dashboard {
             }
         }
 
-        fclose($out);
-        exit;
+        return $csv;
     }
 
     /**
@@ -471,9 +483,22 @@ class Dashboard {
         $result = self::get_missing_translations($filters);
 
         self::stream_csv_headers('stm-missing-' . gmdate('Y-m-d') . '.csv');
-        $out = fopen('php://output', 'w');
+        // @codeCoverageIgnoreStart
+        // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- CSV file content, not HTML; esc_html() would corrupt commas/quotes in the exported data.
+        echo self::build_missing_csv_export($result['rows']);
+        exit;
+        // @codeCoverageIgnoreEnd
+    }
 
-        fputcsv($out, [
+    /**
+     * Build the missing-translations CSV content for export_missing_csv().
+     *
+     * Kept separate (and side-effect free) so it can be unit tested directly —
+     * the request handler above is the only place that needs to send headers
+     * and terminate the request.
+     */
+    public static function build_missing_csv_export(array $rows) {
+        $csv = self::csv_row([
             'Post ID',
             'Post Type',
             'Target Language',
@@ -487,13 +512,13 @@ class Dashboard {
             'Translated Excerpt',
         ]);
 
-        foreach ($result['rows'] as $row) {
+        foreach ($rows as $row) {
             $post = get_post($row['post_id']);
             if (!$post) {
                 continue;
             }
 
-            fputcsv($out, [
+            $csv .= self::csv_row([
                 $row['post_id'],
                 $row['post_type'],
                 $row['language_code'],
@@ -508,10 +533,8 @@ class Dashboard {
             ]);
         }
 
-        fclose($out);
-        exit;
+        return $csv;
     }
-    // @codeCoverageIgnoreEnd
 
     /**
      * Helpers
@@ -549,5 +572,23 @@ class Dashboard {
         header('Content-Disposition: attachment; filename="' . $filename . '"');
         // UTF-8 BOM for Excel compatibility
         echo "\xEF\xBB\xBF";
+    }
+
+    /**
+     * Format one CSV row (RFC 4180 quoting), no filesystem handle involved —
+     * export handlers echo the result straight to the response body, since
+     * WP_Filesystem operates on real file paths and there is no real file
+     * here (the destination is the HTTP response, not disk).
+     */
+    private static function csv_row(array $fields) {
+        $escaped = array_map(static function ($field) {
+            $field = (string) $field;
+            if (preg_match('/[",\r\n]/', $field)) {
+                $field = '"' . str_replace('"', '""', $field) . '"';
+            }
+            return $field;
+        }, $fields);
+
+        return implode(',', $escaped) . "\r\n";
     }
 }
