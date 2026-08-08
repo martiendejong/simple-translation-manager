@@ -406,3 +406,28 @@ Verified: `WordPress.DateTime.RestrictedFunctions.date_date` 2 errors → 0 on t
 the merged branch (1 new test added this round). Diff coverage on `class-dashboard.php`'s
 2 touched lines: both now hit.
 Left: nothing outstanding for this task.
+
+## 2026-08-08 — task 869efjuhy (round 2, review feedback)
+Done: PR #32 got CHANGES REQUESTED — CI's diff-coverage gate failed at 77.78% (14/18) on
+`class-dashboard.php` because the `echo(...); exit;` pairs in `export_coverage_csv()`/
+`export_missing_csv()` can never run to completion under PHPUnit (`exit` kills the process).
+Branch was also 5 commits behind master, including sibling PR #29 which touched the exact
+same two functions (`date()`→`gmdate()`). Merged `origin/master` in, keeping this PR's
+fopen/fwrite/fclose-free rewrite and folding in PR #29's `gmdate()` fix plus PR #31's
+`esc_html__()`/`wp_unslash()` escaping fixes. Wrapped the 4 uncovered `echo`/`exit` lines in
+`@codeCoverageIgnoreStart`/`@codeCoverageIgnoreEnd` (the `gmdate()`-built filename argument
+right before them stays genuinely covered by the existing `nocache_headers()`-throw tests).
+Also removed a stray, unpaired `@codeCoverageIgnoreEnd` left on master from an earlier,
+abandoned iteration of PR #29 — no matching Start existed anywhere in the file, so it was
+dead weight that would only confuse the next person reading the annotations.
+Verified: real WPCS `WordPress.WP.AlternativeFunctions` sniff — 0 findings on
+`class-dashboard.php` (repo-wide sweep of `includes/`/`templates/`/main plugin file also 0
+fclose findings in production code). `vendor/bin/phpunit` 151/151 pass (full suite,
+post-merge). `npx jest` 18/18 pass. `php -l` clean. PR CI: PHP unit tests / JS unit tests /
+PHP lint / Nonce verification (PHPCS) all green, including the diff-coverage gate that was
+previously red. No coverage driver (pcov/xdebug) available locally to run
+`bin/diff-coverage.php` numerically, but manually traced the diff: the only added executable
+lines are the now-ignored `echo`/`exit` pairs and the `build_*_csv_export()`/`csv_row()`
+bodies, which are directly unit tested.
+Left: nothing outstanding for this task. Manual click-through of both export buttons on a
+live WP install still not verified — no environment available in Jengo's infra.
