@@ -81,6 +81,7 @@ class LanguagesScreenTest extends TestCase {
         Functions\when('esc_attr')->returnArg(1);
         Functions\when('esc_js')->returnArg(1);
         Functions\when('esc_url')->returnArg(1);
+        Functions\when('wp_kses_post')->returnArg(1);
         Functions\when('admin_url')->justReturn('http://example.test/wp-admin/admin-post.php');
         Functions\when('wp_nonce_field')->justReturn('');
 
@@ -110,6 +111,7 @@ class LanguagesScreenTest extends TestCase {
         Functions\when('esc_attr')->returnArg(1);
         Functions\when('esc_js')->returnArg(1);
         Functions\when('esc_url')->returnArg(1);
+        Functions\when('wp_kses_post')->returnArg(1);
         Functions\when('admin_url')->justReturn('http://example.test/wp-admin/admin-post.php');
         Functions\when('wp_nonce_field')->justReturn('');
 

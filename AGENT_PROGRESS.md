@@ -40,6 +40,29 @@ all 15 originally-flagged lines are now hit by a passing, branch-specific assert
 Left: CI's `bin/diff-coverage.php` gate itself should be watched on this PR to confirm
 the automated number agrees with the manual trace.
 
+## 2026-08-08 — task 869efjuhd
+Done: PR — escaped every unescaped output flagged by Plugin Check plus a handful of
+same-class instances it apparently missed on the first pass. `admin_url()` calls wrapped in
+`esc_url()`; `wp_create_nonce()` in `esc_attr()`; `__()`/`__stm()` echoed via `wp_die()`/`echo`
+now use `esc_html__()`/`esc_html()`; integer counts/ids (`$total_items`, `$string->id`,
+`$current_page`, `$total_pages`, `strlen()`) wrapped in `absint()`; literal-string
+class/state ternaries (`$first`, `$active`, `$selected`) wrapped in `esc_attr()`. Two
+deliberate exceptions with `phpcs:ignore` + explanation: `class-import-export.php`'s XLIFF/PO
+file-download handlers (escaping would corrupt the generated file format; XLIFF is built via
+DOM/SimpleXMLElement, PO already self-escapes) and `class-language-switcher.php`'s widget
+`before_widget`/`before_title`/`after_title`/`after_widget` (theme-supplied wrapper markup,
+same pattern every WP core widget uses) — the widget title itself is `wp_kses_post()`'d since
+`apply_filters('widget_title', ...)` is commonly used to inject inline markup.
+Verified: `vendor/bin/phpunit` 109/109 pass (2 pre-existing tests needed `wp_kses_post`/`esc_url`
+added to their Brain\Monkey mocks after the new escaping calls — no test assertions changed).
+`npx jest` 18/18 pass (unaffected, no JS touched). `php -l` clean on every `.php` file in the
+repo. No live WordPress instance to click-through the admin translation dashboard, matching
+every prior STM PR in this repo without one.
+Left: nothing outstanding for this task. Plugin Check itself was not run locally (no WP.org
+CLI tool installed in this environment) — verification is via PHPUnit/PHPCS-pattern manual
+review against every specific file:line the task description cited, plus a full-repo grep
+sweep for the same unescaped-echo pattern.
+
 ## 2026-08-08 — task 869efjuhx
 Done: PR — replaced `parse_url()` with `wp_parse_url()` in
 `includes/class-language-switcher.php:304` (`get_language_url()`'s URL-routing branch), the

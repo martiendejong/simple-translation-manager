@@ -25,7 +25,7 @@ $tabs = [
     <nav class="nav-tab-wrapper">
         <?php foreach ($tabs as $slug => $label): ?>
             <a href="<?php echo esc_url(add_query_arg('tab', $slug, $base_url)); ?>"
-               class="nav-tab <?php echo $active_tab === $slug ? 'nav-tab-active' : ''; ?>">
+               class="nav-tab <?php echo esc_attr($active_tab === $slug ? 'nav-tab-active' : ''); ?>">
                 <?php echo esc_html($label); ?>
             </a>
         <?php endforeach; ?>

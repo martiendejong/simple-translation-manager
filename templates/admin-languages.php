@@ -54,8 +54,8 @@ $error_messages = [
                     <td><?php echo esc_html($lang->name); ?></td>
                     <td><?php echo esc_html($lang->native_name); ?></td>
                     <td><?php echo esc_html($lang->flag_emoji); ?></td>
-                    <td><?php echo $lang->is_default ? '<strong>✓ default</strong>' : ''; ?></td>
-                    <td><?php echo $lang->is_active ? '✓' : '—'; ?></td>
+                    <td><?php echo wp_kses_post($lang->is_default ? '<strong>✓ default</strong>' : ''); ?></td>
+                    <td><?php echo esc_html($lang->is_active ? '✓' : '—'); ?></td>
                     <td><?php echo esc_html($lang->order_index); ?></td>
                     <td>
                         <?php if (!($lang->is_default && $lang->is_active)): ?>
@@ -64,7 +64,7 @@ $error_messages = [
                                 <input type="hidden" name="lang_code" value="<?php echo esc_attr($lang->code); ?>">
                                 <?php wp_nonce_field('stm_toggle_language_active'); ?>
                                 <button type="submit" class="button button-small">
-                                    <?php echo $lang->is_active ? 'Deactivate' : 'Activate'; ?>
+                                    <?php echo esc_html($lang->is_active ? 'Deactivate' : 'Activate'); ?>
                                 </button>
                             </form>
                         <?php endif; ?>
