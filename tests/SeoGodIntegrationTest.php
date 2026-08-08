@@ -27,6 +27,7 @@ class SeoGodIntegrationTest extends TestCase {
 
         Functions\when('get_query_var')->justReturn('');
         Functions\when('sanitize_text_field')->returnArg(1);
+        Functions\when('wp_unslash')->returnArg(1);
         Functions\when('get_option')->justReturn('en');
         Functions\when('wp_cache_get')->justReturn(false);
         Functions\when('wp_cache_set')->justReturn(true);

@@ -79,7 +79,7 @@ class Frontend {
 
         // Priority 2: explicit GET param (?lang=fr)
         if ( isset( $_GET['lang'] ) ) {
-            $lang = sanitize_text_field( $_GET['lang'] );
+            $lang = sanitize_text_field( wp_unslash( $_GET['lang'] ) );
             if ( Security::validate_language_code( $lang ) ) {
                 self::remember_language_choice( $lang );
                 return $lang;
@@ -88,7 +88,7 @@ class Frontend {
 
         // Priority 3: cookie (persisted from a previous visit)
         if ( isset( $_COOKIE['stm_lang'] ) ) {
-            $lang = sanitize_text_field( $_COOKIE['stm_lang'] );
+            $lang = sanitize_text_field( wp_unslash( $_COOKIE['stm_lang'] ) );
             if ( Security::validate_language_code( $lang ) ) {
                 return $lang;
             }

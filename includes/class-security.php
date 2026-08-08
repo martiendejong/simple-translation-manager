@@ -21,27 +21,6 @@ class Security {
     }
 
     /**
-     * Verify nonce and capability for admin actions
-     *
-     * @param string $nonce_name Nonce name
-     * @param string $capability Required capability (default: manage_options)
-     * @return bool
-     */
-    public static function verify_admin_action($nonce_name, $capability = 'manage_options') {
-        // Check nonce
-        if (!check_admin_referer($nonce_name)) {
-            return false;
-        }
-
-        // Check capability
-        if (!current_user_can($capability)) {
-            return false;
-        }
-
-        return true;
-    }
-
-    /**
      * Validate language code
      *
      * Must be 2-3 letter code (ISO 639-1 or ISO 639-2)
