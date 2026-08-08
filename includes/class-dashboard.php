@@ -34,11 +34,11 @@ class Dashboard {
      */
     public static function render_page() {
         if (!Security::can_manage_translations()) {
-            wp_die(__('Insufficient permissions.', 'simple-translation-manager'));
+            wp_die(esc_html__('Insufficient permissions.', 'simple-translation-manager'));
         }
 
         // Read-only tab selection (no state change), so a nonce is not required here.
-        $active_tab = sanitize_key($_GET['tab'] ?? 'overview'); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+        $active_tab = sanitize_key(wp_unslash($_GET['tab'] ?? 'overview')); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
         $allowed_tabs = ['overview', 'missing', 'recent'];
         if (!in_array($active_tab, $allowed_tabs, true)) {
             $active_tab = 'overview';
@@ -60,10 +60,10 @@ class Dashboard {
             // Read-only list filtering (no state change), so a nonce is not required here.
             // phpcs:disable WordPress.Security.NonceVerification.Recommended
             $filters = [
-                'language'  => sanitize_text_field($_GET['flang'] ?? ''),
-                'post_type' => sanitize_text_field($_GET['fptype'] ?? ''),
-                'date_from' => sanitize_text_field($_GET['fdate_from'] ?? ''),
-                'date_to'   => sanitize_text_field($_GET['fdate_to'] ?? ''),
+                'language'  => sanitize_text_field(wp_unslash($_GET['flang'] ?? '')),
+                'post_type' => sanitize_text_field(wp_unslash($_GET['fptype'] ?? '')),
+                'date_from' => sanitize_text_field(wp_unslash($_GET['fdate_from'] ?? '')),
+                'date_to'   => sanitize_text_field(wp_unslash($_GET['fdate_to'] ?? '')),
                 'paged'     => max(1, intval($_GET['paged'] ?? 1)),
                 'per_page'  => 50,
             ];
@@ -356,8 +356,8 @@ class Dashboard {
         global $wpdb;
 
         $post_id       = intval($_POST['post_id'] ?? 0);
-        $language_code = sanitize_text_field($_POST['language_code'] ?? '');
-        $field_name    = sanitize_key($_POST['field_name'] ?? 'title');
+        $language_code = sanitize_text_field(wp_unslash($_POST['language_code'] ?? ''));
+        $field_name    = sanitize_key(wp_unslash($_POST['field_name'] ?? 'title'));
         $translation   = wp_kses_post(wp_unslash($_POST['translation'] ?? ''));
 
         if ($post_id <= 0 || !Security::validate_language_code($language_code)) {
@@ -424,15 +424,17 @@ class Dashboard {
      */
     public static function export_coverage_csv() {
         if (!check_admin_referer('stm_export_coverage_csv') || !current_user_can('manage_options')) {
-            wp_die(__('Unauthorized', 'simple-translation-manager'), 403);
+            wp_die(esc_html__('Unauthorized', 'simple-translation-manager'), 403);
         }
 
         $stats = self::get_coverage_stats(false);
 
-        self::stream_csv_headers('stm-coverage-' . date('Y-m-d') . '.csv');
+        self::stream_csv_headers('stm-coverage-' . gmdate('Y-m-d') . '.csv');
+        // @codeCoverageIgnoreStart
         // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- CSV file content, not HTML; esc_html() would corrupt commas/quotes in the exported data.
         echo self::build_coverage_csv_export($stats);
         exit;
+        // @codeCoverageIgnoreEnd
     }
 
     /**
@@ -466,24 +468,26 @@ class Dashboard {
      */
     public static function export_missing_csv() {
         if (!check_admin_referer('stm_export_missing_csv') || !current_user_can('manage_options')) {
-            wp_die(__('Unauthorized', 'simple-translation-manager'), 403);
+            wp_die(esc_html__('Unauthorized', 'simple-translation-manager'), 403);
         }
 
         $filters = [
-            'language'  => sanitize_text_field($_GET['flang'] ?? ''),
-            'post_type' => sanitize_text_field($_GET['fptype'] ?? ''),
-            'date_from' => sanitize_text_field($_GET['fdate_from'] ?? ''),
-            'date_to'   => sanitize_text_field($_GET['fdate_to'] ?? ''),
+            'language'  => sanitize_text_field(wp_unslash($_GET['flang'] ?? '')),
+            'post_type' => sanitize_text_field(wp_unslash($_GET['fptype'] ?? '')),
+            'date_from' => sanitize_text_field(wp_unslash($_GET['fdate_from'] ?? '')),
+            'date_to'   => sanitize_text_field(wp_unslash($_GET['fdate_to'] ?? '')),
             'paged'     => 1,
             'per_page'  => 100000,
         ];
 
         $result = self::get_missing_translations($filters);
 
-        self::stream_csv_headers('stm-missing-' . date('Y-m-d') . '.csv');
+        self::stream_csv_headers('stm-missing-' . gmdate('Y-m-d') . '.csv');
+        // @codeCoverageIgnoreStart
         // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- CSV file content, not HTML; esc_html() would corrupt commas/quotes in the exported data.
         echo self::build_missing_csv_export($result['rows']);
         exit;
+        // @codeCoverageIgnoreEnd
     }
 
     /**

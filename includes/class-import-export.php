@@ -554,14 +554,18 @@ class ImportExport {
             wp_die('Unauthorized', 403);
         }
 
-        $source = sanitize_text_field($_POST['source_lang'] ?? 'en');
-        $target = sanitize_text_field($_POST['target_lang'] ?? 'nl');
-        $context = sanitize_text_field($_POST['context'] ?? '');
+        $source = sanitize_text_field(wp_unslash($_POST['source_lang'] ?? 'en'));
+        $target = sanitize_text_field(wp_unslash($_POST['target_lang'] ?? 'nl'));
+        $context = sanitize_text_field(wp_unslash($_POST['context'] ?? ''));
 
         $content = self::export_xliff($source, $target, $context);
 
         header('Content-Type: application/xliff+xml; charset=utf-8');
         header("Content-Disposition: attachment; filename=stm-{$source}-{$target}.xliff");
+        // Generated XLIFF/XML file streamed verbatim as a download (Content-Type is not text/html);
+        // esc_html() would corrupt the XML markup. export_xliff() builds the document via DOM/XML APIs,
+        // not raw concatenation.
+        // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
         echo $content;
         exit;
     }
@@ -571,13 +575,17 @@ class ImportExport {
             wp_die('Unauthorized', 403);
         }
 
-        $lang = sanitize_text_field($_POST['lang'] ?? 'nl');
-        $context = sanitize_text_field($_POST['context'] ?? '');
+        $lang = sanitize_text_field(wp_unslash($_POST['lang'] ?? 'nl'));
+        $context = sanitize_text_field(wp_unslash($_POST['context'] ?? ''));
 
         $content = self::export_po($lang, $context);
 
         header('Content-Type: text/x-po; charset=utf-8');
         header("Content-Disposition: attachment; filename=stm-{$lang}.po");
+        // Generated PO file streamed verbatim as a download (Content-Type is not text/html);
+        // esc_html() would corrupt the PO syntax. export_po() already escapes each field via
+        // its own escape_po_string().
+        // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
         echo $content;
         exit;
     }
@@ -593,8 +601,8 @@ class ImportExport {
 
         $file = $_FILES['import_file'];
         $content = file_get_contents($file['tmp_name']);
-        $filename = strtolower($file['name']);
-        $lang = sanitize_text_field($_POST['lang'] ?? 'nl');
+        $filename = strtolower(sanitize_file_name($file['name']));
+        $lang = sanitize_text_field(wp_unslash($_POST['lang'] ?? 'nl'));
 
         if (strpos($filename, '.xliff') !== false || strpos($filename, '.xlf') !== false) {
             $result = self::import_xliff($content);

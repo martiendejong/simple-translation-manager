@@ -1,9 +1,9 @@
 <?php
 /**
  * Bumps the plugin version everywhere it is declared, so a release is one
- * command instead of three manual, easy-to-desync edits: the VERSION file,
- * package.json's "version" field, and simple-translation-manager.php's
- * "Version:" header + STM_VERSION constant.
+ * command instead of four manual, easy-to-desync edits: the VERSION file,
+ * package.json's "version" field, simple-translation-manager.php's
+ * "Version:" header + STM_VERSION constant, and readme.txt's "Stable tag".
  *
  * Usage: php bin/bump-version.php <major|minor|patch> [repo-root]
  *
@@ -104,6 +104,26 @@ function stm_bump_version(string $part, string $repoRoot): array
 
     file_put_contents($packageJsonFile, $packageJsonSource);
 
+    $readmeFile = $repoRoot . '/readme.txt';
+    if (is_file($readmeFile)) {
+        $readmeSource = file_get_contents($readmeFile);
+        $readmeSource = preg_replace(
+            '/^(Stable tag:\s*)' . preg_quote($current, '/') . '(?=\r?$)/m',
+            '${1}' . $next,
+            $readmeSource,
+            1,
+            $readmeReplacements
+        );
+
+        if ($readmeReplacements !== 1) {
+            throw new RuntimeException(
+                "Could not find exactly one 'Stable tag: {$current}' line to bump in readme.txt"
+            );
+        }
+
+        file_put_contents($readmeFile, $readmeSource);
+    }
+
     return ['previous' => $current, 'next' => $next];
 }
 
@@ -119,7 +139,7 @@ if (PHP_SAPI === 'cli' && isset($argv[0]) && realpath($argv[0]) === __FILE__) {
     try {
         $result = stm_bump_version($part, $repoRoot);
         echo "Bumped version {$result['previous']} -> {$result['next']}\n";
-        echo "Updated: VERSION, package.json, simple-translation-manager.php\n";
+        echo "Updated: VERSION, package.json, simple-translation-manager.php, readme.txt\n";
         echo "Next: commit these files and push to master — CI tags v{$result['next']} automatically.\n";
     } catch (Throwable $e) {
         fwrite(STDERR, 'Error: ' . $e->getMessage() . "\n");

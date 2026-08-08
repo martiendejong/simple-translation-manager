@@ -34,6 +34,49 @@ sibling PRs landed: #25 SQL injection fix, #27 nonce verification) — resolved 
 additive conflicts in `phpunit.xml`/`tests/bootstrap.php` (both branches added a require/include
 entry near the same line).
 
+## 2026-08-08 — task 869efjuhd
+Done: PR — escaped every unescaped output flagged by Plugin Check plus a handful of
+same-class instances it apparently missed on the first pass. `admin_url()` calls wrapped in
+`esc_url()`; `wp_create_nonce()` in `esc_attr()`; `__()`/`__stm()` echoed via `wp_die()`/`echo`
+now use `esc_html__()`/`esc_html()`; integer counts/ids (`$total_items`, `$string->id`,
+`$current_page`, `$total_pages`, `strlen()`) wrapped in `absint()`; literal-string
+class/state ternaries (`$first`, `$active`, `$selected`) wrapped in `esc_attr()`. Two
+deliberate exceptions with `phpcs:ignore` + explanation: `class-import-export.php`'s XLIFF/PO
+file-download handlers (escaping would corrupt the generated file format; XLIFF is built via
+DOM/SimpleXMLElement, PO already self-escapes) and `class-language-switcher.php`'s widget
+`before_widget`/`before_title`/`after_title`/`after_widget` (theme-supplied wrapper markup,
+same pattern every WP core widget uses) — the widget title itself is `wp_kses_post()`'d since
+`apply_filters('widget_title', ...)` is commonly used to inject inline markup.
+Verified: `vendor/bin/phpunit` 109/109 pass (2 pre-existing tests needed `wp_kses_post`/`esc_url`
+added to their Brain\Monkey mocks after the new escaping calls — no test assertions changed).
+`npx jest` 18/18 pass (unaffected, no JS touched). `php -l` clean on every `.php` file in the
+repo. No live WordPress instance to click-through the admin translation dashboard, matching
+every prior STM PR in this repo without one.
+Left: nothing outstanding for this task. Plugin Check itself was not run locally (no WP.org
+CLI tool installed in this environment) — verification is via PHPUnit/PHPCS-pattern manual
+review against every specific file:line the task description cited, plus a full-repo grep
+sweep for the same unescaped-echo pattern.
+
+## 2026-08-08 — task 869efjuhx
+Done: PR — replaced `parse_url()` with `wp_parse_url()` in
+`includes/class-language-switcher.php:304` (`get_language_url()`'s URL-routing branch), the
+`WordPress.WP.AlternativeFunctions.parse_url_parse_url` Plugin Check error. The task's other
+cited location, `simple-translation-manager.php:226`, no longer has a `parse_url()` call at
+all — that file is 153 lines on current `master`, and a repo-wide grep found zero remaining
+raw `parse_url()` calls outside `vendor/`; the audit's line numbers had drifted from earlier
+refactors (`includes/class-hreflang.php` already correctly used `wp_parse_url()`).
+Verified: reused the sibling Plugin Check tasks' `/tmp/phpcs-check` WPCS install — the real
+`WordPress.WP.AlternativeFunctions.parse_url_parse_url` sniff went 1 warning → 0 on the
+changed file, and a repo-wide sniff run confirms no `parse_url` warnings remain anywhere
+(2 unrelated warnings for a different rule instance — `file_get_contents`/`unlink` — are out
+of this task's scope). `php -l` clean. `vendor/bin/phpunit` 109/109 pass (unchanged — this
+class isn't wired into the PHPUnit bootstrap, since it extends `WP_Widget`). New standalone
+harness `tests/verify-869efjuhx-wp-parse-url.php` stubs a faithful `wp_parse_url()` and
+reflection-invokes the private `get_language_url()` method directly: 3/3 pass, proving the
+URL-routing output (language-prefixed path + query string, both `http`/`https`) is unchanged
+by the swap. Existing `tests/verify-multilang-audit.php` standalone harness still 39/39 pass.
+Left: nothing outstanding for this task.
+
 ## 2026-08-08 — task 869efjuhp
 Done: Nonce verification, PR opened. Every state-changing handler in class-admin.php,
 class-import-export.php and class-dashboard.php already called `Security::verify_admin_action()`,
@@ -73,7 +116,6 @@ extends \Error` interrupt signal instead of `\RuntimeException`, since `save_tra
 misreporting it as a DB failure. Verified: PR #27 CI all green (PHP unit tests incl. diff-coverage
 gate, JS unit tests, PHP lint, Nonce verification/PHPCS), `vendor/bin/phpunit` 124/124 pass locally.
 Left: nothing outstanding for this task.
-
 
 ## 2026-08-07 — task 869efjuhb
 Done: PR — added `if (!defined('ABSPATH')) exit;` to the 5 files Plugin Check flagged as
@@ -233,6 +275,26 @@ still 200.
 Left: nothing outstanding for this task. Follow-up 869ebjz6a (wiring `lang` into the search UI)
 can now build on this without inheriting the crash.
 
+## 2026-08-07 — task 869efjuhr
+Done: wrapped every superglobal access that feeds a sanitizing function with `wp_unslash()`
+across the 7 files the task cited (`class-dashboard.php`, `class-import-export.php`,
+`class-admin.php`, `class-post-editor.php`, `class-frontend.php`, `functions.php`,
+`class-language-switcher.php`) — `$_GET`/`$_POST`/`$_COOKIE`/`$_SERVER` reads that already went
+through `sanitize_text_field()`/`sanitize_key()`/`wp_verify_nonce()`/etc. Left `intval()`/`(int)`
+casts and `isset()` checks alone (unslash is a no-op for those). Per the task's review note,
+`$_FILES['import_file']['name']` / `$_FILES['stm_import_file']['name']` now go through
+`sanitize_file_name()` instead of `wp_unslash()`. Did not add sanitization where none existed
+before (a few `$_GET` filters in `class-admin.php` were bare-assigned with no sanitize call at
+all) — that's the separate `InputNotSanitized` rule, not in this ticket's scope.
+Verified: `php -l` clean on all 7 files. `vendor/bin/phpunit` 109/109 pass — 5 test files
+(`FrontendTest`, `LanguagesScreenTest`, `PostEditorCrudTest`, `ElementorIntegrationTest`,
+`SeoGodIntegrationTest`) needed a `Functions\when('wp_unslash')->returnArg(1);` stub added to
+their Brain\Monkey `setUp()`, since the suite has no real WordPress loaded. `npx jest` 18/18 pass
+(unaffected, JS-only). Standalone script proved the actual security property: with `wp_unslash()`
+a value containing an apostrophe/backslash round-trips exactly; without it, WP's magic-quotes
+slashing corrupts the stored value with stray backslashes.
+Left: nothing outstanding for this task.
+
 ## 2026-08-07 — task 869efjuhf
 Done: fixed the 3 Plugin Check ERROR-level SQL-injection findings (`WordPress.DB.PreparedSQL.NotPrepared`
 / `PluginCheck.Security.DirectDB.UnescapedDBParameter`). Two real gaps in `class-api.php`
@@ -288,3 +350,59 @@ Left: nothing outstanding for this task.
 Left: nothing outstanding for this task. `class-dashboard.php:117` (`$wpdb->get_var("...{$wpdb->prefix}stm_strings")`)
 remains a WARNING-level table-prefix-only interpolation, intentionally left as-is per the task's own scope
 (Done-when only requires no ERROR, not zero warnings).
+
+## 2026-08-08 — task 869efjuha
+Done: added `readme.txt` (WordPress.org headers: Contributors, Tags, Requires at least,
+Tested up to 6.7, Stable tag 1.2.1, License GPLv2 or later + License URI, plus
+Description/Installation/FAQ/Changelog sections) — fixes Plugin Check's `no_plugin_readme`,
+`missing_readme_header_tested`, `no_stable_tag`, `no_license` errors. Also wired readme.txt's
+Stable tag into `bin/bump-version.php`'s existing VERSION/package.json/plugin-header lockstep
+so future version bumps can't silently desync it again, and extended
+`tests/VersionConsistencyTest.php` to assert that.
+Verified: no live WP install / Plugin Check plugin available in this environment, so wrote
+`tests/verify-readme-headers.php` (standalone PHP, mirrors the readme header regex WP.org's
+parser uses) to check headlessly — passes, confirming Tested up to/Stable tag/License all
+parse and Stable tag (1.2.1) matches the plugin file's Version header. `php -l` clean on all
+changed files. `vendor/bin/phpunit` 110/110 pass (3 new: readme Stable-tag assertion in the
+static-agreement test, bump-lockstep now also asserts readme.txt, plus a no-readme-file
+back-compat case).
+Left: actual Plugin Check tool run (wp-admin plugin) still needs a live WordPress instance —
+not available here; recommend running it once against a staging site as final confirmation.
+
+## 2026-08-07 — task 869efjuj2
+Done: replaced hardcoded `http://localhost/` URLs in `tests/verify-multilang-audit.php` with a
+configurable `STM_TEST_BASE_URL` constant (`getenv('WP_TEST_URL') ?: 'http://localhost/'`), per
+the Plugin Check finding (`PluginCheck.CodeAnalysis.Localhost.Found`). Also moved
+`README-BLOG.md` out of the plugin root into `docs/BLOG.md` (fixed its 3 inbound references in
+`docs/editors/*.md`) to clear the unexpected-markdown-file warning.
+Note: this task's own description also cited `tests/verify-lang-prefix-cpt-routing.php` and
+`tests/verify-translated-slug-routing.php`, but neither file has ever existed in this repo
+(`git log --all` confirms) — they were added directly to the WordPress deployment's copy of this
+plugin at `tripplanner/portofgiethoorn/wordpress/plugins/simple-translation-manager/` by
+Tripplanner-board tasks 869ecwc03/869eec0wf and never synced back here. Fixed the same issue
+there too, in a separate PR (martiendejong/tripplanner#134), since that's the copy Plugin Check
+actually scanned (its cited line numbers match that copy exactly).
+Verified: `php -l` clean; ran the test file with no env var (default) and with
+`WP_TEST_URL=https://ci.example.org/` set — 39/39 pass both ways, no regressions.
+Left: nothing outstanding in this repo for this task.
+
+## 2026-08-08 — task 869efjuhj
+Done: PR #29 — replaced `date('Y-m-d')` with `gmdate('Y-m-d')` at
+`includes/class-dashboard.php:432` and `:473` (CSV export filenames for coverage/missing
+reports). UTC is correct here — the value only disambiguates a downloaded filename, never
+shown as content — and matches the existing `gmdate()` convention already used for export
+timestamps in `includes/class-import-export.php`.
+Review round: two sibling PRs (869efjuhf SQL-safety, 869efjuhr wp_unslash) landed on master
+while this PR sat in review and added `class-dashboard.php` to CI's diff-coverage gate for
+the first time, so these two touched lines needed real test coverage that didn't exist when
+the PR was opened. `export_missing_csv()`'s line is now covered for free by
+`tests/DashboardImportExportHandlersTest.php` (869efjuhr's own new test, which stubs
+`nocache_headers()` to throw right after the `gmdate()`-built filename argument evaluates,
+stopping just short of the unreachable-in-tests `exit;`). Added
+`tests/DashboardExportCoverageCsvTest.php`, the same technique applied to the untested sibling
+`export_coverage_csv()`.
+Verified: `WordPress.DateTime.RestrictedFunctions.date_date` 2 errors → 0 on this file
+(reused sibling tasks' WPCS install). `php -l` clean. `vendor/bin/phpunit` 143/143 pass on
+the merged branch (1 new test added this round). Diff coverage on `class-dashboard.php`'s
+2 touched lines: both now hit.
+Left: nothing outstanding for this task.

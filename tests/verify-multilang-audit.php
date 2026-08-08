@@ -24,6 +24,9 @@ if (!defined('WPINC')) {
 if (!defined('WP_CLI')) {
     define('WP_CLI', false);
 }
+if (!defined('STM_TEST_BASE_URL')) {
+    define('STM_TEST_BASE_URL', getenv('WP_TEST_URL') ?: 'http://localhost/');
+}
 
 $GLOBALS['stm_hooks'] = [
     'actions'      => [],
@@ -69,8 +72,8 @@ function register_rest_route($namespace, $route, $args = []) {
 }
 
 function plugin_dir_path($f) { return dirname($f) . '/'; }
-function plugin_dir_url($f)  { return 'http://localhost/wp-content/plugins/simple-translation-manager/'; }
-function plugins_url($path = '', $plugin = '') { return 'http://localhost/wp-content/plugins/' . $path; }
+function plugin_dir_url($f)  { return STM_TEST_BASE_URL . 'wp-content/plugins/simple-translation-manager/'; }
+function plugins_url($path = '', $plugin = '') { return STM_TEST_BASE_URL . 'wp-content/plugins/' . $path; }
 
 function is_admin()       { return (bool) $GLOBALS['stm_is_admin']; }
 function get_post_types($args = [], $output = 'names') {
@@ -82,15 +85,19 @@ function sanitize_text_field($s)      { return is_string($s) ? trim($s) : ''; }
 function sanitize_key($s)             { return is_string($s) ? strtolower(preg_replace('/[^a-z0-9_]/i', '', $s)) : ''; }
 function wp_unslash($s)               { return $s; }
 function __($t, $d = '')              { return $t; }
+// phpcs:ignore WordPress.Security.EscapeOutput.UnsafePrintingFunction -- this file is a standalone
+// CLI-only test harness (see file docblock); these are STUB DEFINITIONS of WP core i18n functions,
+// not production call sites, and never run inside a real WordPress request.
 function _e($t, $d = '')              { echo $t; }
 function esc_html($s)                 { return is_string($s) ? $s : ''; }
 function esc_attr($s)                 { return is_string($s) ? $s : ''; }
 function esc_url($s)                  { return is_string($s) ? $s : ''; }
 function esc_html__($t, $d = '')      { return $t; }
 function esc_attr__($t, $d = '')      { return $t; }
+// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- stub definition, see note above.
 function esc_html_e($t, $d = '')      { echo $t; }
-function admin_url($p = '')           { return 'http://localhost/wp-admin/' . ltrim($p, '/'); }
-function home_url($p = '')            { return 'http://localhost' . $p; }
+function admin_url($p = '')           { return STM_TEST_BASE_URL . 'wp-admin/' . ltrim($p, '/'); }
+function home_url($p = '')            { return rtrim(STM_TEST_BASE_URL, '/') . $p; }
 function get_option($name, $d = false){ return $d; }
 function update_option()              {}
 function add_option()                 {}

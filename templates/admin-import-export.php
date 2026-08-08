@@ -44,7 +44,7 @@ $stm_error  = isset($_GET['stm_error'])  ? sanitize_text_field($_GET['stm_error'
         <p>Download all string translations as a JSON file.</p>
 
         <form method="get" action="<?php echo esc_url(rest_url('stm/v1/export')); ?>" target="_blank">
-            <input type="hidden" name="_wpnonce" value="<?php echo wp_create_nonce('wp_rest'); ?>">
+            <input type="hidden" name="_wpnonce" value="<?php echo esc_attr(wp_create_nonce('wp_rest')); ?>">
             <table class="form-table">
                 <tr>
                     <th><label for="export_lang">Language</label></th>

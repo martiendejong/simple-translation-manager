@@ -49,6 +49,7 @@ class AdminFormHandlersTest extends TestCase {
         Functions\when('wp_cache_delete')->justReturn(true);
         Functions\when('sanitize_text_field')->returnArg(1);
         Functions\when('sanitize_textarea_field')->returnArg(1);
+        Functions\when('sanitize_file_name')->returnArg(1);
         Functions\when('wp_kses')->returnArg(1);
         Functions\when('wp_unslash')->returnArg(1);
         Functions\when('get_current_user_id')->justReturn(1);
@@ -366,5 +367,33 @@ class AdminFormHandlersTest extends TestCase {
         $this->assertDeniedWithoutNonce(function () {
             Admin::save_ai_settings();
         }, 'stm_ai_settings');
+    }
+
+    // =========================================================================
+    // page_translations() — read-only list page, exercises the $_GET filter
+    // wp_unslash() wrapping (task 869efjuhr); never previously covered.
+    // =========================================================================
+
+    public function test_page_translations_reads_get_filters() {
+        Functions\when('esc_html')->returnArg(1);
+        Functions\when('esc_attr')->returnArg(1);
+        Functions\when('esc_url')->returnArg(1);
+        Functions\when('selected')->justReturn('');
+        Functions\when('admin_url')->justReturn('http://example.test/wp-admin/admin-post.php');
+        Functions\when('add_query_arg')->alias(function (...$args) {
+            return 'http://example.test/wp-admin/admin.php';
+        });
+        Functions\when('wp_nonce_field')->justReturn('');
+
+        $_GET['lang'] = 'nl';
+        $_GET['context'] = 'nav';
+        $_GET['status'] = 'missing';
+
+        ob_start();
+        Admin::page_translations();
+        $html = ob_get_clean();
+
+        $this->assertIsString($html);
+        $this->assertStringContainsString('Translation Strings', $html);
     }
 }
