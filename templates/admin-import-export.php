@@ -6,10 +6,15 @@ if (!defined('ABSPATH')) exit;
 
 $languages = STM\Database::get_languages();
 
-// Show feedback from import handler redirect
+// Show feedback from import handler redirect. These flags are only ever read
+// back from a redirect Admin::import_json() issues after it has already
+// verified its own nonce; displaying them here is read-only and causes no
+// state change, so no nonce is required.
+// phpcs:disable WordPress.Security.NonceVerification.Recommended
 $imported   = isset($_GET['imported'])   ? intval($_GET['imported'])   : null;
 $stm_errors = isset($_GET['stm_errors']) ? intval($_GET['stm_errors']) : 0;
 $stm_error  = isset($_GET['stm_error'])  ? sanitize_text_field($_GET['stm_error']) : '';
+// phpcs:enable WordPress.Security.NonceVerification.Recommended
 ?>
 
 <div class="wrap">

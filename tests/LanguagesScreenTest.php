@@ -32,6 +32,7 @@ class LanguagesScreenTest extends TestCase {
         Functions\when('wp_cache_get')->justReturn(false);
         Functions\when('wp_cache_set')->justReturn(true);
         Functions\when('wp_cache_delete')->justReturn(true);
+        Functions\when('wp_unslash')->returnArg(1);
 
         $this->wpdb->seed('wp_stm_languages', [
             'code' => 'en', 'name' => 'English', 'native_name' => 'English',

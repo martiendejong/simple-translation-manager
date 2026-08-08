@@ -1,9 +1,10 @@
 <?php
 /**
  * PHPUnit tests: version tracking stays consistent across VERSION,
- * package.json, and the plugin's own "Version:" header + STM_VERSION
- * constant — and bin/bump-version.php keeps all three in sync on every
- * bump instead of relying on someone remembering to edit all three by hand.
+ * package.json, the plugin's own "Version:" header + STM_VERSION
+ * constant, and readme.txt's "Stable tag" — and bin/bump-version.php
+ * keeps all four in sync on every bump instead of relying on someone
+ * remembering to edit all four by hand.
  */
 
 namespace STM\Tests;
@@ -39,6 +40,13 @@ class VersionConsistencyTest extends TestCase {
             $pluginSource,
             'STM_VERSION constant must match VERSION'
         );
+
+        $readmeSource = file_get_contents($this->repoRoot . '/readme.txt');
+        $this->assertMatchesRegularExpression(
+            '/^Stable tag: ' . preg_quote($versionFile, '/') . '(?=\r?$)/m',
+            $readmeSource,
+            'readme.txt "Stable tag" must match VERSION'
+        );
     }
 
     public function test_bump_version_updates_all_three_files_in_lockstep() {
@@ -56,6 +64,22 @@ class VersionConsistencyTest extends TestCase {
             $pluginSource = file_get_contents($tempRoot . '/simple-translation-manager.php');
             $this->assertStringContainsString('* Version: 1.2.1', $pluginSource);
             $this->assertStringContainsString("define('STM_VERSION', '1.2.1');", $pluginSource);
+
+            $readmeSource = file_get_contents($tempRoot . '/readme.txt');
+            $this->assertStringContainsString('Stable tag: 1.2.1', $readmeSource);
+        } finally {
+            $this->removeTempRepo($tempRoot);
+        }
+    }
+
+    public function test_bump_version_without_a_readme_file_still_bumps_the_rest() {
+        $tempRoot = $this->makeTempRepo('1.2.0', /* withReadme */ false);
+
+        try {
+            $result = \stm_bump_version('patch', $tempRoot);
+
+            $this->assertSame('1.2.1', $result['next']);
+            $this->assertFileDoesNotExist($tempRoot . '/readme.txt');
         } finally {
             $this->removeTempRepo($tempRoot);
         }
@@ -90,7 +114,7 @@ class VersionConsistencyTest extends TestCase {
         }
     }
 
-    private function makeTempRepo($version) {
+    private function makeTempRepo($version, $withReadme = true) {
         $tempRoot = sys_get_temp_dir() . '/stm-version-bump-test-' . uniqid();
         mkdir($tempRoot);
 
@@ -104,6 +128,10 @@ class VersionConsistencyTest extends TestCase {
             " * Version: {$version}\ndefine('STM_VERSION', '{$version}');\n"
         );
 
+        if ($withReadme) {
+            file_put_contents($tempRoot . '/readme.txt', "Stable tag: {$version}\n");
+        }
+
         return $tempRoot;
     }
 
@@ -111,6 +139,7 @@ class VersionConsistencyTest extends TestCase {
         @unlink($tempRoot . '/VERSION');
         @unlink($tempRoot . '/package.json');
         @unlink($tempRoot . '/simple-translation-manager.php');
+        @unlink($tempRoot . '/readme.txt');
         @rmdir($tempRoot);
     }
 }

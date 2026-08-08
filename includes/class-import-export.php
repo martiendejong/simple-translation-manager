@@ -91,7 +91,8 @@ class ImportExport {
         array_unshift($params, $target_lang);
         array_unshift($params, $source_lang);
 
-        $results = $wpdb->get_results($wpdb->prepare($query, ...$params));
+        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- $query (built above from %s placeholders in $where[] plus the language-code placeholders) is passed through $wpdb->prepare() with $params right here; no raw value ever reaches the SQL string.
+        $results = $wpdb->get_results($wpdb->prepare($query, $params));
 
         // Build XLIFF XML
         $xml = new \SimpleXMLElement('<?xml version="1.0" encoding="UTF-8"?><xliff/>');
@@ -172,6 +173,7 @@ class ImportExport {
 
         $where_sql = implode(' AND ', $where);
 
+        // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- $where_sql is assembled from %s placeholders in $where[] and their values in $params above; $wpdb->prepare() below resolves every placeholder before the query runs.
         $results = $wpdb->get_results($wpdb->prepare("
             SELECT s.string_key, s.context, s.description,
                    t.translation, t.status
@@ -179,7 +181,7 @@ class ImportExport {
             LEFT JOIN {$table_translations} t ON s.id = t.string_id AND t.language_code = %s
             WHERE {$where_sql}
             ORDER BY s.context, s.string_key
-        ", ...$params));
+        ", $params));
 
         $output = [];
 
@@ -548,46 +550,46 @@ class ImportExport {
     // =========================================================================
 
     public static function handle_export_xliff() {
-        if (!Security::verify_admin_action('stm_export_xliff')) {
+        if (!check_admin_referer('stm_export_xliff') || !current_user_can('manage_options')) {
             wp_die('Unauthorized', 403);
         }
 
-        $source = sanitize_text_field($_POST['source_lang'] ?? 'en');
-        $target = sanitize_text_field($_POST['target_lang'] ?? 'nl');
-        $context = sanitize_text_field($_POST['context'] ?? '');
+        $source = sanitize_text_field(wp_unslash($_POST['source_lang'] ?? 'en'));
+        $target = sanitize_text_field(wp_unslash($_POST['target_lang'] ?? 'nl'));
+        $context = sanitize_text_field(wp_unslash($_POST['context'] ?? ''));
 
         $content = self::export_xliff($source, $target, $context);
 
         header('Content-Type: application/xliff+xml; charset=utf-8');
         header("Content-Disposition: attachment; filename=stm-{$source}-{$target}.xliff");
-        // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- generated XLIFF/XML file
-        // streamed verbatim as a download (Content-Type is not text/html); esc_html() would corrupt
-        // the XML markup. export_xliff() builds the document via DOM/XML APIs, not raw concatenation.
-        echo $content;
+        // Generated XLIFF/XML file streamed verbatim as a download (Content-Type is not text/html);
+        // esc_html() would corrupt the XML markup. export_xliff() builds the document via DOM/XML APIs,
+        // not raw concatenation.
+        echo $content; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
         exit;
     }
 
     public static function handle_export_po() {
-        if (!Security::verify_admin_action('stm_export_po')) {
+        if (!check_admin_referer('stm_export_po') || !current_user_can('manage_options')) {
             wp_die('Unauthorized', 403);
         }
 
-        $lang = sanitize_text_field($_POST['lang'] ?? 'nl');
-        $context = sanitize_text_field($_POST['context'] ?? '');
+        $lang = sanitize_text_field(wp_unslash($_POST['lang'] ?? 'nl'));
+        $context = sanitize_text_field(wp_unslash($_POST['context'] ?? ''));
 
         $content = self::export_po($lang, $context);
 
         header('Content-Type: text/x-po; charset=utf-8');
         header("Content-Disposition: attachment; filename=stm-{$lang}.po");
-        // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- generated PO file
-        // streamed verbatim as a download (Content-Type is not text/html); esc_html() would corrupt
-        // the PO syntax. export_po() already escapes each field via its own escape_po_string().
-        echo $content;
+        // Generated PO file streamed verbatim as a download (Content-Type is not text/html);
+        // esc_html() would corrupt the PO syntax. export_po() already escapes each field via
+        // its own escape_po_string().
+        echo $content; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
         exit;
     }
 
     public static function handle_import_file() {
-        if (!Security::verify_admin_action('stm_import_file')) {
+        if (!check_admin_referer('stm_import_file') || !current_user_can('manage_options')) {
             wp_die('Unauthorized', 403);
         }
 
@@ -597,8 +599,8 @@ class ImportExport {
 
         $file = $_FILES['import_file'];
         $content = file_get_contents($file['tmp_name']);
-        $filename = strtolower($file['name']);
-        $lang = sanitize_text_field($_POST['lang'] ?? 'nl');
+        $filename = strtolower(sanitize_file_name($file['name']));
+        $lang = sanitize_text_field(wp_unslash($_POST['lang'] ?? 'nl'));
 
         if (strpos($filename, '.xliff') !== false || strpos($filename, '.xlf') !== false) {
             $result = self::import_xliff($content);

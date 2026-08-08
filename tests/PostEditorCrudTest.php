@@ -32,6 +32,7 @@ class PostEditorCrudTest extends TestCase {
 
         Functions\when('sanitize_text_field')->returnArg(1);
         Functions\when('sanitize_textarea_field')->returnArg(1);
+        Functions\when('wp_unslash')->returnArg(1);
         Functions\when('sanitize_title')->alias(function ($v) {
             return strtolower(trim(preg_replace('/[^a-zA-Z0-9]+/', '-', (string) $v), '-'));
         });
