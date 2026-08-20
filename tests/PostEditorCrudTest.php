@@ -508,6 +508,51 @@ class PostEditorCrudTest extends TestCase {
         $this->assertStringContainsString('stm_translations[de][post_title]', $html, 'The field name must exist so typed content for the inactive language can be submitted and saved.');
     }
 
+    public function test_render_meta_box_shows_translations_written_with_short_field_names() {
+        if (!defined('ABSPATH')) {
+            define('ABSPATH', dirname(__DIR__) . '/');
+        }
+        $this->seedLanguages(); // en (current), nl
+        // Mirrors rows written by external integrations (e.g. Bugatti Insights'
+        // sync API) via STM\API::save_post_translations() using its own short
+        // field names instead of the metabox's post_title/post_content keys.
+        $this->wpdb->seed('wp_stm_post_translations', [
+            'post_id' => 42, 'field_name' => 'title', 'language_code' => 'nl', 'translation' => 'Nederlandse titel',
+        ]);
+        $this->wpdb->seed('wp_stm_post_translations', [
+            'post_id' => 42, 'field_name' => 'content', 'language_code' => 'nl', 'translation' => '<p>Nederlandse inhoud</p>',
+        ]);
+        $this->stubTemplateEscaping();
+
+        ob_start();
+        PostEditor::render_meta_box((object) ['ID' => 42]);
+        $html = ob_get_clean();
+
+        $this->assertStringContainsString('Nederlandse titel', $html, 'A row saved with field_name "title" must still populate the Title input.');
+        $this->assertStringContainsString('Nederlandse inhoud', $html, 'A row saved with field_name "content" must still populate the Content textarea.');
+    }
+
+    public function test_render_meta_box_prefers_native_post_title_over_legacy_title_alias() {
+        if (!defined('ABSPATH')) {
+            define('ABSPATH', dirname(__DIR__) . '/');
+        }
+        $this->seedLanguages();
+        $this->wpdb->seed('wp_stm_post_translations', [
+            'post_id' => 42, 'field_name' => 'post_title', 'language_code' => 'nl', 'translation' => 'Titel via metabox',
+        ]);
+        $this->wpdb->seed('wp_stm_post_translations', [
+            'post_id' => 42, 'field_name' => 'title', 'language_code' => 'nl', 'translation' => 'Stale legacy titel',
+        ]);
+        $this->stubTemplateEscaping();
+
+        ob_start();
+        PostEditor::render_meta_box((object) ['ID' => 42]);
+        $html = ob_get_clean();
+
+        $this->assertStringContainsString('Titel via metabox', $html);
+        $this->assertStringNotContainsString('Stale legacy titel', $html);
+    }
+
     // -----------------------------------------------------------------
     // Post-list columns (PostEditor::display_language_column)
     // -----------------------------------------------------------------
