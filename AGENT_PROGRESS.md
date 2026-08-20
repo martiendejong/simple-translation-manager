@@ -1,5 +1,22 @@
 # Agent Progress
 
+## 2026-08-20 — task 869em7v2z
+Done: wp-admin Translations metabox showed blank Title/Content for every language on Type
+edit screens even though rows existed in `wp_stm_post_translations`. Root cause: Bugatti
+Insights' sync API writes those rows via `STM\API::save_post_translations()` using field
+names `title`/`content` (field map `['name'=>'title','content'=>'content']`), but the
+metabox's own save handler — and `render_meta_box()`'s read — only ever used
+`post_title`/`post_content`. Fixed by having `render_meta_box()` fall back to the
+`title`/`content` keys when its own keys are absent (native `post_title`/`post_content`
+always wins). PR #33. Scoped to the metabox reader only — `get_post_translation()` and
+`class-frontend.php` (public page / STM chrome) untouched; sibling task 869em13y1 covers
+the equivalent mismatch in `class-frontend.php` separately.
+Verified: `vendor/bin/phpunit tests/PostEditorCrudTest.php` 24/24 pass (2 new regression
+tests added); full suite 159/159 pass; `phpcs --standard=phpcs.xml.dist` 0 errors on the
+changed file; `php -l` clean.
+Left: nothing on this task. The shared metabox fix also benefits Category/Chassis edit
+screens (same code path), not just Type, as a side effect — not separately tested here.
+
 ## 2026-08-08 — task 869efjuhy
 Done: `export_coverage_csv()`/`export_missing_csv()` in class-dashboard.php streamed CSV rows
 via `fopen('php://output', 'w')` / `fputcsv()` / `fclose()`, which Plugin Check flags

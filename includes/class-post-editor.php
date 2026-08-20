@@ -76,10 +76,33 @@ class PostEditor {
                 continue; // Skip current language
             }
 
-            $translations[$lang->code] = self::get_post_translation($post->ID, $lang->code);
+            $translations[$lang->code] = self::apply_legacy_field_aliases(
+                self::get_post_translation($post->ID, $lang->code)
+            );
         }
 
         include STM_PLUGIN_DIR . 'templates/meta-box-translations.php';
+    }
+
+    /**
+     * Some external integrations (e.g. Bugatti Insights' sync API) write
+     * translation rows directly via STM\API::save_post_translations() using
+     * short field names ('title', 'content') instead of the post_title/
+     * post_content keys this metabox's own save handler uses. The rows are
+     * real and correct — only the metabox display was blind to them. Fill
+     * the post_title/post_content keys from their short-name equivalents
+     * when the metabox's own keys are absent, so already-stored translations
+     * show up instead of appearing blank.
+     */
+    private static function apply_legacy_field_aliases($translation) {
+        if (empty($translation['post_title']) && !empty($translation['title'])) {
+            $translation['post_title'] = $translation['title'];
+        }
+        if (empty($translation['post_content']) && !empty($translation['content'])) {
+            $translation['post_content'] = $translation['content'];
+        }
+
+        return $translation;
     }
 
     /**
