@@ -488,3 +488,20 @@ lines are the now-ignored `echo`/`exit` pairs and the `build_*_csv_export()`/`cs
 bodies, which are directly unit tested.
 Left: nothing outstanding for this task. Manual click-through of both export buttons on a
 live WP install still not verified — no environment available in Jengo's infra.
+
+## 2026-08-22 — task 869enmewd
+Done: PR #34 — `Admin::add_language()` now checks for an existing row by `code` before
+writing. Existing + inactive → reactivate it in place (`UPDATE is_active=1`, refresh
+display fields, keep the same `id` so tied translations survive) and redirect with
+`stm_reactivated=1`. Existing + active → `stm_error=already_active` instead of the
+generic `db_error`. No existing row → insert as before. Added a distinct "Language
+reactivated" notice and "already active" error message to `admin-languages.php`.
+Verified: `php -l` clean. `vendor/bin/phpunit` full suite 163/163 pass (4 new tests: the
+reactivate-with-existing-translation-preserved path, the already-active error path, and
+matching template-notice tests). `vendor/bin/phpcs` 0 errors. No CI configured on this
+repo (`statusCheckRollup` empty on the PR). Manual browser click-through not available in
+this environment.
+Left: nothing outstanding for this task. Portofgiethoorn's vendored copy of this plugin
+(`portofgiethoorn/wordpress/plugins/simple-translation-manager/`) is stale per this task's
+own description and will need a separate deploy/update step once this PR merges — not
+done here, out of scope for this repo's PR.
