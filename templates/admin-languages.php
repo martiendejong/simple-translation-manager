@@ -4,13 +4,15 @@
  */
 if (!defined('ABSPATH')) exit;
 
-$added   = isset($_GET['stm_added']);
-$deleted = isset($_GET['stm_deleted']);
-$toggled = isset($_GET['stm_toggled']);
-$error   = isset($_GET['stm_error']) ? sanitize_text_field($_GET['stm_error']) : '';
+$added       = isset($_GET['stm_added']);
+$reactivated = isset($_GET['stm_reactivated']);
+$deleted     = isset($_GET['stm_deleted']);
+$toggled     = isset($_GET['stm_toggled']);
+$error       = isset($_GET['stm_error']) ? sanitize_text_field($_GET['stm_error']) : '';
 $error_messages = [
     'invalid_fields'              => 'Invalid language code or name.',
     'db_error'                    => 'Database error — language may already exist.',
+    'already_active'              => 'That language code is already active — nothing to add.',
     'cannot_delete_default'       => 'Cannot delete the default language. Set another language as default first.',
     'cannot_deactivate_default'   => 'Cannot deactivate the default language. Set another language as default first.',
     'not_found'                   => 'Language not found.',
@@ -22,6 +24,9 @@ $error_messages = [
 
     <?php if ($added): ?>
         <div class="notice notice-success is-dismissible"><p>Language added.</p></div>
+    <?php endif; ?>
+    <?php if ($reactivated): ?>
+        <div class="notice notice-success is-dismissible"><p>Language reactivated — it was already registered but inactive, so the existing entry (and its translations) was reactivated instead of adding a duplicate.</p></div>
     <?php endif; ?>
     <?php if ($deleted): ?>
         <div class="notice notice-success is-dismissible"><p>Language deleted.</p></div>

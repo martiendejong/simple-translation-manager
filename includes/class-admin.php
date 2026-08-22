@@ -551,6 +551,11 @@ class Admin {
 
     /**
      * Add language (admin form handler)
+     *
+     * `code` has a UNIQUE KEY (class-database.php), so re-adding a code that
+     * already exists — most commonly one an admin previously deactivated —
+     * must reactivate that row instead of attempting (and failing) a raw
+     * insert. Only a genuinely new code inserts a new row.
      */
     public static function add_language() {
         if (!check_admin_referer('stm_add_language') || !current_user_can('manage_options')) {
@@ -558,6 +563,7 @@ class Admin {
         }
 
         global $wpdb;
+        $table = $wpdb->prefix . 'stm_languages';
 
         $code        = sanitize_text_field(wp_unslash($_POST['lang_code'] ?? ''));
         $name        = sanitize_text_field(wp_unslash($_POST['lang_name'] ?? ''));
@@ -570,26 +576,47 @@ class Admin {
             exit;
         }
 
-        if ($is_default) {
-            $wpdb->update($wpdb->prefix . 'stm_languages', ['is_default' => 0], ['is_default' => 1]);
+        $code = strtolower($code);
+
+        $existing = $wpdb->get_row($wpdb->prepare(
+            "SELECT id, is_active FROM {$table} WHERE code = %s",
+            $code
+        ));
+
+        if ($existing && $existing->is_active) {
+            wp_safe_redirect(add_query_arg('stm_error', 'already_active', wp_get_referer()));
+            exit;
         }
 
-        $result = $wpdb->insert($wpdb->prefix . 'stm_languages', [
-            'code'        => strtolower($code),
+        if ($is_default) {
+            $wpdb->update($table, ['is_default' => 0], ['is_default' => 1]);
+        }
+
+        $fields = [
             'name'        => $name,
             'native_name' => $native_name,
             'flag_emoji'  => $flag,
             'is_default'  => $is_default,
             'is_active'   => 1,
             'order_index' => intval($_POST['lang_order'] ?? 99),
-        ]);
+        ];
+
+        if ($existing) {
+            // Reactivate the existing inactive row — never delete/reinsert, so any
+            // translations already tied to this language code are left untouched.
+            $result = $wpdb->update($table, $fields, ['id' => $existing->id]);
+            $success_arg = 'stm_reactivated';
+        } else {
+            $result = $wpdb->insert($table, $fields + ['code' => $code]);
+            $success_arg = 'stm_added';
+        }
 
         wp_cache_delete('stm_active_languages');
         wp_cache_delete('stm_all_languages');
         wp_cache_delete('stm_default_language');
 
         wp_safe_redirect(add_query_arg(
-            $result === false ? 'stm_error' : 'stm_added',
+            $result === false ? 'stm_error' : $success_arg,
             $result === false ? 'db_error'  : '1',
             wp_get_referer()
         ));

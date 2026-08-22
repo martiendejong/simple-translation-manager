@@ -425,6 +425,83 @@ class AdminFormHandlersTest extends TestCase {
         $this->assertCount(1, $this->wpdb->all('stm_languages'), 'No language row should have been inserted.');
     }
 
+    public function test_add_language_reactivates_an_existing_inactive_language_instead_of_failing() {
+        Functions\when('check_admin_referer')->justReturn(true);
+        Functions\when('current_user_can')->justReturn(true);
+
+        $inactiveId = $this->wpdb->seed('stm_languages', [
+            'code' => 'fr', 'name' => 'French (old)', 'native_name' => 'Français (old)',
+            'flag_emoji' => '', 'is_active' => 0, 'is_default' => 0, 'order_index' => 5,
+        ]);
+        // A translation tied to the existing row, to prove reactivation doesn't touch it.
+        $this->wpdb->seed('stm_translations', [
+            'language_id' => $inactiveId, 'string_id' => 1, 'translation' => 'Bonjour',
+        ]);
+
+        $captured = null;
+        $this->stubRedirectToThrow($captured);
+
+        $_POST['lang_code'] = 'fr';
+        $_POST['lang_name'] = 'French';
+
+        try {
+            Admin::add_language();
+            $this->fail('Expected the redirect stub to interrupt execution.');
+        } catch (RedirectInterrupt $e) {
+            // expected
+        }
+
+        $this->assertStringContainsString('stm_reactivated=1', $captured);
+        $this->assertStringNotContainsString('stm_added', $captured);
+
+        $rows = array_values(array_filter($this->wpdb->all('stm_languages'), function ($r) {
+            return $r['code'] === 'fr';
+        }));
+        $this->assertCount(1, $rows, 'No duplicate row should have been inserted.');
+        $this->assertSame($inactiveId, $rows[0]['id'], 'The existing row must be reused, not replaced.');
+        $this->assertSame(1, (int) $rows[0]['is_active']);
+        $this->assertSame('French', $rows[0]['name'], 'Display fields should refresh from the form.');
+
+        // The translation tied to the reactivated language's id is still there, untouched.
+        $translations = array_values(array_filter($this->wpdb->all('stm_translations'), function ($r) use ($inactiveId) {
+            return $r['language_id'] === $inactiveId;
+        }));
+        $this->assertCount(1, $translations);
+        $this->assertSame('Bonjour', $translations[0]['translation']);
+    }
+
+    public function test_add_language_redirects_with_specific_error_when_code_already_active() {
+        Functions\when('check_admin_referer')->justReturn(true);
+        Functions\when('current_user_can')->justReturn(true);
+
+        $this->wpdb->seed('stm_languages', [
+            'code' => 'fr', 'name' => 'French', 'native_name' => 'Français',
+            'flag_emoji' => '', 'is_active' => 1, 'is_default' => 0, 'order_index' => 5,
+        ]);
+
+        $captured = null;
+        $this->stubRedirectToThrow($captured);
+
+        $_POST['lang_code'] = 'fr';
+        $_POST['lang_name'] = 'French Duplicate';
+
+        try {
+            Admin::add_language();
+            $this->fail('Expected the redirect stub to interrupt execution.');
+        } catch (RedirectInterrupt $e) {
+            // expected
+        }
+
+        $this->assertStringContainsString('stm_error=already_active', $captured);
+        $this->assertStringNotContainsString('db_error', $captured);
+
+        $rows = array_values(array_filter($this->wpdb->all('stm_languages'), function ($r) {
+            return $r['code'] === 'fr';
+        }));
+        $this->assertCount(1, $rows, 'No duplicate row should have been inserted.');
+        $this->assertSame('French', $rows[0]['name'], 'The existing active row must be left untouched.');
+    }
+
     // =========================================================================
     // delete_language()
     // =========================================================================
