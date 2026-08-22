@@ -126,6 +126,59 @@ class LanguagesScreenTest extends TestCase {
         $this->assertStringContainsString('Language status updated.', $html);
     }
 
+    public function test_page_languages_shows_reactivated_notice_distinct_from_added() {
+        if (!defined('ABSPATH')) {
+            define('ABSPATH', dirname(__DIR__) . '/');
+        }
+        require_once dirname(__DIR__) . '/includes/class-admin.php';
+
+        Functions\when('esc_html')->returnArg(1);
+        Functions\when('esc_attr')->returnArg(1);
+        Functions\when('esc_js')->returnArg(1);
+        Functions\when('esc_url')->returnArg(1);
+        Functions\when('wp_kses_post')->returnArg(1);
+        Functions\when('admin_url')->justReturn('http://example.test/wp-admin/admin-post.php');
+        Functions\when('wp_nonce_field')->justReturn('');
+
+        $_GET['stm_reactivated'] = '1';
+
+        ob_start();
+        Admin::page_languages();
+        $html = ob_get_clean();
+
+        unset($_GET['stm_reactivated']);
+
+        $this->assertStringContainsString('Language reactivated', $html);
+        $this->assertStringNotContainsString('<p>Language added.</p>', $html);
+    }
+
+    public function test_page_languages_shows_already_active_error() {
+        if (!defined('ABSPATH')) {
+            define('ABSPATH', dirname(__DIR__) . '/');
+        }
+        require_once dirname(__DIR__) . '/includes/class-admin.php';
+
+        Functions\when('esc_html')->returnArg(1);
+        Functions\when('esc_attr')->returnArg(1);
+        Functions\when('esc_js')->returnArg(1);
+        Functions\when('esc_url')->returnArg(1);
+        Functions\when('wp_kses_post')->returnArg(1);
+        Functions\when('admin_url')->justReturn('http://example.test/wp-admin/admin-post.php');
+        Functions\when('wp_nonce_field')->justReturn('');
+        Functions\when('sanitize_text_field')->returnArg(1);
+
+        $_GET['stm_error'] = 'already_active';
+
+        ob_start();
+        Admin::page_languages();
+        $html = ob_get_clean();
+
+        unset($_GET['stm_error']);
+
+        $this->assertStringContainsString('already active', $html);
+        $this->assertStringNotContainsString('Database error', $html);
+    }
+
     public function test_create_language_clears_both_language_caches() {
         Functions\when('sanitize_text_field')->returnArg(1);
         Functions\when('rest_ensure_response')->returnArg(1);
