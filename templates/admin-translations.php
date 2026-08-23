@@ -104,6 +104,17 @@ if (!defined('ABSPATH')) exit;
                         <?php foreach ($languages as $lang): ?>
                             <?php
                             $translation = $translations_map[$string->id][$lang->code] ?? null;
+                            $translation_value = $translation ? $translation->translation : '';
+                            $is_default_lang = ($lang->code === $default_lang_code);
+
+                            $default_translation_obj = $translations_map[$string->id][$default_lang_code] ?? null;
+                            $default_translation_value = $default_translation_obj ? $default_translation_obj->translation : null;
+
+                            $placeholder = STM\Admin::get_translation_placeholder($default_translation_value, $is_default_lang);
+
+                            // Only true when we're actually about to show the default
+                            // language's text in place of this cell's own (missing) translation.
+                            $placeholder_is_default = ($translation_value === '' && $placeholder !== 'Translation');
                             ?>
                             <td>
                                 <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" style="margin:0;">
@@ -114,8 +125,12 @@ if (!defined('ABSPATH')) exit;
 
                                     <input type="text"
                                            name="translation"
-                                           value="<?php echo esc_attr($translation ? $translation->translation : ''); ?>"
-                                           placeholder="Translation"
+                                           value="<?php echo esc_attr($translation_value); ?>"
+                                           placeholder="<?php echo esc_attr($placeholder); ?>"
+                                           <?php if ($placeholder_is_default): ?>
+                                           class="stm-placeholder-is-default"
+                                           title="No translation yet for this language — showing the default language text so you know what visitors currently see."
+                                           <?php endif; ?>
                                            style="width: 100%;">
 
                                     <button type="submit" class="button button-small" style="margin-top: 2px;">Save</button>
@@ -228,5 +243,8 @@ if (!defined('ABSPATH')) exit;
 .translation-progress {
     font-size: 12px;
     color: #666;
+}
+.stm-placeholder-is-default {
+    border-left: 3px solid #dba617;
 }
 </style>
