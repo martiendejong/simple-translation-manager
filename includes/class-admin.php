@@ -186,6 +186,7 @@ class Admin {
 
         // Get languages
         $languages = Database::get_languages();
+        $total_languages = count($languages);
 
         // The code of the default/fallback language, so the template can show
         // its translation as a placeholder wherever another language's
@@ -207,20 +208,40 @@ class Admin {
 
         $where_sql = implode(' AND ', $where);
 
-        // Get total count for pagination
-        $total_items = $wpdb->get_var("
-            SELECT COUNT(*) FROM {$table_strings} s WHERE {$where_sql}
-        ");
+        // 'missing'/'complete' filter on translated_count, which is only known once the
+        // per-string correlated subquery below has run — so it's applied as a HAVING
+        // clause against that subquery's alias, not folded into $where_sql.
+        $status_having = self::build_status_having($status_filter, $total_languages);
+
+        $translated_count_sql = "(SELECT COUNT(*) FROM {$table_translations} t
+                 WHERE t.string_id = s.id AND t.status = 'published') as translated_count";
+
+        // Get total count for pagination. When a status filter is active the plain
+        // COUNT(*) can't see translated_count, so wrap the same per-string query the
+        // results below use in a derived table and count that instead.
+        if ($status_having !== '') {
+            $total_items = $wpdb->get_var("
+                SELECT COUNT(*) FROM (
+                    SELECT s.id, {$translated_count_sql}
+                    FROM {$table_strings} s
+                    WHERE {$where_sql}
+                    {$status_having}
+                ) stm_filtered
+            ");
+        } else {
+            $total_items = $wpdb->get_var("
+                SELECT COUNT(*) FROM {$table_strings} s WHERE {$where_sql}
+            ");
+        }
 
         $total_pages = ceil($total_items / $per_page);
 
         // Get paginated results
         $strings = $wpdb->get_results("
-            SELECT s.*,
-                (SELECT COUNT(*) FROM {$table_translations} t
-                 WHERE t.string_id = s.id AND t.status = 'published') as translated_count
+            SELECT s.*, {$translated_count_sql}
             FROM {$table_strings} s
             WHERE {$where_sql}
+            {$status_having}
             ORDER BY s.context ASC, s.string_key ASC
             LIMIT {$per_page} OFFSET {$offset}
         ");
@@ -243,6 +264,33 @@ class Admin {
         }
 
         include STM_PLUGIN_DIR . 'templates/admin-translations.php';
+    }
+
+    /**
+     * Build the HAVING clause fragment for the Translation Strings screen's
+     * "missing translations" / "fully translated" status filter.
+     *
+     * translated_count comes from a correlated subquery on the string, not a real
+     * column, so it can only be filtered via HAVING once it's computed — this can't
+     * be folded into $where. Pure/static so the threshold logic is unit-testable
+     * without a live or fake $wpdb.
+     *
+     * @param string $status_filter    '' (all), 'missing', or 'complete'.
+     * @param int    $total_languages  Number of active languages a string can be translated into.
+     * @return string HAVING clause (including the "HAVING" keyword), or '' for no filter.
+     */
+    public static function build_status_having($status_filter, $total_languages) {
+        $total_languages = intval($total_languages);
+
+        if ($status_filter === 'missing') {
+            return "HAVING translated_count < {$total_languages}";
+        }
+
+        if ($status_filter === 'complete') {
+            return "HAVING translated_count >= {$total_languages}";
+        }
+
+        return '';
     }
 
     /**

@@ -98,6 +98,7 @@ class TranslationsScreenTest extends TestCase {
     private function baseVars() {
         return [
             'context_filter' => '',
+            'status_filter'  => '',
             'search'         => '',
             'contexts'       => ['general'],
             'total_items'    => 1,

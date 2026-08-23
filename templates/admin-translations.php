@@ -65,9 +65,16 @@ if (!defined('ABSPATH')) exit;
                 <?php endforeach; ?>
             </select>
 
+            <label>Status:</label>
+            <select name="status">
+                <option value="">All</option>
+                <option value="missing" <?php selected($status_filter, 'missing'); ?>>Missing translations</option>
+                <option value="complete" <?php selected($status_filter, 'complete'); ?>>Fully translated</option>
+            </select>
+
             <input type="submit" class="button" value="Filter">
 
-            <?php if (!empty($search) || !empty($context_filter)): ?>
+            <?php if (!empty($search) || !empty($context_filter) || !empty($status_filter)): ?>
                 <a href="<?php echo esc_url(admin_url('admin.php?page=stm-translations')); ?>" class="button">Clear</a>
             <?php endif; ?>
 
@@ -163,6 +170,7 @@ if (!defined('ABSPATH')) exit;
                 $base_url = add_query_arg([
                     'page' => 'stm-translations',
                     'context' => $context_filter,
+                    'status' => $status_filter ?? '',
                     'search' => $search ?? '',
                 ], admin_url('admin.php'));
 
