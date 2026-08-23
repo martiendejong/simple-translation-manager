@@ -188,6 +188,12 @@ class Admin {
         $languages = Database::get_languages();
         $total_languages = count($languages);
 
+        // The code of the default/fallback language, so the template can show
+        // its translation as a placeholder wherever another language's
+        // translation is still missing (see get_translation_placeholder()).
+        $default_language = Database::get_default_language();
+        $default_lang_code = $default_language ? $default_language->code : '';
+
         // Get strings with translation status
         $table_strings = $wpdb->prefix . 'stm_strings';
         $table_translations = $wpdb->prefix . 'stm_translations';
@@ -285,6 +291,29 @@ class Admin {
         }
 
         return '';
+    }
+
+    /**
+     * What placeholder text to show in a translation input on the Translation
+     * Strings screen.
+     *
+     * When a language has no translation yet, STM's runtime string lookup
+     * (see functions.php::__stm()) has nothing published for that language,
+     * so visitors effectively see whatever the default language's text is.
+     * Showing that same text as the input's placeholder lets whoever is
+     * managing translations see at a glance what the UI currently displays
+     * for that string, instead of a generic "type something here" hint.
+     *
+     * @param string|null $default_translation The default language's translation text for this string, or null/empty if it has none either.
+     * @param bool        $is_default_language  Whether this input IS the default language's own column (it has no "other" default to fall back to).
+     * @return string The placeholder text to render.
+     */
+    public static function get_translation_placeholder($default_translation, $is_default_language) {
+        if (!$is_default_language && $default_translation !== null && $default_translation !== '') {
+            return $default_translation;
+        }
+
+        return 'Translation';
     }
 
     /**

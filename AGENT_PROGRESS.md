@@ -506,6 +506,23 @@ Left: nothing outstanding for this task. Portofgiethoorn's vendored copy of this
 own description and will need a separate deploy/update step once this PR merges — not
 done here, out of scope for this repo's PR.
 
+## 2026-08-23 — task 869enr71g
+Done: on the Translation Strings screen, an empty translation input for a non-default
+language now shows the default language's own text as its `placeholder` (instead of the
+generic "Translation" hint), with a `title` tooltip and a `.stm-placeholder-is-default`
+left-border cue, so whoever is managing translations can see what visitors currently see
+for that string. New pure `Admin::get_translation_placeholder($default_translation,
+$is_default_language)` decides the placeholder text; `page_translations()` resolves
+`Database::get_default_language()` once and passes `$default_lang_code` to the template.
+Verified: `php -l` clean on both changed files. `vendor/bin/phpunit` full suite 169/169
+pass (6 new tests in `tests/TranslationsScreenTest.php`: 3 for the pure helper's branches,
+3 rendering `templates/admin-translations.php` directly — FakeWpdb's SQL parser can't
+represent `page_translations()`'s aliased/subquery queries, so the template is exercised
+the same way `page_translations()` calls it, via `include` sharing local vars). `vendor/bin/phpcs
+--standard=phpcs.xml.dist` 0 errors.
+Left: nothing outstanding for this task. Same portofgiethoorn vendored-copy staleness
+caveat as the entry above applies here too — not addressed in this PR.
+
 ## 2026-08-23 — task 869enr72r
 Done: added a "Status" dropdown (All / Missing translations / Fully translated) to the
 Translation Strings admin screen (`admin.php?page=stm-translations`), next to the existing
@@ -523,5 +540,6 @@ when `?status=missing`). `phpcs --standard=phpcs.xml.dist` 0 errors on all 3 cha
 Not independently re-verifiable against real seeded translation data: `FakeWpdb`'s SQL parser
 can't handle the pre-existing aliased-table + correlated-subquery query shape this page has
 always used (same limitation noted on task 869enr71g) — this predates and is unrelated to
-this change.
+this change. Merged forward against master (task 869enr71g's `get_translation_placeholder()`
+landed first, same file, non-overlapping) — re-ran full suite post-merge, see below.
 Left: nothing outstanding for this task.
