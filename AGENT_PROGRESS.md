@@ -505,3 +505,9 @@ Left: nothing outstanding for this task. Portofgiethoorn's vendored copy of this
 (`portofgiethoorn/wordpress/plugins/simple-translation-manager/`) is stale per this task's
 own description and will need a separate deploy/update step once this PR merges — not
 done here, out of scope for this repo's PR.
+
+## 2026-08-23 — task 869enr72r (WIP)
+Plan: add a "Status" filter (All / Missing translations / Fully translated) to the
+Translation Strings admin screen (`admin.php?page=stm-translations`). `Admin::page_translations()`
+has read `$_GET['status']` into `$status_filter` since the plugin's initial commit but never
+applied it — no UI control, no WHERE/HAVING wiring. Wiring that up.
