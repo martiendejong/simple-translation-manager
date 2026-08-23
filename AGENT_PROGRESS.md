@@ -506,8 +506,22 @@ Left: nothing outstanding for this task. Portofgiethoorn's vendored copy of this
 own description and will need a separate deploy/update step once this PR merges — not
 done here, out of scope for this repo's PR.
 
-## 2026-08-23 — task 869enr72r (WIP)
-Plan: add a "Status" filter (All / Missing translations / Fully translated) to the
-Translation Strings admin screen (`admin.php?page=stm-translations`). `Admin::page_translations()`
-has read `$_GET['status']` into `$status_filter` since the plugin's initial commit but never
-applied it — no UI control, no WHERE/HAVING wiring. Wiring that up.
+## 2026-08-23 — task 869enr72r
+Done: added a "Status" dropdown (All / Missing translations / Fully translated) to the
+Translation Strings admin screen (`admin.php?page=stm-translations`), next to the existing
+Context filter. `Admin::page_translations()` had read `$_GET['status']` into `$status_filter`
+since the plugin's initial commit but never applied it — no UI control, no query wiring.
+Since `translated_count` is a correlated subquery, not a real column, the filter is applied
+via a `HAVING` clause (`Admin::build_status_having()`, pure/static/unit-tested) rather than
+folded into `$where`; the pagination total-count query is wrapped in a derived table so counts
+stay consistent with the filtered result set. Status now round-trips through pagination links
+and the "Clear" control. PR #36.
+Verified: `vendor/bin/phpunit` 167/167 pass (4 new tests: 3 direct on
+`build_status_having()`'s missing/complete/all-or-unknown thresholds, 1 rendering test that
+stubs a real `selected()` and asserts the "Missing translations" `<option>` is marked selected
+when `?status=missing`). `phpcs --standard=phpcs.xml.dist` 0 errors on all 3 changed files.
+Not independently re-verifiable against real seeded translation data: `FakeWpdb`'s SQL parser
+can't handle the pre-existing aliased-table + correlated-subquery query shape this page has
+always used (same limitation noted on task 869enr71g) — this predates and is unrelated to
+this change.
+Left: nothing outstanding for this task.

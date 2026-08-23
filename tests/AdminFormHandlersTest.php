@@ -626,4 +626,53 @@ class AdminFormHandlersTest extends TestCase {
         $this->assertIsString($html);
         $this->assertStringContainsString('Translation Strings', $html);
     }
+
+    // =========================================================================
+    // Status filter (task 869enr72r) — "missing translations" / "fully translated"
+    // on the Translation Strings screen. $status_filter was read from $_GET since
+    // the plugin's initial commit but never applied to the query or exposed as a
+    // control; this adds both.
+    // =========================================================================
+
+    public function test_build_status_having_missing_filters_below_total_languages() {
+        $this->assertSame('HAVING translated_count < 3', Admin::build_status_having('missing', 3));
+    }
+
+    public function test_build_status_having_complete_filters_at_or_above_total_languages() {
+        $this->assertSame('HAVING translated_count >= 3', Admin::build_status_having('complete', 3));
+    }
+
+    public function test_build_status_having_returns_empty_for_all_and_unknown_values() {
+        $this->assertSame('', Admin::build_status_having('', 3));
+        $this->assertSame('', Admin::build_status_having('bogus', 3));
+    }
+
+    public function test_page_translations_status_dropdown_marks_missing_selected() {
+        Functions\when('esc_html')->returnArg(1);
+        Functions\when('esc_attr')->returnArg(1);
+        Functions\when('esc_url')->returnArg(1);
+        Functions\when('admin_url')->justReturn('http://example.test/wp-admin/admin-post.php');
+        Functions\when('add_query_arg')->alias(function (...$args) {
+            return 'http://example.test/wp-admin/admin.php';
+        });
+        Functions\when('wp_nonce_field')->justReturn('');
+        // Real selected()-shaped behaviour (the other tests above stub it to
+        // always return '', which can't distinguish which <option> was picked).
+        Functions\when('selected')->alias(function ($selected, $current = true, $echo = true) {
+            $result = ((string) $selected === (string) $current) ? ' selected="selected"' : '';
+            if ($echo) {
+                echo $result;
+            }
+            return $result;
+        });
+
+        $_GET['status'] = 'missing';
+
+        ob_start();
+        Admin::page_translations();
+        $html = ob_get_clean();
+
+        $this->assertMatchesRegularExpression('/value="missing"\s*selected="selected"/', $html);
+        $this->assertDoesNotMatchRegularExpression('/value="complete"\s*selected="selected"/', $html);
+    }
 }
