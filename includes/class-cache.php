@@ -106,6 +106,63 @@ class Cache {
     }
 
     /**
+     * Get field value translation from cache or database
+     *
+     * @param string $field Field name
+     * @param string $value Source (default-language) value
+     * @param string $lang Language code
+     * @return string Translation, or empty string when none exists
+     */
+    public static function get_field_value_translation($field, $value, $lang) {
+        global $wpdb;
+
+        $value_hash = md5($value);
+        $cache_key = "fieldvalue_{$field}_{$value_hash}_{$lang}";
+        $translation = wp_cache_get($cache_key, self::GROUP);
+
+        if (false !== $translation) {
+            return $translation;
+        }
+
+        $table = $wpdb->prefix . 'stm_field_value_translations';
+
+        $result = $wpdb->get_var($wpdb->prepare(
+            "SELECT translation FROM {$table}
+            WHERE field_name = %s
+            AND value_hash = %s
+            AND language_code = %s
+            LIMIT 1",
+            $field,
+            $value_hash,
+            $lang
+        ));
+
+        if ($wpdb->last_error) {
+            error_log("[STM] DB error getting field value translation for {$field}: " . $wpdb->last_error);
+        }
+
+        // Store in cache (empty string = known miss, avoids repeated queries)
+        wp_cache_set($cache_key, $result ?: '', self::GROUP, self::TTL);
+
+        return $result ?: '';
+    }
+
+    /**
+     * Invalidate cache for a field value (all languages)
+     *
+     * @param string $field Field name
+     * @param string $value Source value
+     */
+    public static function invalidate_field_value($field, $value) {
+        $value_hash = md5($value);
+        $languages = Database::get_languages();
+
+        foreach ($languages as $lang) {
+            wp_cache_delete("fieldvalue_{$field}_{$value_hash}_{$lang->code}", self::GROUP);
+        }
+    }
+
+    /**
      * Invalidate cache for a specific string
      *
      * @param string $key Translation key

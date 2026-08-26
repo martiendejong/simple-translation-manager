@@ -81,6 +81,18 @@ if (!function_exists('stm_get_post_translation')) {
             return $translation;
         }
 
+        // Value-translatable fields: no per-post row, so try the shared
+        // per-value dictionary before falling back to the raw value
+        if (STM\FieldValues::is_value_translatable($db_field)) {
+            $raw = get_post_meta($post_id, $db_field, true);
+            if (is_string($raw) && $raw !== '') {
+                $value_translation = STM\FieldValues::translate_value($db_field, $raw, $lang);
+                if ($value_translation !== $raw) {
+                    return $value_translation;
+                }
+            }
+        }
+
         // Auto-fallback based on field
         if ($fallback) {
             return $fallback;
@@ -194,6 +206,38 @@ if (!function_exists('stm_validate_bulk_translation_data')) {
             'errors' => $errors,
             'warnings' => $warnings,
         ];
+    }
+}
+
+if (!function_exists('stm_register_value_translatable_field')) {
+    /**
+     * Mark a custom post type field as having translatable VALUES: each
+     * distinct stored value gets one shared translation per language,
+     * managed under Translations > Field Values.
+     *
+     * Call on or after 'plugins_loaded'.
+     *
+     * @param string $field_name Meta key (e.g. 'coachwork')
+     * @param array $args ['post_types' => string[], 'label' => string]
+     */
+    function stm_register_value_translatable_field($field_name, $args = []) {
+        STM\FieldValues::register($field_name, $args);
+    }
+}
+
+if (!function_exists('stm_get_field_value_translation')) {
+    /**
+     * Translate a standardized field value via the shared value dictionary.
+     * Returns the original value for the default language or when no
+     * translation exists.
+     *
+     * @param string $field_name Meta key
+     * @param string $value Raw (default-language) value
+     * @param string|null $lang Language code (defaults to current language)
+     * @return string
+     */
+    function stm_get_field_value_translation($field_name, $value, $lang = null) {
+        return STM\FieldValues::translate_value($field_name, $value, $lang);
     }
 }
 

@@ -3,7 +3,7 @@
  * Plugin Name: Simple Translation Manager
  * Plugin URI: https://martiendejong.nl
  * Description: Lightweight multilingual plugin with database storage and WordPress caching
- * Version: 1.1.1
+ * Version: 1.2.0
  * Author: Martien de Jong
  * Author URI: https://martiendejong.nl
  * License: GPL v2 or later
@@ -17,7 +17,7 @@ if (!defined('ABSPATH')) {
 }
 
 // Plugin constants
-define('STM_VERSION', '1.1.1');
+define('STM_VERSION', '1.2.0');
 define('STM_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('STM_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('STM_PLUGIN_FILE', __FILE__);
@@ -42,6 +42,7 @@ require_once STM_PLUGIN_DIR . 'includes/class-database.php';
 require_once STM_PLUGIN_DIR . 'includes/class-cache.php';
 require_once STM_PLUGIN_DIR . 'includes/class-admin.php';
 require_once STM_PLUGIN_DIR . 'includes/class-api.php';
+require_once STM_PLUGIN_DIR . 'includes/class-field-values.php';
 require_once STM_PLUGIN_DIR . 'includes/class-post-editor.php';
 require_once STM_PLUGIN_DIR . 'includes/class-frontend.php';
 require_once STM_PLUGIN_DIR . 'includes/class-language-switcher.php';
@@ -128,6 +129,12 @@ function stm_query_vars($vars) {
     return $vars;
 }
 add_filter('query_vars', 'stm_query_vars');
+
+/**
+ * Schema upgrades on plugin update without reactivation (e.g. FTP deploys).
+ * Runs before stm_init so new tables exist when components initialize.
+ */
+add_action('plugins_loaded', ['STM\\Database', 'maybe_upgrade'], 5);
 
 /**
  * Initialize plugin
