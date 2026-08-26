@@ -150,13 +150,27 @@ class AutoTranslate {
             $system_prompt .= " Context: this text is a {$context} field in a WordPress website.";
         }
 
+        $allowed_models = ['gpt-4o-mini', 'gpt-4o', 'gpt-3.5-turbo'];
+        $model          = get_option('stm_openai_model', 'gpt-4o-mini');
+        if (!in_array($model, $allowed_models, true)) {
+            $model = 'gpt-4o-mini';
+        }
+
+        $temperature = (float) get_option('stm_openai_temperature', 0.3);
+        $temperature = max(0.0, min(1.0, $temperature));
+
+        $custom_prompt = trim(get_option('stm_openai_prompt_template', ''));
+        if ($custom_prompt) {
+            $system_prompt = str_replace(['{source}', '{target}'], [$source_name, $target_name], $custom_prompt);
+        }
+
         $body = [
-            'model' => 'gpt-4o-mini',
+            'model' => $model,
             'messages' => [
                 ['role' => 'system', 'content' => $system_prompt],
                 ['role' => 'user', 'content' => $text],
             ],
-            'temperature' => 0.3,
+            'temperature' => $temperature,
             'max_tokens' => max(strlen($text) * 3, 500),
         ];
 
@@ -268,16 +282,19 @@ class AutoTranslate {
      */
     public static function get_settings() {
         return [
-            'provider' => get_option('stm_auto_translate_provider', 'openai'),
-            'openai_key_set' => !empty(get_option('stm_openai_api_key', '')),
-            'deepl_key_set' => !empty(get_option('stm_deepl_api_key', '')),
+            'provider'         => get_option('stm_auto_translate_provider', 'openai'),
+            'openai_key_set'   => !empty(get_option('stm_openai_api_key', '')),
+            'deepl_key_set'    => !empty(get_option('stm_deepl_api_key', '')),
+            'openai_model'     => get_option('stm_openai_model', 'gpt-4o-mini'),
+            'openai_temperature' => (float) get_option('stm_openai_temperature', 0.3),
+            'openai_prompt_template' => get_option('stm_openai_prompt_template', ''),
         ];
     }
 
     /**
      * Save settings
      */
-    public static function save_settings($provider, $openai_key = null, $deepl_key = null) {
+    public static function save_settings($provider, $openai_key = null, $deepl_key = null, $extra = []) {
         if (in_array($provider, ['openai', 'deepl'])) {
             update_option('stm_auto_translate_provider', $provider);
         }
@@ -286,6 +303,18 @@ class AutoTranslate {
         }
         if ($deepl_key !== null) {
             update_option('stm_deepl_api_key', sanitize_text_field($deepl_key));
+        }
+
+        $allowed_models = ['gpt-4o-mini', 'gpt-4o', 'gpt-3.5-turbo'];
+        if (!empty($extra['openai_model']) && in_array($extra['openai_model'], $allowed_models, true)) {
+            update_option('stm_openai_model', $extra['openai_model']);
+        }
+        if (isset($extra['openai_temperature'])) {
+            $temp = max(0.0, min(1.0, (float) $extra['openai_temperature']));
+            update_option('stm_openai_temperature', $temp);
+        }
+        if (isset($extra['openai_prompt_template'])) {
+            update_option('stm_openai_prompt_template', sanitize_textarea_field($extra['openai_prompt_template']));
         }
     }
 
@@ -409,7 +438,12 @@ class AutoTranslate {
         self::save_settings(
             $params['provider'] ?? null,
             $params['openai_key'] ?? null,
-            $params['deepl_key'] ?? null
+            $params['deepl_key'] ?? null,
+            [
+                'openai_model'           => $params['openai_model'] ?? null,
+                'openai_temperature'     => $params['openai_temperature'] ?? null,
+                'openai_prompt_template' => $params['openai_prompt_template'] ?? null,
+            ]
         );
 
         return rest_ensure_response(['success' => true, 'settings' => self::get_settings()]);

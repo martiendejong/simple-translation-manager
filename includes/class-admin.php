@@ -25,9 +25,20 @@ class Admin {
         add_action('admin_post_stm_import_json', [__CLASS__, 'import_json']);
         add_action('admin_post_stm_add_language', [__CLASS__, 'add_language']);
         add_action('admin_post_stm_delete_language', [__CLASS__, 'delete_language']);
+        add_action('admin_post_stm_add_value_field', [__CLASS__, 'add_value_field']);
+        add_action('admin_post_stm_remove_value_field', [__CLASS__, 'remove_value_field']);
+        add_action('admin_post_stm_save_field_values', [__CLASS__, 'save_field_values']);
+        add_action('admin_post_stm_autofill_field_values', [__CLASS__, 'autofill_field_values']);
         add_action('admin_post_stm_toggle_language_active', [__CLASS__, 'toggle_language_active']);
         add_action('admin_post_stm_save_ai_settings', [__CLASS__, 'save_ai_settings']);
         add_action('admin_notices', [__CLASS__, 'show_translation_warnings']);
+
+        // Session persistence: save/load filter state via AJAX
+        add_action('wp_ajax_stm_save_prefs', [__CLASS__, 'ajax_save_prefs']);
+        add_action('wp_ajax_stm_load_prefs', [__CLASS__, 'ajax_load_prefs']);
+
+        // Nonce refresh via heartbeat (keeps long-open admin pages valid)
+        add_filter('heartbeat_received', [__CLASS__, 'heartbeat_refresh_nonce'], 10, 2);
     }
 
     /**
@@ -73,6 +84,16 @@ class Admin {
             'manage_options',
             'stm-languages',
             [__CLASS__, 'page_languages']
+        );
+
+        // Submenu: Field Values (shared translations for standardized values)
+        add_submenu_page(
+            'stm-translations',
+            'Field Value Translations',
+            'Field Values',
+            'manage_options',
+            'stm-field-values',
+            [__CLASS__, 'page_field_values']
         );
 
         // Submenu: Import/Export
@@ -130,8 +151,10 @@ class Admin {
         );
 
         wp_localize_script('stm-admin', 'stmAdmin', [
-            'ajaxUrl' => admin_url('admin-ajax.php'),
-            'nonce' => wp_create_nonce('stm_admin_nonce'),
+            'ajaxUrl'   => admin_url('admin-ajax.php'),
+            'nonce'     => wp_create_nonce('stm_admin_nonce'),
+            'restNonce' => wp_create_nonce('wp_rest'),
+            'restUrl'   => esc_url_raw(rest_url('stm/v1')),
         ]);
 
         // Dashboard-specific assets
@@ -322,6 +345,184 @@ class Admin {
     public static function page_languages() {
         $languages = Database::get_all_languages();
         include STM_PLUGIN_DIR . 'templates/admin-languages.php';
+    }
+
+    /**
+     * Page: Field Value Translations
+     *
+     * Without ?field= shows the list of value-translatable fields;
+     * with ?field=<name> shows all distinct values for that field with
+     * one input per language.
+     */
+    public static function page_field_values() {
+        $registered = FieldValues::get_registered_fields();
+        $languages = Database::get_languages();
+        $default_language = Database::get_default_language();
+        $default_code = $default_language ? $default_language->code : 'en';
+
+        $field = sanitize_key($_GET['field'] ?? '');
+
+        if ($field && isset($registered[$field])) {
+            $field_config = $registered[$field];
+            $values = FieldValues::get_distinct_values($field);
+            $translations = FieldValues::get_translations_for_field($field);
+            include STM_PLUGIN_DIR . 'templates/admin-field-value-edit.php';
+            return;
+        }
+
+        $coverage = [];
+        foreach ($registered as $name => $config) {
+            $coverage[$name] = FieldValues::get_coverage($name);
+        }
+        $post_types = get_post_types(['show_ui' => true], 'objects');
+        include STM_PLUGIN_DIR . 'templates/admin-field-values.php';
+    }
+
+    /**
+     * Mark a field as value-translatable (admin form handler)
+     */
+    public static function add_value_field() {
+        if (!Security::verify_admin_action('stm_add_value_field')) {
+            wp_die('Unauthorized', 403);
+        }
+
+        $field_name = sanitize_key($_POST['field_name'] ?? '');
+        if (!$field_name) {
+            wp_redirect(add_query_arg('stm_error', 'invalid_field', wp_get_referer()));
+            exit;
+        }
+
+        FieldValues::save_field($field_name, [
+            'label'      => sanitize_text_field($_POST['field_label'] ?? $field_name),
+            'post_types' => array_map('sanitize_key', (array) ($_POST['field_post_types'] ?? [])),
+        ]);
+
+        wp_redirect(add_query_arg('stm_added', '1', wp_get_referer()));
+        exit;
+    }
+
+    /**
+     * Unmark a value-translatable field (admin form handler).
+     * Stored value translations are kept and restored when re-added.
+     */
+    public static function remove_value_field() {
+        if (!Security::verify_admin_action('stm_remove_value_field')) {
+            wp_die('Unauthorized', 403);
+        }
+
+        $field_name = sanitize_key($_POST['field_name'] ?? '');
+        FieldValues::remove_field($field_name);
+
+        wp_redirect(add_query_arg('stm_deleted', '1', wp_get_referer()));
+        exit;
+    }
+
+    /**
+     * Bulk-save value translations for one field (admin form handler)
+     */
+    public static function save_field_values() {
+        if (!Security::verify_admin_action('stm_save_field_values')) {
+            wp_die('Unauthorized', 403);
+        }
+
+        $field = sanitize_key($_POST['field'] ?? '');
+        if (!$field || !FieldValues::is_value_translatable($field)) {
+            wp_die('Unknown field', 400);
+        }
+
+        // source[hash] carries the exact original value; do not sanitize it
+        // beyond unslashing or the md5 key would no longer match the meta value
+        $sources = wp_unslash($_POST['source'] ?? []);
+        $translations = wp_unslash($_POST['translations'] ?? []);
+        $saved = 0;
+
+        foreach ((array) $translations as $hash => $per_language) {
+            if (!isset($sources[$hash]) || !is_array($per_language)) {
+                continue;
+            }
+            $source_value = $sources[$hash];
+            if (md5($source_value) !== $hash) {
+                continue;
+            }
+            foreach ($per_language as $lang_code => $translation) {
+                $lang_code = sanitize_text_field($lang_code);
+                if (!Security::validate_language_code($lang_code)) {
+                    continue;
+                }
+                FieldValues::save_translation($field, $source_value, $lang_code, sanitize_text_field($translation));
+                $saved++;
+            }
+        }
+
+        wp_redirect(add_query_arg('stm_saved', $saved, wp_get_referer()));
+        exit;
+    }
+
+    /**
+     * Auto-translate missing value translations for one field (admin form handler)
+     */
+    public static function autofill_field_values() {
+        if (!Security::verify_admin_action('stm_autofill_field_values')) {
+            wp_die('Unauthorized', 403);
+        }
+
+        $field = sanitize_key($_POST['field'] ?? '');
+        if (!$field || !FieldValues::is_value_translatable($field)) {
+            wp_die('Unknown field', 400);
+        }
+
+        $target = sanitize_text_field($_POST['target_language'] ?? '');
+        $default_language = Database::get_default_language();
+        $default_code = $default_language ? $default_language->code : 'en';
+
+        $target_codes = [];
+        foreach (Database::get_languages() as $language) {
+            if ($language->code === $default_code) {
+                continue;
+            }
+            if ($target === '' || $target === $language->code) {
+                $target_codes[] = $language->code;
+            }
+        }
+
+        $values = FieldValues::get_distinct_values($field);
+        $existing = FieldValues::get_translations_for_field($field);
+
+        if (function_exists('set_time_limit')) {
+            set_time_limit(300);
+        }
+
+        $filled = 0;
+        $failed = 0;
+        $last_error = '';
+
+        foreach ($values as $value) {
+            foreach ($target_codes as $lang_code) {
+                if (!empty($existing[$value['hash']][$lang_code])) {
+                    continue;
+                }
+                $result = AutoTranslate::translate(
+                    $value['value'],
+                    $default_code,
+                    $lang_code,
+                    "Standardized value of the '{$field}' field. Translate concisely; keep proper names unchanged."
+                );
+                if (!empty($result['success']) && $result['translation'] !== '') {
+                    FieldValues::save_translation($field, $value['value'], $lang_code, $result['translation']);
+                    $filled++;
+                } else {
+                    $failed++;
+                    $last_error = $result['error'] ?? 'unknown error';
+                }
+            }
+        }
+
+        $args = ['stm_autofilled' => $filled, 'stm_autofill_failed' => $failed];
+        if ($failed > 0 && $last_error) {
+            $args['stm_error'] = urlencode($last_error);
+        }
+        wp_redirect(add_query_arg($args, wp_get_referer()));
+        exit;
     }
 
     /**
@@ -783,6 +984,59 @@ class Admin {
     }
 
     /**
+     * AJAX: save user filter preferences to user_meta
+     * Called by admin JS when filters change or a dashboard tab is selected.
+     * Stored per-page so different STM pages have independent state.
+     */
+    public static function ajax_save_prefs() {
+        check_ajax_referer('stm_admin_nonce', 'nonce');
+
+        $page  = sanitize_key($_POST['page'] ?? '');
+        $prefs = $_POST['prefs'] ?? [];
+
+        if (!$page || !is_array($prefs)) {
+            wp_send_json_error('Invalid request');
+        }
+
+        // Whitelist allowed keys to prevent arbitrary meta storage
+        $allowed = ['lang', 'context', 'status', 'search', 'paged', 'tab'];
+        $clean   = [];
+        foreach ($allowed as $key) {
+            if (isset($prefs[$key])) {
+                $clean[$key] = sanitize_text_field($prefs[$key]);
+            }
+        }
+
+        $all = (array) get_user_meta(get_current_user_id(), 'stm_admin_prefs', true);
+        $all[$page] = $clean;
+        update_user_meta(get_current_user_id(), 'stm_admin_prefs', $all);
+
+        wp_send_json_success();
+    }
+
+    /**
+     * AJAX: return saved preferences for the current user
+     */
+    public static function ajax_load_prefs() {
+        check_ajax_referer('stm_admin_nonce', 'nonce');
+
+        $page = sanitize_key($_POST['page'] ?? '');
+        $all  = (array) get_user_meta(get_current_user_id(), 'stm_admin_prefs', true);
+
+        wp_send_json_success($all[$page] ?? []);
+    }
+
+    /**
+     * Heartbeat: refresh STM nonce so admin pages open > 12h stay valid
+     */
+    public static function heartbeat_refresh_nonce($response, $data) {
+        if (!empty($data['stm_refresh_nonce'])) {
+            $response['stm_nonce'] = wp_create_nonce('stm_admin_nonce');
+        }
+        return $response;
+    }
+
+    /**
      * Save AI/auto-translate settings
      */
     public static function save_ai_settings() {
@@ -794,7 +1048,11 @@ class Admin {
         $openai_key = sanitize_text_field(wp_unslash($_POST['openai_key'] ?? ''));
         $deepl_key  = sanitize_text_field(wp_unslash($_POST['deepl_key'] ?? ''));
 
-        AutoTranslate::save_settings($provider, $openai_key ?: null, $deepl_key ?: null);
+        AutoTranslate::save_settings($provider, $openai_key ?: null, $deepl_key ?: null, [
+            'openai_model'           => sanitize_text_field($_POST['openai_model'] ?? ''),
+            'openai_temperature'     => (float) ($_POST['openai_temperature'] ?? 0.3),
+            'openai_prompt_template' => sanitize_textarea_field($_POST['openai_prompt_template'] ?? ''),
+        ]);
 
         wp_safe_redirect(add_query_arg('stm_saved', '1', wp_get_referer()));
         exit;

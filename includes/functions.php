@@ -53,7 +53,8 @@ if (!function_exists('stm_get_post_translation')) {
      * Get translation for post/page field
      *
      * @param int $post_id Post ID (defaults to current post)
-     * @param string $field Field name (e.g., 'title', 'excerpt', 'description')
+     * @param string $field Field name — accepts both public aliases ('title', 'content',
+     *                      'excerpt', 'slug') and WP internal names ('post_title', etc.)
      * @param string $lang Language code (defaults to current language)
      * @param mixed $fallback Fallback value if translation not found
      * @return string Translated content
@@ -67,10 +68,31 @@ if (!function_exists('stm_get_post_translation')) {
             $lang = stm_get_current_language();
         }
 
-        $translation = STM\Cache::get_post_translation($post_id, $field, $lang);
+        // Normalize public field aliases to WP internal names (which is how they are stored)
+        static $field_map = [
+            'title'   => 'post_title',
+            'content' => 'post_content',
+            'excerpt' => 'post_excerpt',
+            'slug'    => 'post_name',
+        ];
+        $db_field    = $field_map[$field] ?? $field;
+
+        $translation = STM\Cache::get_post_translation($post_id, $db_field, $lang);
 
         if ($translation) {
             return $translation;
+        }
+
+        // Value-translatable fields: no per-post row, so try the shared
+        // per-value dictionary before falling back to the raw value
+        if (STM\FieldValues::is_value_translatable($db_field)) {
+            $raw = get_post_meta($post_id, $db_field, true);
+            if (is_string($raw) && $raw !== '') {
+                $value_translation = STM\FieldValues::translate_value($db_field, $raw, $lang);
+                if ($value_translation !== $raw) {
+                    return $value_translation;
+                }
+            }
         }
 
         // Auto-fallback based on field
@@ -186,6 +208,38 @@ if (!function_exists('stm_validate_bulk_translation_data')) {
             'errors' => $errors,
             'warnings' => $warnings,
         ];
+    }
+}
+
+if (!function_exists('stm_register_value_translatable_field')) {
+    /**
+     * Mark a custom post type field as having translatable VALUES: each
+     * distinct stored value gets one shared translation per language,
+     * managed under Translations > Field Values.
+     *
+     * Call on or after 'plugins_loaded'.
+     *
+     * @param string $field_name Meta key (e.g. 'coachwork')
+     * @param array $args ['post_types' => string[], 'label' => string]
+     */
+    function stm_register_value_translatable_field($field_name, $args = []) {
+        STM\FieldValues::register($field_name, $args);
+    }
+}
+
+if (!function_exists('stm_get_field_value_translation')) {
+    /**
+     * Translate a standardized field value via the shared value dictionary.
+     * Returns the original value for the default language or when no
+     * translation exists.
+     *
+     * @param string $field_name Meta key
+     * @param string $value Raw (default-language) value
+     * @param string|null $lang Language code (defaults to current language)
+     * @return string
+     */
+    function stm_get_field_value_translation($field_name, $value, $lang = null) {
+        return STM\FieldValues::translate_value($field_name, $value, $lang);
     }
 }
 

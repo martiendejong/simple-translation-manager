@@ -43,6 +43,7 @@ require_once STM_PLUGIN_DIR . 'includes/class-string-scanner.php';
 require_once STM_PLUGIN_DIR . 'includes/class-cache.php';
 require_once STM_PLUGIN_DIR . 'includes/class-admin.php';
 require_once STM_PLUGIN_DIR . 'includes/class-api.php';
+require_once STM_PLUGIN_DIR . 'includes/class-field-values.php';
 require_once STM_PLUGIN_DIR . 'includes/class-post-editor.php';
 require_once STM_PLUGIN_DIR . 'includes/class-frontend.php';
 require_once STM_PLUGIN_DIR . 'includes/class-language-switcher.php';
@@ -131,6 +132,12 @@ function stm_query_vars($vars) {
     return $vars;
 }
 add_filter('query_vars', 'stm_query_vars');
+
+/**
+ * Schema upgrades on plugin update without reactivation (e.g. FTP deploys).
+ * Runs before stm_init so new tables exist when components initialize.
+ */
+add_action('plugins_loaded', ['STM\\Database', 'maybe_upgrade'], 5);
 
 /**
  * Initialize plugin

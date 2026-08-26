@@ -12,6 +12,9 @@ namespace STM;
 
 class PostEditor {
 
+    /** Pre-loaded translation data for the current admin post list page (eliminates N+1) */
+    private static $list_cache = [];
+
     /**
      * Initialize post editor hooks
      */
@@ -31,6 +34,9 @@ class PostEditor {
         add_filter('manage_pages_columns', [__CLASS__, 'add_language_column']);
         add_action('manage_posts_custom_column', [__CLASS__, 'display_language_column'], 10, 2);
         add_action('manage_pages_custom_column', [__CLASS__, 'display_language_column'], 10, 2);
+
+        // Batch-load translation data for the post list to avoid N+1 queries
+        add_filter('the_posts', [__CLASS__, 'preload_list_translations'], 10, 2);
 
         // Enqueue assets
         add_action('admin_enqueue_scripts', [__CLASS__, 'enqueue_assets']);
@@ -343,6 +349,40 @@ class PostEditor {
     }
 
     /**
+     * Batch-load all translation statuses for the visible post list in one query.
+     * Fires on the_posts filter so it runs once before any column callbacks.
+     */
+    public static function preload_list_translations($posts, $query) {
+        if (!$query->is_main_query() || !is_admin()) {
+            return $posts;
+        }
+
+        $post_ids = array_map(function($p) { return $p->ID; }, $posts);
+        if (empty($post_ids)) {
+            return $posts;
+        }
+
+        global $wpdb;
+        $placeholders = implode(',', array_fill(0, count($post_ids), '%d'));
+        $rows = $wpdb->get_results(
+            $wpdb->prepare(
+                "SELECT post_id, language_code, field_name, translation
+                 FROM {$wpdb->prefix}stm_post_translations
+                 WHERE post_id IN ($placeholders)
+                   AND field_name IN ('post_title','post_content')",
+                ...$post_ids
+            ),
+            ARRAY_A
+        );
+
+        foreach ($rows as $row) {
+            self::$list_cache[$row['post_id']][$row['language_code']][$row['field_name']] = $row['translation'];
+        }
+
+        return $posts;
+    }
+
+    /**
      * Add language column to post list
      */
     public static function add_language_column($columns) {
@@ -391,8 +431,17 @@ class PostEditor {
                     continue;
                 }
 
-                $translation = self::get_post_translation($post_id, $lang->code);
-                if (!empty($translation['post_title'])) {
+                // Use preloaded data when available (avoids N+1)
+                $has_title = isset(self::$list_cache[$post_id][$lang->code]['post_title'])
+                    && self::$list_cache[$post_id][$lang->code]['post_title'] !== '';
+
+                if (!$has_title && !isset(self::$list_cache[$post_id])) {
+                    // Fallback for when preload did not fire (e.g., direct page load)
+                    $t         = self::get_post_translation($post_id, $lang->code);
+                    $has_title = !empty($t['post_title']);
+                }
+
+                if ($has_title) {
                     echo esc_html($lang->flag_emoji) . ' ';
                     $has_translations = true;
                 }
