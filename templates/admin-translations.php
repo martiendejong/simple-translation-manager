@@ -8,11 +8,41 @@ if (!defined('ABSPATH')) exit;
 <div class="wrap">
     <h1>Translation Strings</h1>
 
+    <?php
+    // These flags are only ever read back from a redirect the actual form
+    // handlers issue after they have already verified their own nonce
+    // (see Admin::save_translation()/scan_strings()); displaying them here
+    // is read-only and causes no state change, so no nonce is required.
+    // phpcs:disable WordPress.Security.NonceVerification.Recommended
+    ?>
     <?php if (isset($_GET['updated'])): ?>
         <div class="notice notice-success is-dismissible">
             <p>Translation updated successfully.</p>
         </div>
     <?php endif; ?>
+
+    <?php if (isset($_GET['stm_scanned'])): ?>
+        <div class="notice notice-success is-dismissible">
+            <p>
+                Scan complete: <?php echo intval($_GET['stm_scan_found'] ?? 0); ?> strings found in the theme and plugin templates,
+                <?php echo intval($_GET['stm_scan_added'] ?? 0); ?> new strings added.
+            </p>
+        </div>
+    <?php endif; ?>
+
+    <?php if (($_GET['stm_error'] ?? '') === 'scan_failed'): ?>
+        <div class="notice notice-error is-dismissible">
+            <p>Scanning for strings failed. Check the server error log for details.</p>
+        </div>
+    <?php endif; ?>
+    <?php // phpcs:enable WordPress.Security.NonceVerification.Recommended ?>
+
+    <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" style="margin-bottom: 15px;">
+        <?php wp_nonce_field('stm_scan_strings'); ?>
+        <input type="hidden" name="action" value="stm_scan_strings">
+        <button type="submit" class="button">Scan theme &amp; plugin for strings</button>
+        <span class="description">Finds <code>__stm()</code> / <code>_e_stm()</code> calls in the active theme and adds any not already listed below.</span>
+    </form>
 
     <div class="tablenav top">
         <form method="get" action="" style="display: flex; gap: 10px; align-items: center;">
@@ -35,14 +65,21 @@ if (!defined('ABSPATH')) exit;
                 <?php endforeach; ?>
             </select>
 
+            <label>Status:</label>
+            <select name="status">
+                <option value="">All</option>
+                <option value="missing" <?php selected($status_filter, 'missing'); ?>>Missing translations</option>
+                <option value="complete" <?php selected($status_filter, 'complete'); ?>>Fully translated</option>
+            </select>
+
             <input type="submit" class="button" value="Filter">
 
-            <?php if (!empty($search) || !empty($context_filter)): ?>
-                <a href="<?php echo admin_url('admin.php?page=stm-translations'); ?>" class="button">Clear</a>
+            <?php if (!empty($search) || !empty($context_filter) || !empty($status_filter)): ?>
+                <a href="<?php echo esc_url(admin_url('admin.php?page=stm-translations')); ?>" class="button">Clear</a>
             <?php endif; ?>
 
             <span style="margin-left: auto;">
-                Showing <?php echo count($strings); ?> of <?php echo $total_items; ?> strings
+                Showing <?php echo absint(count($strings)); ?> of <?php echo absint($total_items); ?> strings
             </span>
         </form>
     </div>
@@ -61,8 +98,8 @@ if (!defined('ABSPATH')) exit;
         <tbody>
             <?php if (empty($strings)): ?>
                 <tr>
-                    <td colspan="<?php echo count($languages) + 3; ?>">
-                        No strings found. <a href="<?php echo admin_url('admin.php?page=stm-add-string'); ?>">Add first string</a>
+                    <td colspan="<?php echo absint(count($languages) + 3); ?>">
+                        No strings found. Use "Scan theme &amp; plugin for strings" above to auto-detect strings already used in your theme, or <a href="#add-string">add the first one manually</a> below.
                     </td>
                 </tr>
             <?php else: ?>
@@ -74,18 +111,33 @@ if (!defined('ABSPATH')) exit;
                         <?php foreach ($languages as $lang): ?>
                             <?php
                             $translation = $translations_map[$string->id][$lang->code] ?? null;
+                            $translation_value = $translation ? $translation->translation : '';
+                            $is_default_lang = ($lang->code === $default_lang_code);
+
+                            $default_translation_obj = $translations_map[$string->id][$default_lang_code] ?? null;
+                            $default_translation_value = $default_translation_obj ? $default_translation_obj->translation : null;
+
+                            $placeholder = STM\Admin::get_translation_placeholder($default_translation_value, $is_default_lang);
+
+                            // Only true when we're actually about to show the default
+                            // language's text in place of this cell's own (missing) translation.
+                            $placeholder_is_default = ($translation_value === '' && $placeholder !== 'Translation');
                             ?>
                             <td>
-                                <form method="post" action="<?php echo admin_url('admin-post.php'); ?>" style="margin:0;">
+                                <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" style="margin:0;">
                                     <?php wp_nonce_field('stm_save_translation'); ?>
                                     <input type="hidden" name="action" value="stm_save_translation">
-                                    <input type="hidden" name="string_id" value="<?php echo $string->id; ?>">
-                                    <input type="hidden" name="language_code" value="<?php echo $lang->code; ?>">
+                                    <input type="hidden" name="string_id" value="<?php echo absint($string->id); ?>">
+                                    <input type="hidden" name="language_code" value="<?php echo esc_attr($lang->code); ?>">
 
                                     <input type="text"
                                            name="translation"
-                                           value="<?php echo esc_attr($translation ? $translation->translation : ''); ?>"
-                                           placeholder="Translation"
+                                           value="<?php echo esc_attr($translation_value); ?>"
+                                           placeholder="<?php echo esc_attr($placeholder); ?>"
+                                           <?php if ($placeholder_is_default): ?>
+                                           class="stm-placeholder-is-default"
+                                           title="No translation yet for this language — showing the default language text so you know what visitors currently see."
+                                           <?php endif; ?>
                                            style="width: 100%;">
 
                                     <button type="submit" class="button button-small" style="margin-top: 2px;">Save</button>
@@ -100,8 +152,8 @@ if (!defined('ABSPATH')) exit;
                             $percentage = $total > 0 ? round(($translated / $total) * 100) : 0;
                             ?>
                             <span class="translation-progress">
-                                <?php echo $translated; ?>/<?php echo $total; ?>
-                                (<?php echo $percentage; ?>%)
+                                <?php echo absint($translated); ?>/<?php echo absint($total); ?>
+                                (<?php echo absint($percentage); ?>%)
                             </span>
                         </td>
                     </tr>
@@ -113,11 +165,12 @@ if (!defined('ABSPATH')) exit;
     <?php if ($total_pages > 1): ?>
         <div class="tablenav bottom">
             <div class="tablenav-pages">
-                <span class="displaying-num"><?php echo $total_items; ?> items</span>
+                <span class="displaying-num"><?php echo absint($total_items); ?> items</span>
                 <?php
                 $base_url = add_query_arg([
                     'page' => 'stm-translations',
                     'context' => $context_filter,
+                    'status' => $status_filter ?? '',
                     'search' => $search ?? '',
                 ], admin_url('admin.php'));
 
@@ -131,9 +184,9 @@ if (!defined('ABSPATH')) exit;
                 echo '<span class="paging-input">';
                 echo '<label for="current-page-selector" class="screen-reader-text">Current Page</label>';
                 echo '<input class="current-page" id="current-page-selector" type="text"
-                      name="paged" value="' . $current_page . '" size="' . strlen($total_pages) . '"
+                      name="paged" value="' . absint($current_page) . '" size="' . absint(strlen((string) $total_pages)) . '"
                       aria-describedby="table-paging" readonly>';
-                echo '<span class="tablenav-paging-text"> of <span class="total-pages">' . $total_pages . '</span></span>';
+                echo '<span class="tablenav-paging-text"> of <span class="total-pages">' . absint($total_pages) . '</span></span>';
                 echo '</span>';
 
                 // Last page
@@ -146,8 +199,8 @@ if (!defined('ABSPATH')) exit;
         </div>
     <?php endif; ?>
 
-    <h2 style="margin-top: 40px;">Add New String</h2>
-    <form method="post" action="<?php echo admin_url('admin-post.php'); ?>">
+    <h2 id="add-string" style="margin-top: 40px;">Add New String</h2>
+    <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
         <?php wp_nonce_field('stm_add_string'); ?>
         <input type="hidden" name="action" value="stm_add_string">
 
@@ -198,5 +251,8 @@ if (!defined('ABSPATH')) exit;
 .translation-progress {
     font-size: 12px;
     color: #666;
+}
+.stm-placeholder-is-default {
+    border-left: 3px solid #dba617;
 }
 </style>

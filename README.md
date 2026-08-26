@@ -9,6 +9,7 @@ Lightweight multilingual WordPress plugin with database storage, REST API, and b
 - ✅ **REST API** - Full API for programmatic translation management
 - ✅ **Admin Interface** - Search, pagination, inline editing
 - ✅ **Post Translations** - Support for translating CPT fields
+- ✅ **Elementor Integration** - Translate Elementor widget content (including templates/global widgets) per language, with an in-editor translation panel
 - ✅ **URL Routing** - Clean language URLs (`/en/`, `/nl/`)
 - ✅ **Fully Generic** - Works with any WordPress site
 

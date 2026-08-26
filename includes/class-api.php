@@ -109,6 +109,12 @@ class API {
             'permission_callback' => [__CLASS__, 'check_permissions'],
         ]);
 
+        register_rest_route($namespace, '/posts/(?P<id>\d+)/translations/(?P<lang>[a-zA-Z]{2,3})', [
+            'methods' => 'DELETE',
+            'callback' => [__CLASS__, 'delete_post_translation'],
+            'permission_callback' => [__CLASS__, 'check_edit_post_permission'],
+        ]);
+
         // Post slugs per language
         register_rest_route($namespace, '/posts/(?P<id>\d+)/slugs', [
             'methods' => 'GET',
@@ -179,6 +185,14 @@ class API {
     }
 
     /**
+     * Permission check for post-scoped translation writes (requires edit_post on {id})
+     */
+    public static function check_edit_post_permission($request) {
+        $post_id = intval($request['id']);
+        return current_user_can('edit_post', $post_id);
+    }
+
+    /**
      * GET /languages - List all languages
      */
     public static function get_languages($request) {
@@ -222,6 +236,7 @@ class API {
             }
 
             wp_cache_delete('stm_active_languages');
+            wp_cache_delete('stm_all_languages');
             // New language means new rewrite rules needed
             flush_rewrite_rules( false );
             return rest_ensure_response(['id' => $wpdb->insert_id, 'success' => true]);
@@ -243,9 +258,11 @@ class API {
         $table_strings = $wpdb->prefix . 'stm_strings';
         $table_translations = $wpdb->prefix . 'stm_translations';
 
-        $where = ['1=1'];
+        $where  = ['1=1'];
+        $params = [];
         if ($context) {
-            $where[] = $wpdb->prepare('s.context = %s', $context);
+            $where[]  = 's.context = %s';
+            $params[] = $context;
         }
 
         $where_sql = implode(' AND ', $where);
@@ -263,7 +280,8 @@ class API {
             ORDER BY s.context ASC, s.string_key ASC
         ";
 
-        $results = $wpdb->get_results($query);
+        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- $query (built above from %s placeholders in $where[] and their values in $params) is passed through $wpdb->prepare() with $params right here; the sniff can't trace a query built across multiple statements, but no raw value ever reaches the SQL string.
+        $results = $wpdb->get_results($wpdb->prepare($query, $params));
 
         // Parse translations
         foreach ($results as &$row) {
@@ -399,12 +417,15 @@ class API {
         $page      = max(1, intval($request->get_param('page') ?? 1));
         $offset    = ($page - 1) * $per_page;
 
-        $where = ['1=1'];
+        $where  = ['1=1'];
+        $params = [];
         if ($string_id) {
-            $where[] = $wpdb->prepare('t.string_id = %d', $string_id);
+            $where[]  = 't.string_id = %d';
+            $params[] = $string_id;
         }
         if ($lang) {
-            $where[] = $wpdb->prepare('t.language_code = %s', $lang);
+            $where[]  = 't.language_code = %s';
+            $params[] = $lang;
         }
 
         $where_sql = implode(' AND ', $where);
@@ -416,13 +437,13 @@ class API {
             WHERE {$where_sql}
             ORDER BY s.context ASC, s.string_key ASC, t.language_code ASC
             LIMIT %d OFFSET %d",
-            $per_page,
-            $offset
+            array_merge($params, [$per_page, $offset])
         ));
 
-        $total = $wpdb->get_var(
-            "SELECT COUNT(*) FROM {$wpdb->prefix}stm_translations t WHERE {$where_sql}"
-        );
+        $total = $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM {$wpdb->prefix}stm_translations t WHERE {$where_sql}",
+            $params
+        ));
 
         $response = rest_ensure_response($results);
         $response->header('X-WP-Total', $total);
@@ -548,6 +569,41 @@ class API {
         Cache::invalidate_post($post_id, $field);
 
         return rest_ensure_response(['success' => true]);
+    }
+
+    /**
+     * DELETE /posts/{id}/translations/{lang} - Remove a post's translation in one language
+     *
+     * Deletes every field (title/content/excerpt/slug) stored for this post+language.
+     */
+    public static function delete_post_translation($request) {
+        global $wpdb;
+
+        $post_id = intval($request['id']);
+        $language_code = sanitize_text_field($request['lang']);
+
+        if (!get_post($post_id)) {
+            return new \WP_Error('not_found', 'Post not found', ['status' => 404]);
+        }
+
+        if (!Security::validate_language_code($language_code)) {
+            return new \WP_Error('invalid_language', 'Invalid language code', ['status' => 400]);
+        }
+
+        $table = $wpdb->prefix . 'stm_post_translations';
+
+        $deleted = $wpdb->delete($table, [
+            'post_id'       => $post_id,
+            'language_code' => $language_code,
+        ]);
+
+        if ($deleted === false) {
+            return new \WP_Error('db_error', 'Failed to delete translation', ['status' => 500]);
+        }
+
+        Cache::invalidate_post($post_id);
+
+        return rest_ensure_response(['success' => true, 'deleted' => (int) $deleted]);
     }
 
     /**
@@ -934,22 +990,26 @@ class API {
         $table_strings = $wpdb->prefix . 'stm_strings';
         $table_translations = $wpdb->prefix . 'stm_translations';
 
-        $where = ['t.status = "published"'];
+        $where  = ['t.status = "published"'];
+        $params = [];
         if ($lang) {
-            $where[] = $wpdb->prepare('t.language_code = %s', $lang);
+            $where[]  = 't.language_code = %s';
+            $params[] = $lang;
         }
         if ($context) {
-            $where[] = $wpdb->prepare('s.context = %s', $context);
+            $where[]  = 's.context = %s';
+            $params[] = $context;
         }
 
         $where_sql = implode(' AND ', $where);
 
-        $results = $wpdb->get_results("
+        // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- $where_sql is assembled from %s placeholders in $where[] and their values in $params above; $wpdb->prepare() below resolves every placeholder before the query runs.
+        $results = $wpdb->get_results($wpdb->prepare("
             SELECT s.string_key, t.language_code, t.translation
             FROM {$table_translations} t
             INNER JOIN {$table_strings} s ON t.string_id = s.id
             WHERE {$where_sql}
-        ");
+        ", $params));
 
         $export = [];
         foreach ($results as $row) {

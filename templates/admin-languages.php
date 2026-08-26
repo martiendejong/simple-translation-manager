@@ -4,13 +4,18 @@
  */
 if (!defined('ABSPATH')) exit;
 
-$added   = isset($_GET['stm_added']);
-$deleted = isset($_GET['stm_deleted']);
-$error   = isset($_GET['stm_error']) ? sanitize_text_field($_GET['stm_error']) : '';
+$added       = isset($_GET['stm_added']);
+$reactivated = isset($_GET['stm_reactivated']);
+$deleted     = isset($_GET['stm_deleted']);
+$toggled     = isset($_GET['stm_toggled']);
+$error       = isset($_GET['stm_error']) ? sanitize_text_field($_GET['stm_error']) : '';
 $error_messages = [
-    'invalid_fields'          => 'Invalid language code or name.',
-    'db_error'                => 'Database error — language may already exist.',
-    'cannot_delete_default'   => 'Cannot delete the default language. Set another language as default first.',
+    'invalid_fields'              => 'Invalid language code or name.',
+    'db_error'                    => 'Database error — language may already exist.',
+    'already_active'              => 'That language code is already active — nothing to add.',
+    'cannot_delete_default'       => 'Cannot delete the default language. Set another language as default first.',
+    'cannot_deactivate_default'   => 'Cannot deactivate the default language. Set another language as default first.',
+    'not_found'                   => 'Language not found.',
 ];
 ?>
 
@@ -20,8 +25,14 @@ $error_messages = [
     <?php if ($added): ?>
         <div class="notice notice-success is-dismissible"><p>Language added.</p></div>
     <?php endif; ?>
+    <?php if ($reactivated): ?>
+        <div class="notice notice-success is-dismissible"><p>Language reactivated — it was already registered but inactive, so the existing entry (and its translations) was reactivated instead of adding a duplicate.</p></div>
+    <?php endif; ?>
     <?php if ($deleted): ?>
         <div class="notice notice-success is-dismissible"><p>Language deleted.</p></div>
+    <?php endif; ?>
+    <?php if ($toggled): ?>
+        <div class="notice notice-success is-dismissible"><p>Language status updated.</p></div>
     <?php endif; ?>
     <?php if ($error): ?>
         <div class="notice notice-error is-dismissible"><p><?php echo esc_html($error_messages[$error] ?? $error); ?></p></div>
@@ -48,34 +59,49 @@ $error_messages = [
                     <td><?php echo esc_html($lang->name); ?></td>
                     <td><?php echo esc_html($lang->native_name); ?></td>
                     <td><?php echo esc_html($lang->flag_emoji); ?></td>
-                    <td><?php echo $lang->is_default ? '<strong>✓ default</strong>' : ''; ?></td>
+                    <td>
+                        <?php echo wp_kses_post($lang->is_default ? '<strong>✓ default</strong>' : ''); ?>
+                    </td>
+
                     <td>
                         <button type="button"
                                 class="button button-small stm-lang-toggle-active"
                                 data-lang-id="<?php echo esc_attr($lang->id); ?>"
                                 data-is-active="<?php echo (int) $lang->is_active; ?>"
-                                <?php echo $lang->is_default ? 'disabled title="Default language is always active"' : ''; ?>>
-                            <?php echo $lang->is_active ? 'Active' : 'Inactive'; ?>
+                                <?php echo $lang->is_default
+                                    ? 'disabled title="' . esc_attr__('Default language is always active', 'stm') . '"'
+                                    : ''; ?>>
+                            <?php echo esc_html($lang->is_active ? 'Active' : 'Inactive'); ?>
                         </button>
                     </td>
+
                     <td>
-                        <button type="button" class="button button-small stm-lang-move"
+                        <button type="button"
+                                class="button button-small stm-lang-move"
                                 data-lang-id="<?php echo esc_attr($lang->id); ?>"
                                 data-direction="up"
                                 data-order="<?php echo esc_attr($lang->order_index); ?>"
-                                title="Move up">↑</button>
-                        <button type="button" class="button button-small stm-lang-move"
+                                title="<?php echo esc_attr__('Move up', 'stm'); ?>">
+                            ↑
+                        </button>
+
+                        <button type="button"
+                                class="button button-small stm-lang-move"
                                 data-lang-id="<?php echo esc_attr($lang->id); ?>"
                                 data-direction="down"
                                 data-order="<?php echo esc_attr($lang->order_index); ?>"
-                                title="Move down">↓</button>
+                                title="<?php echo esc_attr__('Move down', 'stm'); ?>">
+                            ↓
+                        </button>
+
                         <?php echo esc_html($lang->order_index); ?>
                     </td>
+
                     <td>
                         <button type="button"
                                 class="button button-small stm-lang-edit"
                                 data-lang-id="<?php echo esc_attr($lang->id); ?>">
-                            Edit
+                            <?php echo esc_html__('Edit', 'stm'); ?>
                         </button>
                         <?php if (!$lang->is_default): ?>
                             <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>"

@@ -30,6 +30,7 @@ class SeoGodIntegration {
         // Register STM in SEO God's multilingual detection
         add_filter( 'seo_god_detect_multilingual', [ __CLASS__, 'declare_stm' ] );
         add_filter( 'seo_god_active_languages',    [ __CLASS__, 'provide_languages' ] );
+        add_filter( 'seo_god_current_language',    [ __CLASS__, 'provide_current_language' ], 10, 2 );
     }
 
     // -------------------------------------------------------------------------
@@ -95,6 +96,21 @@ class SeoGodIntegration {
             },
             Database::get_languages()
         );
+    }
+
+    public static function provide_current_language( string $current, string $plugin = '' ): string {
+        // Only respond when SEO God has identified STM as the active provider
+        if ( $plugin !== 'stm' ) {
+            return $current;
+        }
+
+        $lang = self::current_lang();
+        if ( $lang === Settings::get_default_language() ) {
+            // Preserve the pre-hook fallback (e.g. get_locale()) on default-language pages
+            return $current;
+        }
+
+        return $lang;
     }
 
     // -------------------------------------------------------------------------

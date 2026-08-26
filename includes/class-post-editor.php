@@ -40,6 +40,9 @@ class PostEditor {
 
         // Enqueue assets
         add_action('admin_enqueue_scripts', [__CLASS__, 'enqueue_assets']);
+
+        // Gutenberg sidebar panel (block editor only)
+        add_action('enqueue_block_editor_assets', [__CLASS__, 'enqueue_gutenberg_assets']);
     }
 
     /**
@@ -66,7 +69,9 @@ class PostEditor {
     public static function render_meta_box($post) {
         wp_nonce_field('stm_save_translations', 'stm_translations_nonce');
 
-        $languages = Database::get_languages();
+        // All languages, active or not — an admin can prepare a new
+        // language's translations before it goes live on the front end.
+        $languages = Database::get_all_languages();
         $current_lang = self::get_post_language($post->ID);
         $translation_group = self::get_translation_group($post->ID);
 
@@ -77,10 +82,33 @@ class PostEditor {
                 continue; // Skip current language
             }
 
-            $translations[$lang->code] = self::get_post_translation($post->ID, $lang->code);
+            $translations[$lang->code] = self::apply_legacy_field_aliases(
+                self::get_post_translation($post->ID, $lang->code)
+            );
         }
 
         include STM_PLUGIN_DIR . 'templates/meta-box-translations.php';
+    }
+
+    /**
+     * Some external integrations (e.g. Bugatti Insights' sync API) write
+     * translation rows directly via STM\API::save_post_translations() using
+     * short field names ('title', 'content') instead of the post_title/
+     * post_content keys this metabox's own save handler uses. The rows are
+     * real and correct — only the metabox display was blind to them. Fill
+     * the post_title/post_content keys from their short-name equivalents
+     * when the metabox's own keys are absent, so already-stored translations
+     * show up instead of appearing blank.
+     */
+    private static function apply_legacy_field_aliases($translation) {
+        if (empty($translation['post_title']) && !empty($translation['title'])) {
+            $translation['post_title'] = $translation['title'];
+        }
+        if (empty($translation['post_content']) && !empty($translation['content'])) {
+            $translation['post_content'] = $translation['content'];
+        }
+
+        return $translation;
     }
 
     /**
@@ -111,13 +139,22 @@ class PostEditor {
         $post_id = isset($_GET['post']) ? (int) $_GET['post'] : 0;
         $current_lang = $post_id ? self::get_post_language($post_id) : Settings::get_default_language();
 
+        // A brand-new post already has a real (auto-draft) ID by the time this
+        // screen renders, it's just not in $_GET yet — use it so the preview
+        // cycler works from the very first edit, not only after the first save.
+        global $post;
+        $preview_post_id = $post_id ?: ($post ? $post->ID : 0);
+
         wp_localize_script('stm-post-editor', 'stmPostEditor', [
-            'ajaxUrl'     => admin_url('admin-ajax.php'),
-            'nonce'       => wp_create_nonce('stm_post_editor_nonce'),
-            'restUrl'     => esc_url_raw(rest_url('stm/v1/translate/auto')),
-            'restNonce'   => wp_create_nonce('wp_rest'),
-            'sourceLang'  => $current_lang,
-            'defaultLang' => Settings::get_default_language(),
+            'ajaxUrl'      => admin_url('admin-ajax.php'),
+            'nonce'        => wp_create_nonce('stm_post_editor_nonce'),
+            'restUrl'      => esc_url_raw(rest_url('stm/v1/translate/auto')),
+            'postsApiRoot' => esc_url_raw(rest_url('stm/v1/posts/')),
+            'restNonce'    => wp_create_nonce('wp_rest'),
+            'postId'       => $post_id,
+            'sourceLang'   => $current_lang,
+            'defaultLang'  => Settings::get_default_language(),
+            'previewLanguages' => self::build_preview_languages($preview_post_id),
             'i18n' => [
                 'translating'        => __('Translating…', 'simple-translation-manager'),
                 'translated'         => __('Translation complete', 'simple-translation-manager'),
@@ -125,6 +162,101 @@ class PostEditor {
                 'nothingToTranslate' => __('No source content to translate — fill in the post first.', 'simple-translation-manager'),
                 'overwriteConfirm'   => __('This tab already has translations. Overwrite them with auto-translated content?', 'simple-translation-manager'),
                 'saved'              => __('Translations saved', 'simple-translation-manager'),
+                'deleteConfirm'      => __('Delete this translation? This cannot be undone.', 'simple-translation-manager'),
+                'deleted'            => __('Translation deleted', 'simple-translation-manager'),
+                'deleteFailed'       => __('Failed to delete translation', 'simple-translation-manager'),
+            ],
+        ]);
+    }
+
+    /**
+     * Build the per-language list used by the "Preview in language" cycler.
+     *
+     * Each entry carries a ready-to-open front-end preview URL — WordPress'
+     * own get_preview_post_link() plus a `lang` query arg, so the same
+     * Frontend::get_current_language() GET-param lookup that already drives
+     * the live site renders that language's translated title/content.
+     */
+    public static function build_preview_languages($post_id) {
+        $languages = Database::get_all_languages();
+        $post = $post_id ? get_post($post_id) : null;
+
+        $preview_languages = [];
+        foreach ($languages as $lang) {
+            $preview_languages[] = [
+                'code'       => $lang->code,
+                'name'       => $lang->name,
+                'flag_emoji' => $lang->flag_emoji,
+                'previewUrl' => $post ? get_preview_post_link($post, ['lang' => $lang->code]) : '',
+            ];
+        }
+
+        return $preview_languages;
+    }
+
+    /**
+     * Enqueue the Gutenberg PluginDocumentSettingPanel script
+     */
+    public static function enqueue_gutenberg_assets() {
+        $screen = get_current_screen();
+        if (!$screen || !post_type_supports($screen->post_type, 'editor')) {
+            return;
+        }
+
+        $post_id = isset($_GET['post']) ? (int) $_GET['post'] : 0;
+        $current_lang = $post_id ? self::get_post_language($post_id) : Settings::get_default_language();
+        $languages = Database::get_all_languages();
+
+        global $post;
+        $preview_post_id = $post_id ?: ($post ? $post->ID : 0);
+        $preview_post = $preview_post_id ? get_post($preview_post_id) : null;
+
+        $panel_languages = [];
+        foreach ($languages as $lang) {
+            if ($lang->code === $current_lang) {
+                continue;
+            }
+
+            $t = $post_id ? self::get_post_translation($post_id, $lang->code) : [];
+            $has_title = !empty($t['post_title']);
+            $has_body  = !empty($t['post_content']);
+
+            if ($has_title && $has_body) {
+                $status = 'complete';
+            } elseif ($has_title || $has_body) {
+                $status = 'partial';
+            } else {
+                $status = 'empty';
+            }
+
+            $panel_languages[] = [
+                'code'       => $lang->code,
+                'name'       => $lang->name,
+                'flag_emoji' => $lang->flag_emoji,
+                'status'     => $status,
+                'previewUrl' => $preview_post ? get_preview_post_link($preview_post, ['lang' => $lang->code]) : '',
+            ];
+        }
+
+        wp_enqueue_script(
+            'stm-post-editor-gutenberg',
+            STM_PLUGIN_URL . 'assets/admin-post-editor-gutenberg.js',
+            ['wp-plugins', 'wp-editor', 'wp-edit-post', 'wp-element', 'wp-components', 'jquery'],
+            STM_VERSION,
+            true
+        );
+
+        wp_localize_script('stm-post-editor-gutenberg', 'stmGutenberg', [
+            'postId'    => $post_id,
+            'languages' => $panel_languages,
+            'i18n' => [
+                'title'    => __('Translations', 'simple-translation-manager'),
+                'complete' => __('Complete', 'simple-translation-manager'),
+                'partial'  => __('Partial', 'simple-translation-manager'),
+                'empty'    => __('Not translated', 'simple-translation-manager'),
+                'none'     => __('No other languages configured.', 'simple-translation-manager'),
+                'edit'     => __('Edit', 'simple-translation-manager'),
+                'preview'  => __('Preview', 'simple-translation-manager'),
             ],
         ]);
     }
@@ -134,7 +266,7 @@ class PostEditor {
      */
     public static function save_translations($post_id, $post) {
         // Security checks
-        if (!isset($_POST['stm_translations_nonce']) || !wp_verify_nonce($_POST['stm_translations_nonce'], 'stm_save_translations')) {
+        if (!isset($_POST['stm_translations_nonce']) || !wp_verify_nonce(wp_unslash($_POST['stm_translations_nonce']), 'stm_save_translations')) {
             return;
         }
 
@@ -153,7 +285,7 @@ class PostEditor {
         }
 
         // Save post language
-        $post_language = isset($_POST['stm_post_language']) ? sanitize_text_field($_POST['stm_post_language']) : Settings::get_default_language();
+        $post_language = isset($_POST['stm_post_language']) ? sanitize_text_field(wp_unslash($_POST['stm_post_language'])) : Settings::get_default_language();
         self::set_post_language($post_id, $post_language, $translation_group);
 
         // Save translations
@@ -161,7 +293,9 @@ class PostEditor {
             global $wpdb;
             $table = $wpdb->prefix . 'stm_post_translations';
 
-            foreach ($_POST['stm_translations'] as $lang_code => $fields) {
+            $translations = wp_unslash($_POST['stm_translations']);
+
+            foreach ($translations as $lang_code => $fields) {
                 if (!Security::validate_language_code($lang_code)) {
                     continue;
                 }
@@ -269,7 +403,7 @@ class PostEditor {
     public static function display_language_column($column, $post_id) {
         if ($column === 'stm_language') {
             $lang_code = self::get_post_language($post_id);
-            $languages = Database::get_languages();
+            $languages = Database::get_all_languages();
 
             foreach ($languages as $lang) {
                 if ($lang->code === $lang_code) {
@@ -282,7 +416,13 @@ class PostEditor {
         }
 
         if ($column === 'stm_translations') {
-            $languages    = Database::get_languages();
+            $translation_group = self::get_translation_group($post_id);
+            if (!$translation_group) {
+                echo '—';
+                return;
+            }
+
+            $languages = Database::get_all_languages();
             $current_lang = self::get_post_language($post_id);
             $has_translations = false;
 

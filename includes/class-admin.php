@@ -21,6 +21,7 @@ class Admin {
         add_action('admin_enqueue_scripts', [__CLASS__, 'enqueue_assets']);
         add_action('admin_post_stm_save_translation', [__CLASS__, 'save_translation']);
         add_action('admin_post_stm_add_string', [__CLASS__, 'add_string']);
+        add_action('admin_post_stm_scan_strings', [__CLASS__, 'scan_strings']);
         add_action('admin_post_stm_import_json', [__CLASS__, 'import_json']);
         add_action('admin_post_stm_add_language', [__CLASS__, 'add_language']);
         add_action('admin_post_stm_delete_language', [__CLASS__, 'delete_language']);
@@ -28,6 +29,7 @@ class Admin {
         add_action('admin_post_stm_remove_value_field', [__CLASS__, 'remove_value_field']);
         add_action('admin_post_stm_save_field_values', [__CLASS__, 'save_field_values']);
         add_action('admin_post_stm_autofill_field_values', [__CLASS__, 'autofill_field_values']);
+        add_action('admin_post_stm_toggle_language_active', [__CLASS__, 'toggle_language_active']);
         add_action('admin_post_stm_save_ai_settings', [__CLASS__, 'save_ai_settings']);
         add_action('admin_notices', [__CLASS__, 'show_translation_warnings']);
 
@@ -113,6 +115,16 @@ class Admin {
             'stm-settings',
             [__CLASS__, 'page_settings']
         );
+
+        // Submenu: Documentation
+        add_submenu_page(
+            'stm-translations',
+            'Documentation',
+            'Documentation',
+            'manage_options',
+            'stm-documentation',
+            [__CLASS__, 'page_documentation']
+        );
     }
 
     /**
@@ -181,19 +193,29 @@ class Admin {
     public static function page_translations() {
         global $wpdb;
 
-        // Get filter values
-        $lang_filter = $_GET['lang'] ?? '';
-        $context_filter = $_GET['context'] ?? '';
-        $status_filter = $_GET['status'] ?? '';
-        $search = $_GET['search'] ?? '';
+        // Get filter values. Read-only list filtering (no state change), so a
+        // nonce is not required here — see WordPress.Security.NonceVerification docs.
+        // phpcs:disable WordPress.Security.NonceVerification.Recommended
+        $lang_filter = wp_unslash($_GET['lang'] ?? '');
+        $context_filter = wp_unslash($_GET['context'] ?? '');
+        $status_filter = wp_unslash($_GET['status'] ?? '');
+        $search = wp_unslash($_GET['search'] ?? '');
 
         // Pagination
         $per_page = 50;
         $current_page = max(1, intval($_GET['paged'] ?? 1));
+        // phpcs:enable WordPress.Security.NonceVerification.Recommended
         $offset = ($current_page - 1) * $per_page;
 
         // Get languages
         $languages = Database::get_languages();
+        $total_languages = count($languages);
+
+        // The code of the default/fallback language, so the template can show
+        // its translation as a placeholder wherever another language's
+        // translation is still missing (see get_translation_placeholder()).
+        $default_language = Database::get_default_language();
+        $default_lang_code = $default_language ? $default_language->code : '';
 
         // Get strings with translation status
         $table_strings = $wpdb->prefix . 'stm_strings';
@@ -209,20 +231,40 @@ class Admin {
 
         $where_sql = implode(' AND ', $where);
 
-        // Get total count for pagination
-        $total_items = $wpdb->get_var("
-            SELECT COUNT(*) FROM {$table_strings} s WHERE {$where_sql}
-        ");
+        // 'missing'/'complete' filter on translated_count, which is only known once the
+        // per-string correlated subquery below has run — so it's applied as a HAVING
+        // clause against that subquery's alias, not folded into $where_sql.
+        $status_having = self::build_status_having($status_filter, $total_languages);
+
+        $translated_count_sql = "(SELECT COUNT(*) FROM {$table_translations} t
+                 WHERE t.string_id = s.id AND t.status = 'published') as translated_count";
+
+        // Get total count for pagination. When a status filter is active the plain
+        // COUNT(*) can't see translated_count, so wrap the same per-string query the
+        // results below use in a derived table and count that instead.
+        if ($status_having !== '') {
+            $total_items = $wpdb->get_var("
+                SELECT COUNT(*) FROM (
+                    SELECT s.id, {$translated_count_sql}
+                    FROM {$table_strings} s
+                    WHERE {$where_sql}
+                    {$status_having}
+                ) stm_filtered
+            ");
+        } else {
+            $total_items = $wpdb->get_var("
+                SELECT COUNT(*) FROM {$table_strings} s WHERE {$where_sql}
+            ");
+        }
 
         $total_pages = ceil($total_items / $per_page);
 
         // Get paginated results
         $strings = $wpdb->get_results("
-            SELECT s.*,
-                (SELECT COUNT(*) FROM {$table_translations} t
-                 WHERE t.string_id = s.id AND t.status = 'published') as translated_count
+            SELECT s.*, {$translated_count_sql}
             FROM {$table_strings} s
             WHERE {$where_sql}
+            {$status_having}
             ORDER BY s.context ASC, s.string_key ASC
             LIMIT {$per_page} OFFSET {$offset}
         ");
@@ -245,6 +287,56 @@ class Admin {
         }
 
         include STM_PLUGIN_DIR . 'templates/admin-translations.php';
+    }
+
+    /**
+     * Build the HAVING clause fragment for the Translation Strings screen's
+     * "missing translations" / "fully translated" status filter.
+     *
+     * translated_count comes from a correlated subquery on the string, not a real
+     * column, so it can only be filtered via HAVING once it's computed — this can't
+     * be folded into $where. Pure/static so the threshold logic is unit-testable
+     * without a live or fake $wpdb.
+     *
+     * @param string $status_filter    '' (all), 'missing', or 'complete'.
+     * @param int    $total_languages  Number of active languages a string can be translated into.
+     * @return string HAVING clause (including the "HAVING" keyword), or '' for no filter.
+     */
+    public static function build_status_having($status_filter, $total_languages) {
+        $total_languages = intval($total_languages);
+
+        if ($status_filter === 'missing') {
+            return "HAVING translated_count < {$total_languages}";
+        }
+
+        if ($status_filter === 'complete') {
+            return "HAVING translated_count >= {$total_languages}";
+        }
+
+        return '';
+    }
+
+    /**
+     * What placeholder text to show in a translation input on the Translation
+     * Strings screen.
+     *
+     * When a language has no translation yet, STM's runtime string lookup
+     * (see functions.php::__stm()) has nothing published for that language,
+     * so visitors effectively see whatever the default language's text is.
+     * Showing that same text as the input's placeholder lets whoever is
+     * managing translations see at a glance what the UI currently displays
+     * for that string, instead of a generic "type something here" hint.
+     *
+     * @param string|null $default_translation The default language's translation text for this string, or null/empty if it has none either.
+     * @param bool        $is_default_language  Whether this input IS the default language's own column (it has no "other" default to fall back to).
+     * @return string The placeholder text to render.
+     */
+    public static function get_translation_placeholder($default_translation, $is_default_language) {
+        if (!$is_default_language && $default_translation !== null && $default_translation !== '') {
+            return $default_translation;
+        }
+
+        return 'Translation';
     }
 
     /**
@@ -448,6 +540,13 @@ class Admin {
     }
 
     /**
+     * Page: Documentation
+     */
+    public static function page_documentation() {
+        include STM_PLUGIN_DIR . 'templates/admin-documentation.php';
+    }
+
+    /**
      * Show admin notices for untranslated content
      */
     public static function show_translation_warnings() {
@@ -551,7 +650,7 @@ class Admin {
      * Save translation (AJAX/POST handler)
      */
     public static function save_translation() {
-        if (!Security::verify_admin_action('stm_save_translation')) {
+        if (!check_admin_referer('stm_save_translation') || !current_user_can('manage_options')) {
             wp_die('Unauthorized', 403);
         }
 
@@ -559,8 +658,8 @@ class Admin {
 
         // Validate and sanitize inputs
         $string_id = intval($_POST['string_id']);
-        $language_code = sanitize_text_field($_POST['language_code']);
-        $translation = Security::sanitize_translation($_POST['translation']);
+        $language_code = sanitize_text_field(wp_unslash($_POST['language_code']));
+        $translation = Security::sanitize_translation(wp_unslash($_POST['translation']));
 
         if (!Security::validate_language_code($language_code)) {
             wp_die('Invalid language code', 400);
@@ -605,7 +704,7 @@ class Admin {
                 Cache::invalidate_string($string->string_key, $string->context);
             }
 
-            wp_redirect(add_query_arg('updated', '1', wp_get_referer()));
+            wp_safe_redirect(add_query_arg('updated', '1', wp_get_referer()));
             exit;
         } catch (\Exception $e) {
             Security::log('Error saving translation: ' . $e->getMessage(), 'error');
@@ -617,16 +716,16 @@ class Admin {
      * Add new string
      */
     public static function add_string() {
-        if (!Security::verify_admin_action('stm_add_string')) {
+        if (!check_admin_referer('stm_add_string') || !current_user_can('manage_options')) {
             wp_die('Unauthorized', 403);
         }
 
         global $wpdb;
 
         // Validate and sanitize inputs
-        $string_key = Security::sanitize_translation_key($_POST['string_key']);
-        $context = Security::sanitize_context($_POST['context'] ?? 'general');
-        $description = sanitize_textarea_field($_POST['description'] ?? '');
+        $string_key = Security::sanitize_translation_key(wp_unslash($_POST['string_key']));
+        $context = Security::sanitize_context(wp_unslash($_POST['context'] ?? 'general'));
+        $description = sanitize_textarea_field(wp_unslash($_POST['description'] ?? ''));
 
         if (!Security::validate_translation_key($string_key)) {
             wp_die('Invalid translation key format', 400);
@@ -651,7 +750,7 @@ class Admin {
                 throw new \Exception('Database operation failed');
             }
 
-            wp_redirect(add_query_arg('added', '1', wp_get_referer()));
+            wp_safe_redirect(add_query_arg('added', '1', wp_get_referer()));
             exit;
         } catch (\Exception $e) {
             Security::log('Error adding string: ' . $e->getMessage(), 'error');
@@ -660,24 +759,49 @@ class Admin {
     }
 
     /**
+     * Scan the active theme and plugin templates for translatable strings
+     * (admin form handler)
+     */
+    public static function scan_strings() {
+        if (!check_admin_referer('stm_scan_strings') || !current_user_can('manage_options')) {
+            wp_die('Unauthorized', 403);
+        }
+
+        try {
+            $result = StringScanner::scan_and_register();
+
+            wp_safe_redirect(add_query_arg([
+                'stm_scanned' => '1',
+                'stm_scan_found' => $result['unique_found'],
+                'stm_scan_added' => $result['added'],
+            ], wp_get_referer()));
+            exit;
+        } catch (\Exception $e) {
+            Security::log('Error scanning for strings: ' . $e->getMessage(), 'error');
+            wp_safe_redirect(add_query_arg('stm_error', 'scan_failed', wp_get_referer()));
+            exit;
+        }
+    }
+
+    /**
      * Import JSON file (admin form handler)
      */
     public static function import_json() {
-        if (!Security::verify_admin_action('stm_import_json')) {
+        if (!check_admin_referer('stm_import_json') || !current_user_can('manage_options')) {
             wp_die('Unauthorized', 403);
         }
 
         if (empty($_FILES['stm_import_file']['tmp_name'])) {
-            wp_redirect(add_query_arg('stm_error', 'no_file', wp_get_referer()));
+            wp_safe_redirect(add_query_arg('stm_error', 'no_file', wp_get_referer()));
             exit;
         }
 
         $file = $_FILES['stm_import_file'];
 
         // Only allow JSON files
-        $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+        $ext = strtolower(pathinfo(sanitize_file_name($file['name']), PATHINFO_EXTENSION));
         if ($ext !== 'json') {
-            wp_redirect(add_query_arg('stm_error', 'invalid_type', wp_get_referer()));
+            wp_safe_redirect(add_query_arg('stm_error', 'invalid_type', wp_get_referer()));
             exit;
         }
 
@@ -685,18 +809,18 @@ class Admin {
         $data = json_decode($json, true);
 
         if (!is_array($data)) {
-            wp_redirect(add_query_arg('stm_error', 'invalid_json', wp_get_referer()));
+            wp_safe_redirect(add_query_arg('stm_error', 'invalid_json', wp_get_referer()));
             exit;
         }
 
         $result = API::process_import($data);
 
         if (isset($result['error'])) {
-            wp_redirect(add_query_arg('stm_error', urlencode($result['error']), wp_get_referer()));
+            wp_safe_redirect(add_query_arg('stm_error', urlencode($result['error']), wp_get_referer()));
             exit;
         }
 
-        wp_redirect(add_query_arg([
+        wp_safe_redirect(add_query_arg([
             'imported' => $result['created'] + $result['updated'],
             'stm_errors' => count($result['errors']),
         ], wp_get_referer()));
@@ -705,44 +829,72 @@ class Admin {
 
     /**
      * Add language (admin form handler)
+     *
+     * `code` has a UNIQUE KEY (class-database.php), so re-adding a code that
+     * already exists — most commonly one an admin previously deactivated —
+     * must reactivate that row instead of attempting (and failing) a raw
+     * insert. Only a genuinely new code inserts a new row.
      */
     public static function add_language() {
-        if (!Security::verify_admin_action('stm_add_language')) {
+        if (!check_admin_referer('stm_add_language') || !current_user_can('manage_options')) {
             wp_die('Unauthorized', 403);
         }
 
         global $wpdb;
+        $table = $wpdb->prefix . 'stm_languages';
 
-        $code        = sanitize_text_field($_POST['lang_code'] ?? '');
-        $name        = sanitize_text_field($_POST['lang_name'] ?? '');
-        $native_name = sanitize_text_field($_POST['lang_native'] ?? $name);
-        $flag        = sanitize_text_field($_POST['lang_flag'] ?? '');
+        $code        = sanitize_text_field(wp_unslash($_POST['lang_code'] ?? ''));
+        $name        = sanitize_text_field(wp_unslash($_POST['lang_name'] ?? ''));
+        $native_name = sanitize_text_field(wp_unslash($_POST['lang_native'] ?? $name));
+        $flag        = sanitize_text_field(wp_unslash($_POST['lang_flag'] ?? ''));
         $is_default  = isset($_POST['lang_default']) ? 1 : 0;
 
         if (!Security::validate_language_code($code) || empty($name)) {
-            wp_redirect(add_query_arg('stm_error', 'invalid_fields', wp_get_referer()));
+            wp_safe_redirect(add_query_arg('stm_error', 'invalid_fields', wp_get_referer()));
+            exit;
+        }
+
+        $code = strtolower($code);
+
+        $existing = $wpdb->get_row($wpdb->prepare(
+            "SELECT id, is_active FROM {$table} WHERE code = %s",
+            $code
+        ));
+
+        if ($existing && $existing->is_active) {
+            wp_safe_redirect(add_query_arg('stm_error', 'already_active', wp_get_referer()));
             exit;
         }
 
         if ($is_default) {
-            $wpdb->update($wpdb->prefix . 'stm_languages', ['is_default' => 0], ['is_default' => 1]);
+            $wpdb->update($table, ['is_default' => 0], ['is_default' => 1]);
         }
 
-        $result = $wpdb->insert($wpdb->prefix . 'stm_languages', [
-            'code'        => strtolower($code),
+        $fields = [
             'name'        => $name,
             'native_name' => $native_name,
             'flag_emoji'  => $flag,
             'is_default'  => $is_default,
             'is_active'   => 1,
             'order_index' => intval($_POST['lang_order'] ?? 99),
-        ]);
+        ];
+
+        if ($existing) {
+            // Reactivate the existing inactive row — never delete/reinsert, so any
+            // translations already tied to this language code are left untouched.
+            $result = $wpdb->update($table, $fields, ['id' => $existing->id]);
+            $success_arg = 'stm_reactivated';
+        } else {
+            $result = $wpdb->insert($table, $fields + ['code' => $code]);
+            $success_arg = 'stm_added';
+        }
 
         wp_cache_delete('stm_active_languages');
+        wp_cache_delete('stm_all_languages');
         wp_cache_delete('stm_default_language');
 
-        wp_redirect(add_query_arg(
-            $result === false ? 'stm_error' : 'stm_added',
+        wp_safe_redirect(add_query_arg(
+            $result === false ? 'stm_error' : $success_arg,
             $result === false ? 'db_error'  : '1',
             wp_get_referer()
         ));
@@ -753,11 +905,11 @@ class Admin {
      * Delete language (admin form handler)
      */
     public static function delete_language() {
-        if (!Security::verify_admin_action('stm_delete_language')) {
+        if (!check_admin_referer('stm_delete_language') || !current_user_can('manage_options')) {
             wp_die('Unauthorized', 403);
         }
 
-        $code = sanitize_text_field($_POST['lang_code'] ?? '');
+        $code = sanitize_text_field(wp_unslash($_POST['lang_code'] ?? ''));
 
         if (!Security::validate_language_code($code)) {
             wp_die('Invalid language code', 400);
@@ -772,15 +924,62 @@ class Admin {
         ));
 
         if ($is_default) {
-            wp_redirect(add_query_arg('stm_error', 'cannot_delete_default', wp_get_referer()));
+            wp_safe_redirect(add_query_arg('stm_error', 'cannot_delete_default', wp_get_referer()));
             exit;
         }
 
         $wpdb->delete($wpdb->prefix . 'stm_languages', ['code' => $code]);
 
         wp_cache_delete('stm_active_languages');
+        wp_cache_delete('stm_all_languages');
 
-        wp_redirect(add_query_arg('stm_deleted', '1', wp_get_referer()));
+        wp_safe_redirect(add_query_arg('stm_deleted', '1', wp_get_referer()));
+        exit;
+    }
+
+    /**
+     * Toggle a language between active and inactive (admin form handler).
+     *
+     * Inactive languages stay invisible on the front end (switcher, URLs,
+     * hreflang) but remain fully editable/previewable in the post editor, so
+     * admins can prepare a language before switching it live.
+     */
+    public static function toggle_language_active() {
+        if (!check_admin_referer('stm_toggle_language_active') || !current_user_can('manage_options')) {
+            wp_die('Unauthorized', 403);
+        }
+
+        $code = sanitize_text_field(wp_unslash($_POST['lang_code'] ?? ''));
+
+        if (!Security::validate_language_code($code)) {
+            wp_die('Invalid language code', 400);
+        }
+
+        global $wpdb;
+        $table = $wpdb->prefix . 'stm_languages';
+
+        $lang = $wpdb->get_row($wpdb->prepare(
+            "SELECT is_active, is_default FROM {$table} WHERE code = %s",
+            $code
+        ));
+
+        $redirect_arg = 'stm_toggled';
+        $redirect_val = '1';
+
+        if (!$lang) {
+            $redirect_arg = 'stm_error';
+            $redirect_val = 'not_found';
+        } elseif ($lang->is_default && $lang->is_active) {
+            // The default language always needs to be reachable on the front end.
+            $redirect_arg = 'stm_error';
+            $redirect_val = 'cannot_deactivate_default';
+        } else {
+            $wpdb->update($table, ['is_active' => $lang->is_active ? 0 : 1], ['code' => $code]);
+            wp_cache_delete('stm_active_languages');
+            wp_cache_delete('stm_all_languages');
+        }
+
+        wp_safe_redirect(add_query_arg($redirect_arg, $redirect_val, wp_get_referer()));
         exit;
     }
 
@@ -841,13 +1040,13 @@ class Admin {
      * Save AI/auto-translate settings
      */
     public static function save_ai_settings() {
-        if (!Security::verify_admin_action('stm_ai_settings')) {
+        if (!check_admin_referer('stm_ai_settings') || !current_user_can('manage_options')) {
             wp_die('Unauthorized', 403);
         }
 
-        $provider   = sanitize_text_field($_POST['ai_provider'] ?? 'openai');
-        $openai_key = sanitize_text_field($_POST['openai_key'] ?? '');
-        $deepl_key  = sanitize_text_field($_POST['deepl_key'] ?? '');
+        $provider   = sanitize_text_field(wp_unslash($_POST['ai_provider'] ?? 'openai'));
+        $openai_key = sanitize_text_field(wp_unslash($_POST['openai_key'] ?? ''));
+        $deepl_key  = sanitize_text_field(wp_unslash($_POST['deepl_key'] ?? ''));
 
         AutoTranslate::save_settings($provider, $openai_key ?: null, $deepl_key ?: null, [
             'openai_model'           => sanitize_text_field($_POST['openai_model'] ?? ''),
@@ -855,7 +1054,7 @@ class Admin {
             'openai_prompt_template' => sanitize_textarea_field($_POST['openai_prompt_template'] ?? ''),
         ]);
 
-        wp_redirect(add_query_arg('stm_saved', '1', wp_get_referer()));
+        wp_safe_redirect(add_query_arg('stm_saved', '1', wp_get_referer()));
         exit;
     }
 }

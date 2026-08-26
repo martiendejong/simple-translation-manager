@@ -235,14 +235,23 @@ class Database {
     }
 
     /**
-     * Get all languages including inactive (for admin UI)
+     * Get every language ever added, active or not (admin Languages screen only)
      */
     public static function get_all_languages() {
         global $wpdb;
         $table = $wpdb->prefix . 'stm_languages';
-        return $wpdb->get_results(
-            "SELECT * FROM {$table} ORDER BY order_index ASC, id ASC"
-        );
+
+        $cache_key = 'stm_all_languages';
+        $languages = wp_cache_get($cache_key);
+
+        if (false === $languages) {
+            $languages = $wpdb->get_results(
+                "SELECT * FROM {$table} ORDER BY order_index ASC, id ASC"
+            );
+            wp_cache_set($cache_key, $languages, '', 3600);
+        }
+
+        return $languages;
     }
 
     /**

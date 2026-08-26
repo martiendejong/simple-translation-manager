@@ -34,10 +34,11 @@ class Dashboard {
      */
     public static function render_page() {
         if (!Security::can_manage_translations()) {
-            wp_die(__('Insufficient permissions.', 'simple-translation-manager'));
+            wp_die(esc_html__('Insufficient permissions.', 'simple-translation-manager'));
         }
 
-        $active_tab = sanitize_key($_GET['tab'] ?? 'overview');
+        // Read-only tab selection (no state change), so a nonce is not required here.
+        $active_tab = sanitize_key(wp_unslash($_GET['tab'] ?? 'overview')); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
         $allowed_tabs = ['overview', 'missing', 'recent'];
         if (!in_array($active_tab, $allowed_tabs, true)) {
             $active_tab = 'overview';
@@ -56,14 +57,17 @@ class Dashboard {
         if ($active_tab === 'overview') {
             $data['coverage'] = self::get_coverage_stats();
         } elseif ($active_tab === 'missing') {
+            // Read-only list filtering (no state change), so a nonce is not required here.
+            // phpcs:disable WordPress.Security.NonceVerification.Recommended
             $filters = [
-                'language'  => sanitize_text_field($_GET['flang'] ?? ''),
-                'post_type' => sanitize_text_field($_GET['fptype'] ?? ''),
-                'date_from' => sanitize_text_field($_GET['fdate_from'] ?? ''),
-                'date_to'   => sanitize_text_field($_GET['fdate_to'] ?? ''),
+                'language'  => sanitize_text_field(wp_unslash($_GET['flang'] ?? '')),
+                'post_type' => sanitize_text_field(wp_unslash($_GET['fptype'] ?? '')),
+                'date_from' => sanitize_text_field(wp_unslash($_GET['fdate_from'] ?? '')),
+                'date_to'   => sanitize_text_field(wp_unslash($_GET['fdate_to'] ?? '')),
                 'paged'     => max(1, intval($_GET['paged'] ?? 1)),
                 'per_page'  => 50,
             ];
+            // phpcs:enable WordPress.Security.NonceVerification.Recommended
             $data['filters']  = $filters;
             $data['missing']  = self::get_missing_translations($filters);
         } elseif ($active_tab === 'recent') {
@@ -110,7 +114,7 @@ class Dashboard {
             $total_posts = (int) $wpdb->get_var($wpdb->prepare(
                 "SELECT COUNT(*) FROM {$wpdb->posts}
                  WHERE post_status = 'publish' AND post_type IN ({$placeholders})",
-                ...$post_types
+                $post_types
             ));
         }
 
@@ -135,8 +139,7 @@ class Dashboard {
                        AND pt.field_name = 'title'
                        AND p.post_status = 'publish'
                        AND p.post_type IN ({$placeholders})",
-                    $lang->code,
-                    ...$post_types
+                    array_merge([$lang->code], $post_types)
                 ));
             }
 
@@ -149,8 +152,7 @@ class Dashboard {
                        AND pt.field_name = 'content'
                        AND p.post_status = 'publish'
                        AND p.post_type IN ({$placeholders})",
-                    $lang->code,
-                    ...$post_types
+                    array_merge([$lang->code], $post_types)
                 ));
             }
 
@@ -265,7 +267,8 @@ class Dashboard {
             // Add lang param for both EXISTS subquery and the outer NOT EXISTS
             $args_full = array_merge($args, [$lang->code]);
 
-            $results = $wpdb->get_results($wpdb->prepare($sql, ...$args_full));
+            // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- $sql (built above) uses array_fill()+implode() for its dynamic-length IN clause and %s/%d placeholders elsewhere; $args_full supplies the matching values and $wpdb->prepare() resolves them all right here.
+            $results = $wpdb->get_results($wpdb->prepare($sql, $args_full));
 
             foreach ($results as $row) {
                 $rows[] = [
@@ -353,8 +356,8 @@ class Dashboard {
         global $wpdb;
 
         $post_id       = intval($_POST['post_id'] ?? 0);
-        $language_code = sanitize_text_field($_POST['language_code'] ?? '');
-        $field_name    = sanitize_key($_POST['field_name'] ?? 'title');
+        $language_code = sanitize_text_field(wp_unslash($_POST['language_code'] ?? ''));
+        $field_name    = sanitize_key(wp_unslash($_POST['field_name'] ?? 'title'));
         $translation   = wp_kses_post(wp_unslash($_POST['translation'] ?? ''));
 
         if ($post_id <= 0 || !Security::validate_language_code($language_code)) {
@@ -420,20 +423,33 @@ class Dashboard {
      * Export coverage summary as CSV.
      */
     public static function export_coverage_csv() {
-        if (!Security::verify_admin_action('stm_export_coverage_csv')) {
-            wp_die(__('Unauthorized', 'simple-translation-manager'), 403);
+        if (!check_admin_referer('stm_export_coverage_csv') || !current_user_can('manage_options')) {
+            wp_die(esc_html__('Unauthorized', 'simple-translation-manager'), 403);
         }
 
         $stats = self::get_coverage_stats(false);
 
-        self::stream_csv_headers('stm-coverage-' . date('Y-m-d') . '.csv');
-        $out = fopen('php://output', 'w');
+        self::stream_csv_headers('stm-coverage-' . gmdate('Y-m-d') . '.csv');
+        // @codeCoverageIgnoreStart
+        // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- CSV file content, not HTML; esc_html() would corrupt commas/quotes in the exported data.
+        echo self::build_coverage_csv_export($stats);
+        exit;
+        // @codeCoverageIgnoreEnd
+    }
 
-        fputcsv($out, ['Language Code', 'Language', 'Field', 'Translated', 'Total', 'Percent']);
+    /**
+     * Build the coverage-summary CSV content for export_coverage_csv().
+     *
+     * Kept separate (and side-effect free) so it can be unit tested directly —
+     * the request handler above is the only place that needs to send headers
+     * and terminate the request.
+     */
+    public static function build_coverage_csv_export(array $stats) {
+        $csv = self::csv_row(['Language Code', 'Language', 'Field', 'Translated', 'Total', 'Percent']);
 
         foreach ($stats['by_language'] as $row) {
             foreach (['title', 'content', 'strings'] as $field) {
-                fputcsv($out, [
+                $csv .= self::csv_row([
                     $row['code'],
                     $row['name'],
                     $field,
@@ -444,33 +460,45 @@ class Dashboard {
             }
         }
 
-        fclose($out);
-        exit;
+        return $csv;
     }
 
     /**
      * Export missing translations as CSV (source text included for translation agencies).
      */
     public static function export_missing_csv() {
-        if (!Security::verify_admin_action('stm_export_missing_csv')) {
-            wp_die(__('Unauthorized', 'simple-translation-manager'), 403);
+        if (!check_admin_referer('stm_export_missing_csv') || !current_user_can('manage_options')) {
+            wp_die(esc_html__('Unauthorized', 'simple-translation-manager'), 403);
         }
 
         $filters = [
-            'language'  => sanitize_text_field($_GET['flang'] ?? ''),
-            'post_type' => sanitize_text_field($_GET['fptype'] ?? ''),
-            'date_from' => sanitize_text_field($_GET['fdate_from'] ?? ''),
-            'date_to'   => sanitize_text_field($_GET['fdate_to'] ?? ''),
+            'language'  => sanitize_text_field(wp_unslash($_GET['flang'] ?? '')),
+            'post_type' => sanitize_text_field(wp_unslash($_GET['fptype'] ?? '')),
+            'date_from' => sanitize_text_field(wp_unslash($_GET['fdate_from'] ?? '')),
+            'date_to'   => sanitize_text_field(wp_unslash($_GET['fdate_to'] ?? '')),
             'paged'     => 1,
             'per_page'  => 100000,
         ];
 
         $result = self::get_missing_translations($filters);
 
-        self::stream_csv_headers('stm-missing-' . date('Y-m-d') . '.csv');
-        $out = fopen('php://output', 'w');
+        self::stream_csv_headers('stm-missing-' . gmdate('Y-m-d') . '.csv');
+        // @codeCoverageIgnoreStart
+        // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- CSV file content, not HTML; esc_html() would corrupt commas/quotes in the exported data.
+        echo self::build_missing_csv_export($result['rows']);
+        exit;
+        // @codeCoverageIgnoreEnd
+    }
 
-        fputcsv($out, [
+    /**
+     * Build the missing-translations CSV content for export_missing_csv().
+     *
+     * Kept separate (and side-effect free) so it can be unit tested directly —
+     * the request handler above is the only place that needs to send headers
+     * and terminate the request.
+     */
+    public static function build_missing_csv_export(array $rows) {
+        $csv = self::csv_row([
             'Post ID',
             'Post Type',
             'Target Language',
@@ -484,13 +512,13 @@ class Dashboard {
             'Translated Excerpt',
         ]);
 
-        foreach ($result['rows'] as $row) {
+        foreach ($rows as $row) {
             $post = get_post($row['post_id']);
             if (!$post) {
                 continue;
             }
 
-            fputcsv($out, [
+            $csv .= self::csv_row([
                 $row['post_id'],
                 $row['post_type'],
                 $row['language_code'],
@@ -505,8 +533,7 @@ class Dashboard {
             ]);
         }
 
-        fclose($out);
-        exit;
+        return $csv;
     }
 
     /**
@@ -545,5 +572,23 @@ class Dashboard {
         header('Content-Disposition: attachment; filename="' . $filename . '"');
         // UTF-8 BOM for Excel compatibility
         echo "\xEF\xBB\xBF";
+    }
+
+    /**
+     * Format one CSV row (RFC 4180 quoting), no filesystem handle involved —
+     * export handlers echo the result straight to the response body, since
+     * WP_Filesystem operates on real file paths and there is no real file
+     * here (the destination is the HTTP response, not disk).
+     */
+    private static function csv_row(array $fields) {
+        $escaped = array_map(static function ($field) {
+            $field = (string) $field;
+            if (preg_match('/[",\r\n]/', $field)) {
+                $field = '"' . str_replace('"', '""', $field) . '"';
+            }
+            return $field;
+        }, $fields);
+
+        return implode(',', $escaped) . "\r\n";
     }
 }

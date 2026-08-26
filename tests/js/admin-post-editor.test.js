@@ -1,0 +1,383 @@
+/**
+ * Jest unit tests for assets/admin-post-editor.js — translation tab
+ * switching (with TinyMCE lazy init/destroy per tab) and the delete-
+ * translation button flow.
+ */
+
+const path = require('path');
+
+const SCRIPT_PATH = path.join(__dirname, '..', '..', 'assets', 'admin-post-editor.js');
+
+function buildDom() {
+    document.body.innerHTML = `
+        <form id="post">
+            <input id="title" value="Hello">
+            <textarea id="excerpt"></textarea>
+            <textarea id="content">Hello world</textarea>
+
+            <div class="stm-post-translations" data-current-lang="nl">
+                <div class="stm-save-toast" role="status" aria-live="polite" hidden>
+                    <span class="stm-save-toast-icon"></span>
+                    <span class="stm-save-toast-text">Translations saved</span>
+                </div>
+
+                <div class="stm-language-preview-cycler" data-post-id="42">
+                    <span class="stm-preview-cycler-label">Preview in language:</span>
+                    <button type="button" class="button stm-preview-prev" aria-label="Previous language">&lsaquo;</button>
+                    <span class="stm-preview-current" aria-live="polite"></span>
+                    <button type="button" class="button stm-preview-next" aria-label="Next language">&rsaquo;</button>
+                    <a href="#" target="_blank" rel="noopener noreferrer" class="button button-primary stm-preview-open is-disabled" aria-disabled="true">View preview</a>
+                    <span class="stm-preview-unsaved-note" hidden>Save this post to preview it live.</span>
+                </div>
+
+                <div class="stm-tabs" role="tablist">
+                    <button type="button" class="stm-tab-button active stm-tab-empty" role="tab"
+                            aria-controls="stm-tab-panel-nl" data-lang="nl">Dutch</button>
+                    <button type="button" class="stm-tab-button stm-tab-empty" role="tab"
+                            aria-controls="stm-tab-panel-fr" data-lang="fr">French</button>
+                </div>
+
+                <div class="stm-tab-content active" id="stm-tab-panel-nl" data-lang="nl">
+                    <button type="button" class="button stm-delete-translation-btn" data-lang="nl" data-post-id="42"></button>
+                    <span class="stm-delete-translation-status"></span>
+                    <input id="stm_title_nl" class="stm-translation-field" data-field="post_title" value="Titel">
+                    <textarea id="stm_content_nl" class="stm-editor-area stm-translation-field" data-field="post_content">Inhoud</textarea>
+                </div>
+
+                <div class="stm-tab-content" id="stm-tab-panel-fr" data-lang="fr">
+                    <div class="stm-tab-toolbar stm-auto-translate-bar">
+                        <button type="button" class="button stm-auto-translate-btn" data-lang="fr" data-source-lang="nl" data-post-id="42">Auto-translate to French</button>
+                        <span class="stm-auto-translate-status" aria-live="polite"></span>
+                    </div>
+                    <button type="button" class="button stm-delete-translation-btn" data-lang="fr" data-post-id="42"></button>
+                    <span class="stm-delete-translation-status"></span>
+                    <input id="stm_title_fr" class="stm-translation-field" data-field="post_title" value="">
+                    <textarea id="stm_content_fr" class="stm-editor-area stm-translation-field" data-field="post_content"></textarea>
+                </div>
+            </div>
+        </form>
+    `;
+}
+
+function fakeJqXHR({ fail = false, response = {} } = {}) {
+    const xhr = {
+        done(cb) { if (!fail) cb(response); return xhr; },
+        fail(cb) { if (fail) cb(response); return xhr; },
+        always(cb) { cb(response); return xhr; },
+    };
+    return xhr;
+}
+
+// Auto-translate fires one REST call per non-empty source field (post_title,
+// post_content in the test DOM). Route each call to a canned response by the
+// `context` field name sent in the request body, so each field can fail (or
+// succeed) independently.
+function mockAutoTranslateAjax(responsesByField) {
+    return jest.spyOn(global.$, 'ajax').mockImplementation((opts) => {
+        const body = JSON.parse(opts.data);
+        const cfg = responsesByField[body.context] || { response: { success: true, translation: '' } };
+        return fakeJqXHR(cfg);
+    });
+}
+
+function loadScript() {
+    jest.resetModules();
+    require(SCRIPT_PATH);
+    // jQuery defers an already-"complete" document's ready callbacks via
+    // window.setTimeout(jQuery.ready) — flush it under fake timers.
+    jest.runAllTimers();
+}
+
+describe('admin-post-editor.js', () => {
+    let tinymceEditors;
+
+    beforeEach(() => {
+        jest.useFakeTimers();
+        buildDom();
+
+        const $ = require('jquery');
+        global.$ = $;
+        global.jQuery = $;
+        window.$ = $;
+        window.jQuery = $;
+
+        tinymceEditors = {};
+        global.tinymce = {
+            get: (id) => tinymceEditors[id] || null,
+        };
+        window.tinymce = global.tinymce;
+
+        global.wp = {
+            editor: {
+                initialize: jest.fn((editorId) => {
+                    tinymceEditors[editorId] = {
+                        getContent: jest.fn(() => document.getElementById(editorId).value),
+                        setContent: jest.fn((val) => { document.getElementById(editorId).value = val; }),
+                        save: jest.fn(),
+                    };
+                }),
+                remove: jest.fn((editorId) => {
+                    delete tinymceEditors[editorId];
+                }),
+            },
+        };
+        window.wp = global.wp;
+
+        window.stmPostEditor = {
+            postId: 42,
+            postsApiRoot: 'https://example.test/wp-json/stm/v1/posts/',
+            restUrl: 'https://example.test/wp-json/stm/v1/translate/auto',
+            restNonce: 'nonce-123',
+            previewLanguages: [
+                { code: 'nl', name: 'Dutch', flag_emoji: '🇳🇱', previewUrl: 'https://example.test/?p=42&lang=nl' },
+                { code: 'fr', name: 'French', flag_emoji: '🇫🇷', previewUrl: '' },
+            ],
+            i18n: {
+                deleteConfirm: 'Delete this translation?',
+                deleted: 'Translation deleted',
+                deleteFailed: 'Failed to delete translation',
+                saved: 'Translations saved',
+                translating: 'Translating…',
+                translated: 'Translation complete',
+                translateFailed: 'Auto-translate failed',
+                nothingToTranslate: 'Nothing to translate',
+                overwriteConfirm: 'Overwrite existing translations?',
+            },
+        };
+    });
+
+    afterEach(() => {
+        jest.useRealTimers();
+        jest.restoreAllMocks();
+        delete global.wp;
+        delete global.tinymce;
+        delete window.wp;
+        delete window.tinymce;
+    });
+
+    describe('tab switching', () => {
+        test('boots the TinyMCE editor for the initially active tab', () => {
+            loadScript();
+            expect(global.wp.editor.initialize).toHaveBeenCalledWith('stm_content_nl', expect.any(Object));
+        });
+
+        test('switching tabs saves+destroys the old editor and inits the new one', () => {
+            loadScript();
+            global.wp.editor.initialize.mockClear();
+
+            global.$('.stm-tab-button[data-lang="fr"]').trigger('click');
+
+            expect(global.wp.editor.remove).toHaveBeenCalledWith('stm_content_nl');
+            expect(global.wp.editor.initialize).toHaveBeenCalledWith('stm_content_fr', expect.any(Object));
+
+            expect(global.$('.stm-tab-button[data-lang="fr"]').hasClass('active')).toBe(true);
+            expect(global.$('.stm-tab-button[data-lang="nl"]').hasClass('active')).toBe(false);
+            expect(global.$('.stm-tab-content[data-lang="fr"]').hasClass('active')).toBe(true);
+            expect(global.$('.stm-tab-content[data-lang="nl"]').hasClass('active')).toBe(false);
+        });
+
+        test('clicking the already-active tab is a no-op', () => {
+            loadScript();
+            global.wp.editor.initialize.mockClear();
+
+            global.$('.stm-tab-button[data-lang="nl"]').trigger('click');
+
+            expect(global.wp.editor.initialize).not.toHaveBeenCalled();
+            expect(global.wp.editor.remove).not.toHaveBeenCalled();
+        });
+    });
+
+    describe('language preview cycler', () => {
+        test('initializes on the current post language, with a live preview link', () => {
+            loadScript();
+
+            expect(global.$('.stm-preview-current').text()).toBe('🇳🇱 Dutch');
+            expect(global.$('.stm-preview-open').attr('href')).toBe('https://example.test/?p=42&lang=nl');
+            expect(global.$('.stm-preview-open').hasClass('is-disabled')).toBe(false);
+            expect(global.$('.stm-preview-unsaved-note').attr('hidden')).toBe('hidden');
+        });
+
+        test('next wraps around to the first language after the last', () => {
+            loadScript();
+
+            global.$('.stm-preview-next').trigger('click');
+            expect(global.$('.stm-preview-current').text()).toBe('🇫🇷 French');
+
+            global.$('.stm-preview-next').trigger('click');
+            expect(global.$('.stm-preview-current').text()).toBe('🇳🇱 Dutch');
+        });
+
+        test('prev wraps around to the last language from the first', () => {
+            loadScript();
+
+            global.$('.stm-preview-prev').trigger('click');
+
+            expect(global.$('.stm-preview-current').text()).toBe('🇫🇷 French');
+            expect(global.$('.stm-preview-open').attr('href')).toBe('#');
+        });
+
+        test('disables the preview link and shows the unsaved note for a language with no preview URL', () => {
+            loadScript();
+
+            global.$('.stm-preview-next').trigger('click');
+
+            expect(global.$('.stm-preview-open').hasClass('is-disabled')).toBe(true);
+            expect(global.$('.stm-preview-open').attr('aria-disabled')).toBe('true');
+            expect(global.$('.stm-preview-unsaved-note').attr('hidden')).toBeUndefined();
+        });
+
+        test('clicking the disabled preview link does not navigate', () => {
+            loadScript();
+            global.$('.stm-preview-next').trigger('click'); // move to French, which has no previewUrl
+
+            const clickEvent = global.$.Event('click');
+            global.$('.stm-preview-open').trigger(clickEvent);
+
+            expect(clickEvent.isDefaultPrevented()).toBe(true);
+        });
+
+        test('does nothing when there are no preview languages configured', () => {
+            window.stmPostEditor.previewLanguages = [];
+
+            expect(() => loadScript()).not.toThrow();
+            expect(global.$('.stm-preview-current').text()).toBe('');
+        });
+    });
+
+    describe('delete translation button', () => {
+        test('does nothing when the user cancels the confirm dialog', () => {
+            window.confirm = jest.fn(() => false);
+            const ajaxSpy = jest.spyOn(global.$, 'ajax');
+
+            loadScript();
+            global.$('.stm-delete-translation-btn[data-lang="fr"]').trigger('click');
+
+            expect(window.confirm).toHaveBeenCalled();
+            expect(ajaxSpy).not.toHaveBeenCalled();
+        });
+
+        test('calls DELETE on the posts REST route and clears the tab on success', () => {
+            window.confirm = jest.fn(() => true);
+            const ajaxSpy = jest.spyOn(global.$, 'ajax').mockReturnValue(fakeJqXHR({ response: { success: true, deleted: 1 } }));
+
+            loadScript();
+            global.$('#stm_title_nl').val('Titel');
+
+            global.$('.stm-delete-translation-btn[data-lang="nl"]').trigger('click');
+
+            expect(ajaxSpy).toHaveBeenCalledWith(expect.objectContaining({
+                url: 'https://example.test/wp-json/stm/v1/posts/42/translations/nl',
+                method: 'DELETE',
+            }));
+
+            expect(global.$('#stm_title_nl').val()).toBe('');
+
+            const $tabButton = global.$('.stm-tab-button[data-lang="nl"]');
+            expect($tabButton.hasClass('stm-tab-empty')).toBe(true);
+            expect($tabButton.hasClass('stm-tab-complete')).toBe(false);
+            expect($tabButton.hasClass('stm-tab-partial')).toBe(false);
+        });
+
+        test('shows an error status message when the delete request fails', () => {
+            window.confirm = jest.fn(() => true);
+            jest.spyOn(global.$, 'ajax').mockReturnValue(fakeJqXHR({ fail: true, response: {} }));
+
+            loadScript();
+            global.$('.stm-delete-translation-btn[data-lang="nl"]').trigger('click');
+
+            const $status = global.$('.stm-tab-content[data-lang="nl"] .stm-delete-translation-status');
+            expect($status.text()).toBe('Failed to delete translation');
+            expect($status.hasClass('is-error')).toBe(true);
+        });
+
+        test('sends the X-WP-Nonce header on the delete request', () => {
+            window.confirm = jest.fn(() => true);
+            const setHeader = jest.fn();
+            jest.spyOn(global.$, 'ajax').mockImplementation((opts) => {
+                opts.beforeSend({ setRequestHeader: setHeader });
+                return fakeJqXHR({ response: { success: true } });
+            });
+
+            loadScript();
+            global.$('.stm-delete-translation-btn[data-lang="nl"]').trigger('click');
+
+            expect(setHeader).toHaveBeenCalledWith('X-WP-Nonce', 'nonce-123');
+        });
+    });
+
+    describe('auto-translate button — error messages', () => {
+        function statusFor(lang) {
+            return global.$('.stm-tab-content[data-lang="' + lang + '"] .stm-auto-translate-status');
+        }
+
+        test('shows the backend\'s real error instead of the generic failed text', () => {
+            mockAutoTranslateAjax({
+                post_title: { response: { success: false, error: 'OpenAI API key not configured. Go to Translations > Settings.' } },
+                post_content: { response: { success: false, error: 'OpenAI API key not configured. Go to Translations > Settings.' } },
+            });
+
+            loadScript();
+            global.$('.stm-auto-translate-btn[data-lang="fr"]').trigger('click');
+
+            const $status = statusFor('fr');
+            expect($status.text()).toBe('OpenAI API key not configured. Go to Translations > Settings.');
+            expect($status.text()).not.toBe('Auto-translate failed');
+            expect($status.hasClass('is-error')).toBe(true);
+        });
+
+        test('reflects a real reason for each field, not a silently collapsed "failed", when fields fail differently', () => {
+            mockAutoTranslateAjax({
+                post_title: { response: { success: false, error: 'Incorrect API key provided' } },
+                post_content: { response: { success: false, error: 'DeepL quota exceeded' } },
+            });
+
+            loadScript();
+            global.$('.stm-auto-translate-btn[data-lang="fr"]').trigger('click');
+
+            const $status = statusFor('fr');
+            expect($status.text()).toBe('Incorrect API key provided; DeepL quota exceeded');
+        });
+
+        test('still surfaces a real error even when a second field fails with no error detail', () => {
+            mockAutoTranslateAjax({
+                post_title: { response: { success: false, error: 'OpenAI API key not configured. Go to Translations > Settings.' } },
+                post_content: { fail: true, response: {} },
+            });
+
+            loadScript();
+            global.$('.stm-auto-translate-btn[data-lang="fr"]').trigger('click');
+
+            const $status = statusFor('fr');
+            expect($status.text()).toBe('OpenAI API key not configured. Go to Translations > Settings.');
+        });
+
+        test('falls back to a generic message on a true network-level failure with no response', () => {
+            mockAutoTranslateAjax({
+                post_title: { fail: true, response: {} },
+                post_content: { fail: true, response: {} },
+            });
+
+            loadScript();
+            global.$('.stm-auto-translate-btn[data-lang="fr"]').trigger('click');
+
+            const $status = statusFor('fr');
+            expect($status.text()).toBe('Auto-translate failed');
+            expect($status.hasClass('is-error')).toBe(true);
+        });
+
+        test('shows the success message when all fields translate cleanly', () => {
+            mockAutoTranslateAjax({
+                post_title: { response: { success: true, translation: 'Bonjour' } },
+                post_content: { response: { success: true, translation: 'Bonjour le monde' } },
+            });
+
+            loadScript();
+            global.$('.stm-auto-translate-btn[data-lang="fr"]').trigger('click');
+
+            const $status = statusFor('fr');
+            expect($status.text()).toBe('Translation complete');
+            expect($status.hasClass('is-success')).toBe(true);
+            expect(global.$('#stm_title_fr').val()).toBe('Bonjour');
+        });
+    });
+});

@@ -12,6 +12,8 @@
  * 4. Clean up after itself
  */
 
+if (!defined('ABSPATH')) exit;
+
 require_once(__DIR__ . '/wp-load.php');
 
 if (!function_exists('stm_get_post_translation')) {
