@@ -300,7 +300,9 @@ class ElementorIntegrationTest extends TestCase {
 
     public function test_filter_builder_content_data_merges_translation_for_current_language() {
         $this->seedLanguages();
-        $_COOKIE['stm_lang'] = 'nl';
+        // ?lang= rather than the cookie: the cookie is ignored in URL-routing
+        // mode (the default), while the GET param is honored in both modes.
+        $_GET['lang'] = 'nl';
         ElementorIntegration::save_language_data(42, 'nl', ['abc123' => ['title' => 'Hallo']]);
 
         $data = [['id' => 'abc123', 'settings' => ['title' => 'Hello']]];

@@ -24,6 +24,9 @@ class FrontendTest extends TestCase {
     /** @var FakeWpdb */
     private $wpdb;
 
+    /** @var bool Toggled per test via the get_option alias in setUp() */
+    private static $url_routing_enabled = false;
+
     protected function setUp(): void {
         parent::setUp();
         Monkey\setUp();
@@ -39,7 +42,18 @@ class FrontendTest extends TestCase {
         Functions\when('wp_unslash')->returnArg(1);
         Functions\when('wp_cache_get')->justReturn(false);
         Functions\when('wp_cache_set')->justReturn(true);
-        Functions\when('get_option')->justReturn('en');
+        // Default language 'en' for every option EXCEPT URL routing, which
+        // these unit tests keep OFF unless a test flips it: with routing on,
+        // the URL is authoritative and the cookie is deliberately ignored
+        // (see Frontend::get_requested_language()), so the cookie-priority
+        // tests below would never reach the code path they exercise.
+        self::$url_routing_enabled = false;
+        Functions\when('get_option')->alias(function ($key, $default = false) {
+            if ($key === \STM\Settings::OPTION_ENABLE_URL_ROUTING) {
+                return self::$url_routing_enabled;
+            }
+            return 'en';
+        });
         Functions\when('get_query_var')->justReturn('');
         Functions\when('is_preview')->justReturn(false);
         Functions\when('get_queried_object_id')->justReturn(0);
@@ -72,6 +86,33 @@ class FrontendTest extends TestCase {
 
     public function test_active_language_from_cookie_is_honored() {
         $_COOKIE['stm_lang'] = 'nl';
+
+        $this->assertSame('nl', Frontend::get_current_language());
+    }
+
+    // -----------------------------------------------------------------
+    // URL routing mode: the URL is authoritative, the cookie is not
+    // (869ecwc03/869ectxca — returning to / after /en/ must not stay
+    // stuck in English because of a lingering stm_lang cookie)
+    // -----------------------------------------------------------------
+
+    public function test_url_routing_mode_ignores_cookie() {
+        self::$url_routing_enabled = true;
+        $_COOKIE['stm_lang'] = 'nl';
+
+        $this->assertSame('en', Frontend::get_current_language());
+    }
+
+    public function test_url_routing_mode_still_honors_get_param() {
+        self::$url_routing_enabled = true;
+        $_GET['lang'] = 'nl';
+
+        $this->assertSame('nl', Frontend::get_current_language());
+    }
+
+    public function test_url_routing_mode_still_honors_rewrite_query_var() {
+        self::$url_routing_enabled = true;
+        Functions\when('get_query_var')->justReturn('nl');
 
         $this->assertSame('nl', Frontend::get_current_language());
     }

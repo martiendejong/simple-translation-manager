@@ -57,7 +57,9 @@ class SeoGodIntegrationTest extends TestCase {
     }
 
     public function test_translated_page_returns_visited_language(): void {
-        $_COOKIE['stm_lang'] = 'fr';
+        // ?lang= rather than the cookie: the cookie is ignored in URL-routing
+        // mode (the default), while the GET param is honored in both modes.
+        $_GET['lang'] = 'fr';
 
         $result = SeoGodIntegration::provide_current_language('', 'stm');
 

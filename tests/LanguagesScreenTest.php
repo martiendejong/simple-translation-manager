@@ -79,6 +79,8 @@ class LanguagesScreenTest extends TestCase {
 
         Functions\when('esc_html')->returnArg(1);
         Functions\when('esc_attr')->returnArg(1);
+        Functions\when('esc_attr__')->returnArg(1);
+        Functions\when('esc_html__')->returnArg(1);
         Functions\when('esc_js')->returnArg(1);
         Functions\when('esc_url')->returnArg(1);
         Functions\when('wp_kses_post')->returnArg(1);
@@ -94,10 +96,12 @@ class LanguagesScreenTest extends TestCase {
         // ...and the active language must still be listed too.
         $this->assertStringContainsString('English', $html);
 
-        // Split rows to confirm German's row shows the inactive marker, not the active checkmark.
-        preg_match('/<tr>\s*<td><code>de<\/code>.*?<\/tr>/s', $html, $match);
+        // Split rows to confirm German's row is marked inactive (toggle button
+        // state), without the default-language checkmark.
+        preg_match('/<tr[^>]*>\s*<td><code>de<\/code>.*?<\/tr>/s', $html, $match);
         $this->assertNotEmpty($match, 'Expected a table row for the German (de) language');
-        $this->assertStringContainsString('—', $match[0]);
+        $this->assertStringContainsString('data-is-active="0"', $match[0]);
+        $this->assertStringContainsString('Inactive', $match[0]);
         $this->assertStringNotContainsString('✓', $match[0]);
     }
 
@@ -109,6 +113,8 @@ class LanguagesScreenTest extends TestCase {
 
         Functions\when('esc_html')->returnArg(1);
         Functions\when('esc_attr')->returnArg(1);
+        Functions\when('esc_attr__')->returnArg(1);
+        Functions\when('esc_html__')->returnArg(1);
         Functions\when('esc_js')->returnArg(1);
         Functions\when('esc_url')->returnArg(1);
         Functions\when('wp_kses_post')->returnArg(1);
@@ -134,6 +140,8 @@ class LanguagesScreenTest extends TestCase {
 
         Functions\when('esc_html')->returnArg(1);
         Functions\when('esc_attr')->returnArg(1);
+        Functions\when('esc_attr__')->returnArg(1);
+        Functions\when('esc_html__')->returnArg(1);
         Functions\when('esc_js')->returnArg(1);
         Functions\when('esc_url')->returnArg(1);
         Functions\when('wp_kses_post')->returnArg(1);
@@ -160,6 +168,8 @@ class LanguagesScreenTest extends TestCase {
 
         Functions\when('esc_html')->returnArg(1);
         Functions\when('esc_attr')->returnArg(1);
+        Functions\when('esc_attr__')->returnArg(1);
+        Functions\when('esc_html__')->returnArg(1);
         Functions\when('esc_js')->returnArg(1);
         Functions\when('esc_url')->returnArg(1);
         Functions\when('wp_kses_post')->returnArg(1);
