@@ -29,6 +29,14 @@
  *      canonical redirect for a language-prefixed path (unchanged by this
  *      task, asserted here as a regression guard since it is load-bearing
  *      for the same done-when criteria).
+ *   6. Round-2 regression (task 869eec0wf, section 1b below):
+ *      STM\Frontend::resolve_translated_slug_request() — registered at
+ *      priority 2, right after the strip above — rewrites $wp->request
+ *      itself when a path segment is a translated slug, so the SAME mock
+ *      third-party plugin resolves it via its real post_name instead of
+ *      404ing. Live-confirmed bug: /en/{translated-slug}/ 404'd on
+ *      test.portofgiethoorn.com while /en/{real-slug}/ worked, because
+ *      visit-platform's own routing never heard about the translation.
  */
 
 if (PHP_SAPI !== 'cli') {
@@ -66,6 +74,16 @@ $GLOBALS['stm_options'] = [
 ];
 
 $GLOBALS['stm_is_admin'] = false;
+
+// A location post with a translated 'en' slug — for the round-2 (869eec0wf)
+// cross-plugin bypass scenario below: the mock CPT plugin must see the REAL
+// post_name, not the translated one, once STM's own reverse lookup has run.
+$GLOBALS['stm_posts'] = [
+    99 => (object) [ 'ID' => 99, 'post_name' => 'de-dames-van-de-jonge' ],
+];
+$GLOBALS['stm_post_translations'] = [
+    [ 'post_id' => 99, 'field_name' => 'post_name', 'language_code' => 'en', 'translation' => 'the-young-ladies' ],
+];
 
 // --- WordPress stubs -----------------------------------------------------
 
@@ -106,6 +124,18 @@ function wp_cache_get($key, $group = '')             { return false; }
 function wp_cache_set($key, $data, $group = '', $e = 0) {}
 function get_option($name, $default = false) { return $GLOBALS['stm_options'][$name] ?? $default; }
 function update_option($name, $value)        { $GLOBALS['stm_options'][$name] = $value; return true; }
+function get_post($post) {
+    if (is_object($post)) {
+        return $post;
+    }
+    return $GLOBALS['stm_posts'][(int) $post] ?? null;
+}
+function get_post_types($args = [], $output = 'names') {
+    // No public post type owns 'name'/'pagename' in this fixture — the mock
+    // CPT plugin below resolves entirely off the raw $wp->request path, not
+    // a registered query_var, exactly like the real VISIT_Permalinks does.
+    return $output === 'objects' ? [] : [];
+}
 
 // Minimal base classes so class-language-switcher.php / class-sitemap.php
 // can be declared (never instantiated in this test).
@@ -124,8 +154,22 @@ $wpdb = new class {
         return [];
     }
 
-    public function get_var($query) { return null; }
-    public function prepare($query, ...$args) { return $query; }
+    public function get_var($query) {
+        [$sql, $argsJson] = array_pad(explode('::', $query, 2), 2, '[]');
+        $args = json_decode($argsJson, true) ?: [];
+
+        if (strpos($sql, 'stm_post_translations') !== false && strpos($sql, 'SELECT post_id') !== false) {
+            [$language_code, $slug] = array_pad($args, 2, null);
+            foreach ($GLOBALS['stm_post_translations'] ?? [] as $row) {
+                if ($row['field_name'] === 'post_name' && $row['language_code'] === $language_code && $row['translation'] === $slug) {
+                    return $row['post_id'];
+                }
+            }
+        }
+
+        return null;
+    }
+    public function prepare($query, ...$args) { return $query . '::' . json_encode($args); }
 };
 
 // $wp global — the raw-path property both the fix and the mock third-party
@@ -137,6 +181,12 @@ $GLOBALS['wp'] = new class { public $request = ''; };
 $pluginRoot = dirname(__DIR__);
 $pluginFile = $pluginRoot . '/simple-translation-manager.php';
 require_once $pluginFile;
+
+// stm_init() (real registration of STM\Frontend's own filters, including the
+// round-2 fix below) only ever runs via add_action('plugins_loaded', ...),
+// which this file's add_action() stub deliberately no-ops — so call it
+// directly, exactly like a real 'plugins_loaded' firing would.
+\STM\Frontend::init();
 
 // --- A mock third-party plugin, modelled on visit-platform's own
 //     Permalinks::resolve(): it owns URL segments WordPress's rewrite engine
@@ -204,6 +254,26 @@ assert_same(
     'same fix works for /de/ — not hardcoded to English',
     'de-dames-van-de-jonge',
     $qv['stm_mock_location'] ?? null
+);
+
+// 1b. Round-2 regression (task 869eec0wf): the visitor's URL carries a
+//     TRANSLATED slug ('the-young-ladies'), not the post's real post_name
+//     ('de-dames-van-de-jonge'). The mock CPT plugin only knows the real
+//     slug (mirrors visit-platform's own DB, which stores real post_names).
+//     STM\Frontend::resolve_translated_slug_request() (priority 2 — see
+//     class-frontend.php) must rewrite $wp->request itself, before the mock
+//     plugin's own priority-10 lookup ever runs, or this 404s exactly like
+//     it did live on test.portofgiethoorn.com.
+$qv = run_request('en/the-young-ladies');
+assert_same(
+    'round-2 fix: mock CPT plugin resolves the location via its translated slug once $wp->request is rewritten back to the real post_name',
+    'de-dames-van-de-jonge',
+    $qv['stm_mock_location'] ?? null
+);
+assert_same(
+    'round-2 fix: $wp->request itself carries the real post_name, not the translated slug, by the time the mock plugin reads it',
+    'de-dames-van-de-jonge',
+    $GLOBALS['wp']->request
 );
 
 // 2. Homepage: /en/ alone strips to an empty path and stm_front_page_request

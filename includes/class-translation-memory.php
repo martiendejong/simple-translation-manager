@@ -58,9 +58,28 @@ class TranslationMemory {
      * @param string $source_text Text to find translations for
      * @param string $target_lang Target language code
      * @param string $field_type Type of field (title, content, excerpt, etc.)
+     * @param int    $post_id     ID of the post being translated, if any. When
+     *                            given, the per-post strategies (2 and 3, which
+     *                            read from stm_post_translations) are hard-
+     *                            restricted to translations that were written
+     *                            for THIS post — a stored translation whose
+     *                            source text belongs to a different post can
+     *                            never be returned, no matter how similar the
+     *                            two posts' text is (869enmrpz). Strategy 1
+     *                            (generic template/UI string memory) is
+     *                            intentionally NOT post-scoped: it exists
+     *                            precisely to reuse short strings across posts.
+     *                            0/omitted preserves the pre-fix, unscoped
+     *                            behaviour for callers translating text that
+     *                            isn't tied to a specific post (e.g. the
+     *                            settings "test connection" button) or for the
+     *                            /memory/suggest admin browse tool, where a
+     *                            human reviews cross-post suggestions before
+     *                            applying them rather than an auto-apply path
+     *                            accepting them silently.
      * @return array Array of suggestions with similarity scores
      */
-    public static function suggest($source_text, $target_lang, $field_type = '') {
+    public static function suggest($source_text, $target_lang, $field_type = '', $post_id = 0) {
         if (empty($source_text) || strlen($source_text) < 2) {
             return [];
         }
@@ -74,13 +93,13 @@ class TranslationMemory {
         }
 
         // Strategy 2: Exact match from post translations
-        $post_exact = self::find_exact_post_match($source_text, $target_lang, $field_type);
+        $post_exact = self::find_exact_post_match($source_text, $target_lang, $field_type, $post_id);
         if ($post_exact) {
             return [['text' => $post_exact, 'similarity' => 1.0, 'source' => 'post_exact_match']];
         }
 
         // Strategy 3: Fuzzy match from existing post translations
-        $fuzzy = self::find_fuzzy_matches($source_text, $target_lang, $field_type);
+        $fuzzy = self::find_fuzzy_matches($source_text, $target_lang, $field_type, $post_id);
         $suggestions = array_merge($suggestions, $fuzzy);
 
         // Strategy 4: Substring/segment matching for longer texts
@@ -139,7 +158,7 @@ class TranslationMemory {
     /**
      * Find exact match in post translations
      */
-    private static function find_exact_post_match($text, $target_lang, $field_type) {
+    private static function find_exact_post_match($text, $target_lang, $field_type, $post_id = 0) {
         global $wpdb;
         $table = $wpdb->prefix . 'stm_post_translations';
 
@@ -151,17 +170,53 @@ class TranslationMemory {
             return null;
         }
 
-        // Look for other posts with same original title/content that already have translations
-        $where_field = $field_type ? $wpdb->prepare(' AND pt.field_name = %s', $field_type) : '';
+        // Cross-post restriction: when the caller knows which post it is
+        // translating, never return a translation row belonging to a
+        // DIFFERENT post — an identical-looking title/excerpt/content string
+        // is still the wrong post's translation once saved under the wrong
+        // post ID (869enmrpz). No-op when $post_id is unknown (0).
+        $post_scope = $post_id > 0 ? $wpdb->prepare(' AND pt.post_id = %d', $post_id) : '';
 
+        $column = self::field_name_to_column($field_type);
+
+        if ($column) {
+            // Known field type: compare against ONLY the matching WordPress
+            // column, and restrict candidate translations to that same
+            // field_name. Without this, any translation row for a post whose
+            // current post_content/post_excerpt/post_title happens to equal
+            // $text would match — e.g. a saved excerpt translation "exact
+            // matching" a full-content lookup for the same post, since the
+            // content being translated is by definition equal to the post's
+            // own live post_content (869enmhwe).
+            return $wpdb->get_var($wpdb->prepare(
+                "SELECT pt.translation
+                 FROM {$table} pt
+                 INNER JOIN {$wpdb->posts} p ON pt.post_id = p.ID
+                 WHERE pt.language_code = %s
+                   AND pt.field_name = %s
+                   AND p.{$column} = %s
+                   AND pt.translation != ''
+                   {$post_scope}
+                 ORDER BY pt.updated_at DESC
+                 LIMIT 1",
+                $target_lang, $field_type, $text
+            ));
+        }
+
+        // Unknown/legacy field type — no live caller hits this today (every
+        // caller of TranslationMemory::suggest() passes a field type), kept
+        // as a fallback for direct/future callers of memory/suggest that
+        // don't. Preserves the pre-fix behaviour: match either title or
+        // content, across any field_name (still post-scoped when $post_id
+        // is known).
         return $wpdb->get_var($wpdb->prepare(
             "SELECT pt.translation
              FROM {$table} pt
              INNER JOIN {$wpdb->posts} p ON pt.post_id = p.ID
              WHERE pt.language_code = %s
-               {$where_field}
                AND (p.post_title = %s OR p.post_content = %s)
                AND pt.translation != ''
+               {$post_scope}
              ORDER BY pt.updated_at DESC
              LIMIT 1",
             $target_lang, $text, $text
@@ -169,22 +224,55 @@ class TranslationMemory {
     }
 
     /**
+     * Map a stored field_name (post_title/post_excerpt/post_content/post_name
+     * — see translateField() in admin-post-editor.js and save_post_translation()
+     * in class-api.php) to the matching wp_posts column holding the original,
+     * default-language text for that field. Returns null for anything else so
+     * callers can fall back to the pre-fix, field-blind behaviour.
+     */
+    private static function field_name_to_column($field_type) {
+        switch ($field_type) {
+            case 'post_title':
+            case 'post_excerpt':
+            case 'post_content':
+            case 'post_name':
+                return $field_type;
+            default:
+                return null;
+        }
+    }
+
+    /**
      * Find fuzzy matches using PHP similar_text
      */
-    private static function find_fuzzy_matches($text, $target_lang, $field_type) {
+    private static function find_fuzzy_matches($text, $target_lang, $field_type, $post_id = 0) {
         global $wpdb;
         $table = $wpdb->prefix . 'stm_post_translations';
 
         // Get recent translations to compare against
-        $where_field = $field_type ? $wpdb->prepare(' AND field_name = %s', $field_type) : '';
+        $where_field = $field_type ? $wpdb->prepare(' AND pt.field_name = %s', $field_type) : '';
+
+        // Cross-post restriction (869enmrpz): a near-duplicate-template post
+        // (same headings/paragraphs, different specifics) can score well
+        // above SIMILARITY_THRESHOLD against similar_text() while still being
+        // a completely different article. Tightening the threshold only
+        // reduces the odds of that happening; it can never rule it out
+        // structurally. When the caller knows which post it is translating,
+        // only that post's own past translations are eligible candidates —
+        // no other post's translation can ever come back, regardless of how
+        // similar the two posts' text is. No-op when $post_id is unknown (0),
+        // e.g. the /memory/suggest admin browse tool, where a human reviews
+        // cross-post suggestions before applying them.
+        $post_scope = $post_id > 0 ? $wpdb->prepare(' AND pt.post_id = %d', $post_id) : '';
 
         $existing = $wpdb->get_results($wpdb->prepare(
-            "SELECT DISTINCT pt.translation, p.post_title
+            "SELECT DISTINCT pt.translation, pt.field_name, p.post_title, p.post_excerpt, p.post_content, p.post_name
              FROM {$table} pt
              INNER JOIN {$wpdb->posts} p ON pt.post_id = p.ID
              WHERE pt.language_code = %s
                AND pt.translation != ''
                {$where_field}
+               {$post_scope}
              ORDER BY pt.updated_at DESC
              LIMIT 200",
             $target_lang
@@ -195,11 +283,19 @@ class TranslationMemory {
         $text_len = strlen($text_lower);
 
         foreach ($existing as $row) {
-            $compare = strtolower($row->post_title);
+            // Compare against the original text of the SAME field the row's
+            // translation belongs to, not always the post title — otherwise a
+            // content-length query is compared against an unrelated short
+            // title string (869enmhwe).
+            $original = self::original_field_value($row);
+            $compare = strtolower($original);
 
-            // Quick length filter - skip if too different in length
+            // Quick length filter - skip if too different in length. Tightened
+            // from a 50% to a 20% deviation cap: the old 50% cap was loose
+            // enough that a 145-char row could still be considered against a
+            // 6,494-char query (869enmhwe).
             $compare_len = strlen($compare);
-            if ($compare_len === 0 || abs($text_len - $compare_len) > max($text_len, $compare_len) * 0.5) {
+            if ($compare_len === 0 || abs($text_len - $compare_len) > max($text_len, $compare_len) * 0.2) {
                 continue;
             }
 
@@ -212,12 +308,31 @@ class TranslationMemory {
                     'text' => $row->translation,
                     'similarity' => round($similarity, 3),
                     'source' => 'fuzzy_match',
-                    'matched_original' => $row->post_title,
+                    'matched_original' => $original,
                 ];
             }
         }
 
         return $matches;
+    }
+
+    /**
+     * Extract the original, default-language text a stored translation row
+     * was translated from, based on its field_name. Falls back to post_title
+     * for legacy/unrecognised field names (matches the pre-fix behaviour).
+     */
+    private static function original_field_value($row) {
+        switch ($row->field_name) {
+            case 'post_excerpt':
+                return (string) $row->post_excerpt;
+            case 'post_content':
+                return (string) $row->post_content;
+            case 'post_name':
+                return (string) $row->post_name;
+            case 'post_title':
+            default:
+                return (string) $row->post_title;
+        }
     }
 
     /**

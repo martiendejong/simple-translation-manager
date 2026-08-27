@@ -151,6 +151,12 @@ class PostEditor {
             'restUrl'      => esc_url_raw(rest_url('stm/v1/translate/auto')),
             'postsApiRoot' => esc_url_raw(rest_url('stm/v1/posts/')),
             'restNonce'    => wp_create_nonce('wp_rest'),
+            // Sent with every auto-translate request so the server-side
+            // translation-memory lookup can be scoped to THIS post — without
+            // it, a near-duplicate-template post elsewhere on the site could
+            // have its stored translation silently reused here (869enmrpz).
+            // 0 on post-new.php (no post ID exists yet), which is fine: an
+            // unsaved post cannot yet be the source of a cross-post mix-up.
             'postId'       => $post_id,
             'sourceLang'   => $current_lang,
             'defaultLang'  => Settings::get_default_language(),
@@ -302,7 +308,8 @@ class PostEditor {
 
                 // Save each field
                 foreach ($fields as $field_name => $value) {
-                    $field_name = sanitize_text_field($field_name);
+                    $field_name = sanitize_text_field(wp_unslash($field_name));
+                    $value = wp_unslash($value);
 
                     // Sanitize based on field type
                     if ($field_name === 'post_content') {

@@ -27,8 +27,16 @@ class Frontend {
         add_filter('post_link', [__CLASS__, 'filter_post_link'], 20, 3);
 
         // Resolve an incoming translated-slug URL back to the real post
-        // before WordPress's own post_name lookup runs.
-        add_filter('request', [__CLASS__, 'resolve_translated_slug_request']);
+        // before WordPress's own post_name lookup runs. Priority 2 — right
+        // after stm_strip_lang_prefix_from_request() (priority 1, see
+        // simple-translation-manager.php) — so this runs before ANY other
+        // plugin's own 'request' filter, regardless of plugin load order.
+        // Some CPT plugins (e.g. visit-platform's VISIT_Permalinks::resolve())
+        // re-parse $wp->request directly instead of trusting query vars; this
+        // must rewrite that raw path too (see resolve_translated_slug_request()
+        // below) or such a plugin's own lookup 404s on a translated slug even
+        // though the query var it also inspects was already corrected.
+        add_filter('request', [__CLASS__, 'resolve_translated_slug_request'], 2);
 
         // Query modifications
         add_action('pre_get_posts', [__CLASS__, 'filter_query']);
@@ -394,6 +402,24 @@ class Frontend {
      * query vars but before the main query runs, and swaps the translated
      * slug value back to the post's real post_name so the normal lookup
      * resolves it.
+     *
+     * Two things get corrected, both from the SAME lookup
+     * (PostEditor::get_post_id_by_translated_slug()):
+     *
+     *  1. The query vars WordPress's own rewrite match produced ('name',
+     *     'pagename', a CPT's own query_var) — this is enough when nothing
+     *     else re-parses the URL.
+     *  2. $wp->request itself — the raw, un-rewritten path. Some CPT plugins
+     *     that own a URL structure WordPress's native rewrite rules can't
+     *     express (e.g. visit-platform's VISIT_Permalinks::resolve(), which
+     *     builds /{locatie}/{aanbod}/-style paths) read $wp->request directly
+     *     on their OWN 'request' filter rather than trusting query vars, to
+     *     do their own post_name lookup. Left uncorrected, such a plugin
+     *     sees the translated slug, finds no post with that literal
+     *     post_name, and the request falls through to a 404 even though (1)
+     *     already fixed the query var it never looks at. Registered at
+     *     priority 2 (see init() above) so this runs before any such
+     *     plugin's own request filter, regardless of plugin load order.
      */
     public static function resolve_translated_slug_request( $qv ) {
         if ( empty( $qv['lang'] ) ) {
@@ -403,6 +429,38 @@ class Frontend {
         $language_code = $qv['lang'];
         if ( $language_code === Settings::get_default_language() ) {
             return $qv;
+        }
+
+        // Rewrite every segment of the raw request path that matches a
+        // translated slug back to the real post_name, so any OTHER plugin's
+        // own 'request' filter that re-parses $wp->request directly (instead
+        // of trusting query vars) sees the real slug too.
+        if ( ! empty( $GLOBALS['wp'] ) && is_string( $GLOBALS['wp']->request ) && '' !== $GLOBALS['wp']->request ) {
+            $segments = explode( '/', trim( $GLOBALS['wp']->request, '/' ) );
+            $changed  = false;
+
+            foreach ( $segments as $i => $segment ) {
+                if ( '' === $segment ) {
+                    continue;
+                }
+
+                $post_id = PostEditor::get_post_id_by_translated_slug( $language_code, $segment );
+                if ( ! $post_id ) {
+                    continue;
+                }
+
+                $post = get_post( $post_id );
+                if ( ! $post || '' === $post->post_name || $post->post_name === $segment ) {
+                    continue;
+                }
+
+                $segments[ $i ] = $post->post_name;
+                $changed        = true;
+            }
+
+            if ( $changed ) {
+                $GLOBALS['wp']->request = implode( '/', $segments );
+            }
         }
 
         // Candidate query vars that can carry a post_name-style slug:

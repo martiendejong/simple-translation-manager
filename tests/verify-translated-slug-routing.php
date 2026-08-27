@@ -309,6 +309,44 @@ assert_same(
     \STM\Frontend::resolve_translated_slug_request([ 'visit_location' => 'some-random-slug', 'lang' => 'nl' ])['visit_location']
 );
 
+// 2b. Cross-plugin bypass (round-2 regression, confirmed live on
+//     test.portofgiethoorn.com 2026-08-22/23): a sibling plugin that owns its
+//     own URL structure for a CPT (visit-platform's VISIT_Permalinks::resolve())
+//     re-parses $wp->request directly rather than trusting query vars, so
+//     fixing the query var alone isn't enough — $wp->request itself must be
+//     corrected too, before that other plugin's own 'request' filter runs.
+$GLOBALS['wp'] = new class {
+    public $request = 'valsuani-plek';
+};
+\STM\Frontend::resolve_translated_slug_request( [ 'name' => 'valsuani-plek', 'lang' => 'nl' ] );
+assert_same(
+    'resolve_translated_slug_request(): rewrites $wp->request itself so another plugin\'s own raw-path lookup (e.g. VISIT_Permalinks::resolve()) sees the real slug too',
+    'valsuani-place',
+    $GLOBALS['wp']->request
+);
+
+$GLOBALS['wp'] = new class {
+    public $request = 'untouched-page';
+};
+\STM\Frontend::resolve_translated_slug_request( [ 'pagename' => 'untouched-page', 'lang' => 'nl' ] );
+assert_same(
+    'resolve_translated_slug_request(): $wp->request left alone when the path segment has no translation',
+    'untouched-page',
+    $GLOBALS['wp']->request
+);
+
+$GLOBALS['wp'] = new class {
+    public $request = 'valsuani-plek';
+};
+\STM\Frontend::resolve_translated_slug_request( [ 'name' => 'valsuani-plek', 'lang' => 'en' ] );
+assert_same(
+    'resolve_translated_slug_request(): $wp->request left alone for the default language',
+    'valsuani-plek',
+    $GLOBALS['wp']->request
+);
+
+unset( $GLOBALS['wp'] );
+
 // 3. Shared forward lookup — substitution + prefix, and untranslated no-op.
 $post42 = get_post(42);
 assert_same(
@@ -384,6 +422,10 @@ $frontend_src = file_get_contents(STM_PLUGIN_DIR . 'includes/class-frontend.php'
 assert_true(
     'class-frontend.php registers resolve_translated_slug_request() on the request filter',
     (bool) preg_match("/add_filter\\(\\s*'request',\\s*\\[__CLASS__,\\s*'resolve_translated_slug_request'\\]/", $frontend_src)
+);
+assert_true(
+    'class-frontend.php registers resolve_translated_slug_request() at priority 2 — before any other plugin\'s own request filter (round-2 fix, 869eec0wf)',
+    (bool) preg_match("/add_filter\\(\\s*'request',\\s*\\[__CLASS__,\\s*'resolve_translated_slug_request'\\],\\s*2\\s*\\)/", $frontend_src)
 );
 
 // --- Report ------------------------------------------------------------
