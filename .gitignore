@@ -3,3 +3,4 @@
 /coverage/
 /.phpunit.cache/
 coverage.xml
+composer.phar
