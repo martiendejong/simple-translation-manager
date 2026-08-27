@@ -44,72 +44,127 @@ class Frontend {
      * The rewrite query var is set by WordPress when a /fr/... URL matches
      * a language-prefixed rewrite rule (see stm_rewrite_rules_array filter).
      *
-     * Every candidate is also checked against the currently active language
-     * list (Database::get_languages()) — a hidden language (is_active = 0)
-     * must fall through to the default language instead of being served,
-     * whether it comes from an old bookmark/rewrite hit, a ?lang= link, or a
-     * stale stm_lang cookie set before the language was hidden.
+     * A requested language is only honored when it is active, or when the
+     * current request is an authenticated "preview in language" of the
+     * exact post being viewed (see is_authorized_language_preview()) — that
+     * is what lets the editor's preview cycler show inactive-language
+     * content to the admin preparing it, while keeping it unreachable to
+     * ordinary visitors via ?lang=, the /{lang}/ URL prefix, or the cookie.
      */
+    public static function get_current_language() {
+        $requested = self::get_requested_language();
+
+        if ( $requested !== '' && self::is_language_visible( $requested ) ) {
+            return $requested;
+        }
+
+        return Settings::get_default_language();
+    }
+
     /**
-     * Persist the active language cookie — but only once per request, only before
-     * headers are sent, and never on REST API calls (which are programmatic, not
-     * user navigation). Calling setcookie() after output has started crashes
-     * PHP-FPM because get_current_language() is invoked from content filters too.
+     * Whether the ?lang= cookie has already been (re)written during this
+     * request. get_current_language() runs once per post being rendered
+     * (once per get_permalink()/get_the_title() call in a search results
+     * or archive loop), so without this guard a single request can call
+     * setcookie() a dozen-plus times with an identical value. On this
+     * host's PHP-FPM/IIS front end that many repeated Set-Cookie headers
+     * on one response makes the reverse proxy treat the response as
+     * invalid and return a 502 — see the 869ebjzzc REST search crash.
      */
-    private static function maybe_persist_cookie( string $lang ): void {
-        static $done = false;
-        if ( $done ) {
+    private static $cookie_written = false;
+
+    /**
+     * Read the requested language code from the rewrite query var, the
+     * ?lang= GET param, or the persisted cookie — without yet checking
+     * whether that language may actually be shown.
+     */
+    private static function get_requested_language() {
+        // Priority 1: WordPress query var set by rewrite rules (/fr/topic/...)
+        $from_query = get_query_var( 'lang', '' );
+        if ( $from_query && Security::validate_language_code( $from_query ) ) {
+            return sanitize_text_field( $from_query );
+        }
+
+        // Priority 2: explicit GET param (?lang=fr)
+        if ( isset( $_GET['lang'] ) ) {
+            $lang = sanitize_text_field( wp_unslash( $_GET['lang'] ) );
+            if ( Security::validate_language_code( $lang ) ) {
+                self::remember_language_choice( $lang );
+                return $lang;
+            }
+        }
+
+        // In URL routing mode the URL structure is authoritative: if neither a
+        // rewrite query var nor an explicit ?lang= param is present, we are on
+        // a default-language URL (e.g. /). The cookie must NOT override this —
+        // otherwise returning to / after visiting /en/ stays in English because
+        // the stm_lang=en cookie lingers.
+        if ( Settings::is_url_routing_enabled() ) {
+            self::remember_language_choice( Settings::get_default_language() );
+            return '';
+        }
+
+        // Priority 3: cookie — only consulted in query-param (non-URL-routing) mode.
+        if ( isset( $_COOKIE['stm_lang'] ) ) {
+            $lang = sanitize_text_field( wp_unslash( $_COOKIE['stm_lang'] ) );
+            if ( Security::validate_language_code( $lang ) ) {
+                return $lang;
+            }
+        }
+
+        return '';
+    }
+
+    /**
+     * Persist the ?lang= choice in a cookie — at most once per request, and
+     * only when it is actually possible to send a header. Both guards exist
+     * because this is called from inside content filters (the_title,
+     * post_type_link, ...) that WordPress runs once per post in a loop, not
+     * once per request. Never on REST API calls, which are programmatic
+     * rather than user navigation.
+     */
+    private static function remember_language_choice( $lang ) {
+        if ( self::$cookie_written || headers_sent() ) {
             return;
         }
         if ( defined( 'REST_REQUEST' ) && REST_REQUEST ) {
             return;
         }
-        if ( headers_sent() ) {
-            return;
-        }
+
+        self::$cookie_written = true;
         setcookie( 'stm_lang', $lang, time() + ( 86400 * 30 ), '/' );
-        $done = true;
     }
 
-    public static function get_current_language() {
-        $active_codes = wp_list_pluck( Database::get_languages(), 'code' );
-
-        // Priority 1: WordPress query var set by rewrite rules (/fr/topic/...)
-        $from_query = get_query_var( 'lang', '' );
-        if ( $from_query && Security::validate_language_code( $from_query ) && in_array( $from_query, $active_codes, true ) ) {
-            $lang = sanitize_text_field( $from_query );
-            self::maybe_persist_cookie( $lang );
-            return $lang;
-        }
-
-        // Priority 2: explicit GET param (?lang=fr)
-        if ( isset( $_GET['lang'] ) ) {
-            $lang = sanitize_text_field( $_GET['lang'] );
-            if ( Security::validate_language_code( $lang ) && in_array( $lang, $active_codes, true ) ) {
-                self::maybe_persist_cookie( $lang );
-                return $lang;
+    /**
+     * A language may be rendered on the front end when it is active, or
+     * when the current request is a genuine preview of the specific post
+     * being viewed by someone allowed to edit it.
+     */
+    private static function is_language_visible( $lang_code ) {
+        foreach ( Database::get_languages() as $language ) {
+            if ( $language->code === $lang_code ) {
+                return true;
             }
         }
 
-        // In URL routing mode the URL structure is authoritative: if neither a rewrite
-        // query var nor an explicit ?lang= param is present, we are on a default-language
-        // URL (e.g. /). The cookie must NOT override this — otherwise returning to /
-        // after visiting /en/ stays in English because the stm_lang=en cookie lingers.
-        if ( Settings::is_url_routing_enabled() ) {
-            $default = Settings::get_default_language();
-            self::maybe_persist_cookie( $default );
-            return $default;
+        return self::is_authorized_language_preview();
+    }
+
+    /**
+     * True when the current request is WordPress' own preview mechanism
+     * (?preview=true, as generated by get_preview_post_link()) for a post
+     * the current user is allowed to edit — the only case in which an
+     * inactive language's content may reach the front end, and how the
+     * "Preview in language" cycler works for languages that aren't live yet.
+     */
+    private static function is_authorized_language_preview() {
+        if ( ! is_preview() ) {
+            return false;
         }
 
-        // Priority 3: cookie — only consulted in query-param (non-URL-routing) mode.
-        if ( isset( $_COOKIE['stm_lang'] ) ) {
-            $lang = sanitize_text_field( $_COOKIE['stm_lang'] );
-            if ( in_array( $lang, $active_codes, true ) ) {
-                return $lang;
-            }
-        }
+        $post_id = get_queried_object_id();
 
-        return Settings::get_default_language();
+        return $post_id && current_user_can( 'edit_post', $post_id );
     }
 
     /**

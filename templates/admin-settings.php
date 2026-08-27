@@ -206,7 +206,7 @@ $languages = STM\Database::get_languages();
                     <th><label for="openai_key">OpenAI API Key</label></th>
                     <td>
                         <input type="password" id="openai_key" name="openai_key" class="regular-text"
-                               placeholder="<?php echo $ai['openai_key_set'] ? '••••••••••••••••' : 'sk-...'; ?>">
+                               placeholder="<?php echo esc_attr($ai['openai_key_set'] ? '••••••••••••••••' : 'sk-...'); ?>">
                         <?php if ($ai['openai_key_set']): ?>
                             <span style="color:#46b450;margin-left:8px;">✓ configured</span>
                         <?php endif; ?>
@@ -247,7 +247,7 @@ $languages = STM\Database::get_languages();
                     <th><label for="deepl_key">DeepL API Key</label></th>
                     <td>
                         <input type="password" id="deepl_key" name="deepl_key" class="regular-text"
-                               placeholder="<?php echo $ai['deepl_key_set'] ? '••••••••••••••••' : 'xxxxxxxx-xxxx-...:fx'; ?>">
+                               placeholder="<?php echo esc_attr($ai['deepl_key_set'] ? '••••••••••••••••' : 'xxxxxxxx-xxxx-...:fx'); ?>">
                         <?php if ($ai['deepl_key_set']): ?>
                             <span style="color:#46b450;margin-left:8px;">✓ configured</span>
                         <?php endif; ?>

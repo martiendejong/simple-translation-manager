@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:noNamespaceSchemaLocation="https://schema.phpunit.de/11.0/phpunit.xsd"
+         bootstrap="tests/bootstrap.php"
+         colors="true"
+         cacheDirectory=".phpunit.cache">
+    <testsuites>
+        <testsuite name="unit">
+            <directory suffix="Test.php">tests</directory>
+        </testsuite>
+    </testsuites>
+    <source>
+        <include>
+            <file>includes/class-admin.php</file>
+            <file>includes/class-api.php</file>
+            <file>includes/class-dashboard.php</file>
+            <file>includes/class-import-export.php</file>
+            <file>includes/class-post-editor.php</file>
+            <file>includes/class-string-scanner.php</file>
+            <file>templates/meta-box-translations.php</file>
+        </include>
+    </source>
+</phpunit>

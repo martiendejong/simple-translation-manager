@@ -80,14 +80,6 @@ class SeoGodIntegration {
         return $detected === 'none' ? 'stm' : $detected;
     }
 
-    public static function provide_current_language( string $current, string $plugin = '' ): string {
-        // Only answer when STM is the declared multilingual provider
-        if ( $plugin && $plugin !== 'stm' ) {
-            return $current;
-        }
-        return $current ?: Frontend::get_current_language();
-    }
-
     public static function provide_languages( array $existing ): array {
         // If another plugin already provided languages, respect that
         if ( ! empty( $existing ) ) {
@@ -107,6 +99,21 @@ class SeoGodIntegration {
             },
             Database::get_languages()
         );
+    }
+
+    public static function provide_current_language( string $current, string $plugin = '' ): string {
+        // Only respond when SEO God has identified STM as the active provider
+        if ( $plugin !== 'stm' ) {
+            return $current;
+        }
+
+        $lang = self::current_lang();
+        if ( $lang === Settings::get_default_language() ) {
+            // Preserve the pre-hook fallback (e.g. get_locale()) on default-language pages
+            return $current;
+        }
+
+        return $lang;
     }
 
     // -------------------------------------------------------------------------

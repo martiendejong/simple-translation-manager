@@ -9,6 +9,7 @@
  * - stm_post_translations: Dynamic content translations (posts/pages/CPT fields)
  * - stm_post_associations: Links translated post versions (translation groups)
  * - stm_term_translations: Category/tag translations
+ * - stm_field_value_translations: Shared translations for standardized field values
  */
 
 namespace STM;
@@ -123,6 +124,24 @@ class Database {
                 KEY term_id (term_id)
             ) {$charset_collate};";
 
+            // Table 7: Field Value Translations (standardized values shared across posts)
+            // value_hash = md5(source_value) keeps the unique key within index limits
+            $table_field_values = $wpdb->prefix . 'stm_field_value_translations';
+            $sql_field_values = "CREATE TABLE IF NOT EXISTS {$table_field_values} (
+                id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+                field_name varchar(100) NOT NULL,
+                value_hash char(32) NOT NULL,
+                source_value text NOT NULL,
+                language_code varchar(10) NOT NULL,
+                translation text NOT NULL,
+                created_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                PRIMARY KEY (id),
+                UNIQUE KEY field_value_lang (field_name, value_hash, language_code),
+                KEY field_name (field_name),
+                KEY language_code (language_code)
+            ) {$charset_collate};";
+
             require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
             dbDelta($sql_languages);
             dbDelta($sql_strings);
@@ -130,9 +149,24 @@ class Database {
             dbDelta($sql_post_translations);
             dbDelta($sql_post_associations);
             dbDelta($sql_term_translations);
+            dbDelta($sql_field_values);
         } catch (\Exception $e) {
             error_log('[STM] Error creating tables: ' . $e->getMessage());
         }
+    }
+
+    /**
+     * Run schema upgrades when the plugin was updated without reactivation
+     * (e.g. FTP deploys). Compares the stored schema version to STM_VERSION
+     * and re-runs dbDelta, which only applies missing changes.
+     */
+    public static function maybe_upgrade() {
+        $installed = get_option('stm_db_version', '');
+        if ($installed === STM_VERSION) {
+            return;
+        }
+        self::create_tables();
+        update_option('stm_db_version', STM_VERSION);
     }
 
     /**
@@ -193,6 +227,26 @@ class Database {
         if (false === $languages) {
             $languages = $wpdb->get_results(
                 "SELECT * FROM {$table} WHERE is_active = 1 ORDER BY order_index ASC"
+            );
+            wp_cache_set($cache_key, $languages, '', 3600);
+        }
+
+        return $languages;
+    }
+
+    /**
+     * Get every language ever added, active or not (admin Languages screen only)
+     */
+    public static function get_all_languages() {
+        global $wpdb;
+        $table = $wpdb->prefix . 'stm_languages';
+
+        $cache_key = 'stm_all_languages';
+        $languages = wp_cache_get($cache_key);
+
+        if (false === $languages) {
+            $languages = $wpdb->get_results(
+                "SELECT * FROM {$table} ORDER BY order_index ASC, id ASC"
             );
             wp_cache_set($cache_key, $languages, '', 3600);
         }

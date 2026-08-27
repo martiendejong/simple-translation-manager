@@ -5,6 +5,8 @@
  * These are the public API functions that themes use
  */
 
+if (!defined('ABSPATH')) exit;
+
 if (!function_exists('stm_get_current_language')) {
     function stm_get_current_language() {
         return STM\Frontend::get_current_language();
@@ -42,7 +44,7 @@ if (!function_exists('_e_stm')) {
      * @param string $context Context
      */
     function _e_stm($key, $fallback = '', $context = 'general') {
-        echo __stm($key, $fallback, $context);
+        echo esc_html(__stm($key, $fallback, $context));
     }
 }
 
@@ -79,6 +81,18 @@ if (!function_exists('stm_get_post_translation')) {
 
         if ($translation) {
             return $translation;
+        }
+
+        // Value-translatable fields: no per-post row, so try the shared
+        // per-value dictionary before falling back to the raw value
+        if (STM\FieldValues::is_value_translatable($db_field)) {
+            $raw = get_post_meta($post_id, $db_field, true);
+            if (is_string($raw) && $raw !== '') {
+                $value_translation = STM\FieldValues::translate_value($db_field, $raw, $lang);
+                if ($value_translation !== $raw) {
+                    return $value_translation;
+                }
+            }
         }
 
         // Auto-fallback based on field
@@ -197,6 +211,38 @@ if (!function_exists('stm_validate_bulk_translation_data')) {
     }
 }
 
+if (!function_exists('stm_register_value_translatable_field')) {
+    /**
+     * Mark a custom post type field as having translatable VALUES: each
+     * distinct stored value gets one shared translation per language,
+     * managed under Translations > Field Values.
+     *
+     * Call on or after 'plugins_loaded'.
+     *
+     * @param string $field_name Meta key (e.g. 'coachwork')
+     * @param array $args ['post_types' => string[], 'label' => string]
+     */
+    function stm_register_value_translatable_field($field_name, $args = []) {
+        STM\FieldValues::register($field_name, $args);
+    }
+}
+
+if (!function_exists('stm_get_field_value_translation')) {
+    /**
+     * Translate a standardized field value via the shared value dictionary.
+     * Returns the original value for the default language or when no
+     * translation exists.
+     *
+     * @param string $field_name Meta key
+     * @param string $value Raw (default-language) value
+     * @param string|null $lang Language code (defaults to current language)
+     * @return string
+     */
+    function stm_get_field_value_translation($field_name, $value, $lang = null) {
+        return STM\FieldValues::translate_value($field_name, $value, $lang);
+    }
+}
+
 if (!function_exists('stm_get_languages')) {
     /**
      * Get all active languages
@@ -218,7 +264,7 @@ if (!function_exists('stm_language_switcher')) {
     function stm_language_switcher($format = 'dropdown', $args = []) {
         $languages = stm_get_languages();
         $current_lang = stm_get_current_language();
-        $current_url = strtok($_SERVER['REQUEST_URI'], '?');
+        $current_url = strtok(wp_unslash($_SERVER['REQUEST_URI'] ?? ''), '?');
 
         // Remove language prefix from URL
         $clean_url = preg_replace('#^/[a-z]{2}(/|$)#', '/', $current_url);
@@ -229,7 +275,7 @@ if (!function_exists('stm_language_switcher')) {
                 foreach ($languages as $lang) {
                     $url = '/' . $lang->code . $clean_url;
                     $selected = ($lang->code === $current_lang) ? 'selected' : '';
-                    echo '<option value="' . esc_url($url) . '" ' . $selected . '>';
+                    echo '<option value="' . esc_url($url) . '" ' . esc_attr($selected) . '>';
                     echo esc_html($lang->native_name);
                     echo '</option>';
                 }
@@ -241,7 +287,7 @@ if (!function_exists('stm_language_switcher')) {
                 foreach ($languages as $lang) {
                     $url = '/' . $lang->code . $clean_url;
                     $active = ($lang->code === $current_lang) ? 'active' : '';
-                    echo '<a href="' . esc_url($url) . '" class="' . $active . '" title="' . esc_attr($lang->name) . '">';
+                    echo '<a href="' . esc_url($url) . '" class="' . esc_attr($active) . '" title="' . esc_attr($lang->name) . '">';
                     echo esc_html($lang->flag_emoji);
                     echo '</a>';
                 }
@@ -253,7 +299,7 @@ if (!function_exists('stm_language_switcher')) {
                 foreach ($languages as $lang) {
                     $url = '/' . $lang->code . $clean_url;
                     $active = ($lang->code === $current_lang) ? 'active' : '';
-                    echo '<a href="' . esc_url($url) . '" class="lang-btn ' . $active . '">';
+                    echo '<a href="' . esc_url($url) . '" class="lang-btn ' . esc_attr($active) . '">';
                     echo esc_html(strtoupper($lang->code));
                     echo '</a>';
                 }
@@ -266,7 +312,7 @@ if (!function_exists('stm_language_switcher')) {
                 foreach ($languages as $lang) {
                     $url = '/' . $lang->code . $clean_url;
                     $active = ($lang->code === $current_lang) ? 'active' : '';
-                    echo '<li class="' . $active . '">';
+                    echo '<li class="' . esc_attr($active) . '">';
                     echo '<a href="' . esc_url($url) . '">' . esc_html($lang->native_name) . '</a>';
                     echo '</li>';
                 }
