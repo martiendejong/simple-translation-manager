@@ -178,10 +178,10 @@ class Admin {
                 'ajaxUrl'     => admin_url('admin-ajax.php'),
                 'nonce'       => wp_create_nonce('stm_dashboard_nonce'),
                 'i18n'        => [
-                    'saving'     => __('Saving…', 'simple-translation-manager'),
+                    'saving'     => __('Savingâ€¦', 'simple-translation-manager'),
                     'saved'      => __('Saved', 'simple-translation-manager'),
                     'error'      => __('Error', 'simple-translation-manager'),
-                    'refreshing' => __('Refreshing…', 'simple-translation-manager'),
+                    'refreshing' => __('Refreshingâ€¦', 'simple-translation-manager'),
                 ],
             ]);
         }
@@ -194,7 +194,7 @@ class Admin {
         global $wpdb;
 
         // Get filter values. Read-only list filtering (no state change), so a
-        // nonce is not required here — see WordPress.Security.NonceVerification docs.
+        // nonce is not required here â€” see WordPress.Security.NonceVerification docs.
         // phpcs:disable WordPress.Security.NonceVerification.Recommended
         $lang_filter = wp_unslash($_GET['lang'] ?? '');
         $context_filter = wp_unslash($_GET['context'] ?? '');
@@ -232,7 +232,7 @@ class Admin {
         $where_sql = implode(' AND ', $where);
 
         // 'missing'/'complete' filter on translated_count, which is only known once the
-        // per-string correlated subquery below has run — so it's applied as a HAVING
+        // per-string correlated subquery below has run â€” so it's applied as a HAVING
         // clause against that subquery's alias, not folded into $where_sql.
         $status_having = self::build_status_having($status_filter, $total_languages);
 
@@ -294,7 +294,7 @@ class Admin {
      * "missing translations" / "fully translated" status filter.
      *
      * translated_count comes from a correlated subquery on the string, not a real
-     * column, so it can only be filtered via HAVING once it's computed — this can't
+     * column, so it can only be filtered via HAVING once it's computed â€” this can't
      * be folded into $where. Pure/static so the threshold logic is unit-testable
      * without a live or fake $wpdb.
      *
@@ -365,6 +365,9 @@ class Admin {
         $default_language = Database::get_default_language();
         $default_code = $default_language ? $default_language->code : 'en';
 
+        // Read-only view selector on an admin listing page — no state change,
+        // so no nonce (same policy as the filter params on page_translations).
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended
         $field = sanitize_key($_GET['field'] ?? '');
 
         if ($field && isset($registered[$field])) {
@@ -387,7 +390,7 @@ class Admin {
      * Mark a field as value-translatable (admin form handler)
      */
     public static function add_value_field() {
-        if (!Security::verify_admin_action('stm_add_value_field')) {
+        if (!check_admin_referer('stm_add_value_field') || !current_user_can('manage_options')) {
             wp_die('Unauthorized', 403);
         }
 
@@ -411,7 +414,7 @@ class Admin {
      * Stored value translations are kept and restored when re-added.
      */
     public static function remove_value_field() {
-        if (!Security::verify_admin_action('stm_remove_value_field')) {
+        if (!check_admin_referer('stm_remove_value_field') || !current_user_can('manage_options')) {
             wp_die('Unauthorized', 403);
         }
 
@@ -426,7 +429,7 @@ class Admin {
      * Bulk-save value translations for one field (admin form handler)
      */
     public static function save_field_values() {
-        if (!Security::verify_admin_action('stm_save_field_values')) {
+        if (!check_admin_referer('stm_save_field_values') || !current_user_can('manage_options')) {
             wp_die('Unauthorized', 403);
         }
 
@@ -467,7 +470,7 @@ class Admin {
      * Auto-translate missing value translations for one field (admin form handler)
      */
     public static function autofill_field_values() {
-        if (!Security::verify_admin_action('stm_autofill_field_values')) {
+        if (!check_admin_referer('stm_autofill_field_values') || !current_user_can('manage_options')) {
             wp_die('Unauthorized', 403);
         }
 
@@ -836,7 +839,7 @@ class Admin {
      * Add language (admin form handler)
      *
      * `code` has a UNIQUE KEY (class-database.php), so re-adding a code that
-     * already exists — most commonly one an admin previously deactivated —
+     * already exists â€” most commonly one an admin previously deactivated â€”
      * must reactivate that row instead of attempting (and failing) a raw
      * insert. Only a genuinely new code inserts a new row.
      */
@@ -885,7 +888,7 @@ class Admin {
         ];
 
         if ($existing) {
-            // Reactivate the existing inactive row — never delete/reinsert, so any
+            // Reactivate the existing inactive row â€” never delete/reinsert, so any
             // translations already tied to this language code are left untouched.
             $result = $wpdb->update($table, $fields, ['id' => $existing->id]);
             $success_arg = 'stm_reactivated';

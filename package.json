@@ -1,6 +1,6 @@
 {
   "name": "simple-translation-manager",
-  "version": "1.3.0",
+  "version": "1.3.1",
   "private": true,
   "description": "Jest unit tests for the STM post/page editor translation tab UI.",
   "scripts": {
