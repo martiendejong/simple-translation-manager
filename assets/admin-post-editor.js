@@ -304,6 +304,10 @@
                 source_lang: sourceLang,
                 target_lang: targetLang,
                 context: field,
+                // Scopes the server-side translation-memory lookup to this
+                // post so a different (even near-identical-template) post's
+                // stored translation can never come back here (869enmrpz).
+                post_id: config.postId || 0,
             }),
         }).done(function(resp) {
             deferred.resolve({

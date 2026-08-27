@@ -30,6 +30,10 @@ class SeoGodIntegration {
         // Register STM in SEO God's multilingual detection
         add_filter( 'seo_god_detect_multilingual', [ __CLASS__, 'declare_stm' ] );
         add_filter( 'seo_god_active_languages',    [ __CLASS__, 'provide_languages' ] );
+
+        // Report the language of the current request, zodat SEO God taalbewuste
+        // data (zoals per-taal FAQ-sets, _seo_god_faqs_{lang}) kan serveren.
+        add_filter( 'seo_god_current_language',    [ __CLASS__, 'provide_current_language' ], 10, 2 );
     }
 
     // -------------------------------------------------------------------------
@@ -74,6 +78,14 @@ class SeoGodIntegration {
     public static function declare_stm( string $detected ): string {
         // Only override if no other plugin was detected
         return $detected === 'none' ? 'stm' : $detected;
+    }
+
+    public static function provide_current_language( string $current, string $plugin = '' ): string {
+        // Only answer when STM is the declared multilingual provider
+        if ( $plugin && $plugin !== 'stm' ) {
+            return $current;
+        }
+        return $current ?: Frontend::get_current_language();
     }
 
     public static function provide_languages( array $existing ): array {

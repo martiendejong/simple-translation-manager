@@ -237,6 +237,11 @@ class Admin {
      * Page: Languages
      */
     public static function page_languages() {
+        // Admin management screen needs every language row, including
+        // hidden (is_active = 0) ones, so the admin can see and toggle
+        // them back on. Database::get_languages() is active-only by
+        // design (it backs the public switcher/hreflang/frontend), so it
+        // would silently hide inactive languages from this screen too.
         $languages = Database::get_all_languages();
         include STM_PLUGIN_DIR . 'templates/admin-languages.php';
     }

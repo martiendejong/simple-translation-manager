@@ -53,4 +53,4 @@ If you're looking for code-level documentation, see one directory up:
 - [`../API.md`](../API.md) — REST API endpoints
 - [`../CLI-COMMANDS.md`](../CLI-COMMANDS.md) — WP-CLI commands
 - [`../../README.md`](../../README.md) — plugin overview
-- [`../../README-BLOG.md`](../../README-BLOG.md) — full blog translation reference
+- [`../BLOG.md`](../BLOG.md) — full blog translation reference

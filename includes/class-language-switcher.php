@@ -300,6 +300,14 @@ class LanguageSwitcher extends \WP_Widget {
 
     private static function get_language_url($lang_code, $base_url) {
         if (Settings::is_url_routing_enabled()) {
+            // De default-taal heeft géén taal-prefix: de rewrite-regels worden
+            // alleen voor niet-default talen gegenereerd (stm_rewrite_rules_array
+            // slaat de default over), dus een /nl/-link zou op WordPress'
+            // 404-gok-redirect stranden. Default = de kale URL.
+            if ($lang_code === Settings::get_default_language()) {
+                return $base_url;
+            }
+
             // Parse the base URL and prepend /lang_code/
             $parsed = parse_url($base_url);
             $path   = ltrim($parsed['path'] ?? '/', '/');

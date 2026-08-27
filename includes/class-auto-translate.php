@@ -67,9 +67,14 @@ class AutoTranslate {
      * @param string $source_lang Source language code
      * @param string $target_lang Target language code
      * @param string $context Optional context hint
+     * @param int    $post_id Optional ID of the post being translated. MUST be
+     *                        forwarded whenever the text being translated
+     *                        belongs to a specific post — see the $post_id
+     *                        docblock on TranslationMemory::suggest() for why
+     *                        (869enmrpz).
      * @return array ['success' => bool, 'translation' => string, 'provider' => string, 'error' => string]
      */
-    public static function translate($text, $source_lang, $target_lang, $context = '') {
+    public static function translate($text, $source_lang, $target_lang, $context = '', $post_id = 0) {
         if (empty($text)) {
             return ['success' => false, 'translation' => '', 'provider' => '', 'error' => 'Empty text'];
         }
@@ -78,8 +83,17 @@ class AutoTranslate {
             return ['success' => true, 'translation' => $text, 'provider' => 'passthrough', 'error' => ''];
         }
 
-        // Check translation memory first
-        $memory_suggestions = TranslationMemory::suggest($text, $target_lang);
+        // Check translation memory first. $context carries the field being
+        // translated (post_title/post_excerpt/post_content/post_name — see
+        // translateField() in admin-post-editor.js) and MUST be forwarded so
+        // the memory lookup can scope matches to that same field. Without it,
+        // an excerpt translation saved for this post can "exact match" a
+        // full-content request, because the memory layer otherwise has no way
+        // to tell which field a stored translation belongs to (869enmhwe).
+        // $post_id MUST also be forwarded so a stored translation belonging to
+        // a DIFFERENT post — however similar the two posts' text — can never
+        // come back for this one (869enmrpz).
+        $memory_suggestions = TranslationMemory::suggest($text, $target_lang, $context, $post_id);
         if (!empty($memory_suggestions) && $memory_suggestions[0]['similarity'] >= 0.95) {
             return [
                 'success' => true,
@@ -340,6 +354,32 @@ class AutoTranslate {
     // =========================================================================
 
     /**
+     * Resolve source/target language codes from REST params.
+     *
+     * Accepts both the endpoint's documented source_lang/target_lang keys
+     * and the more conventional source_language/target_language spelling.
+     * A caller that sends the latter against a handler that only reads the
+     * former does NOT get an error — the "?? 'en'" / "?? 'nl'" defaults
+     * silently take over, translation runs in the wrong (or a no-op)
+     * direction, and OpenAI just echoes text that already matches the
+     * (wrongly-defaulted) target language back unchanged. That looked
+     * exactly like a translation-memory regression during a live re-test
+     * of 869enmhwe (provider correctly read 'openai', but "translation"
+     * was identical to the Dutch input) and cost a full review cycle to
+     * diagnose — it was a param-name mismatch in the test call, not a
+     * product bug, because every real in-repo caller (admin-post-editor.js,
+     * admin.js) already uses source_lang/target_lang correctly. Accepting
+     * both spellings here removes the trap for any future caller.
+     *
+     * @return array{0:string,1:string} [$source_lang, $target_lang]
+     */
+    public static function resolve_lang_params($params) {
+        $source = $params['source_lang'] ?? $params['source_language'] ?? 'en';
+        $target = $params['target_lang'] ?? $params['target_language'] ?? 'nl';
+        return [sanitize_text_field($source), sanitize_text_field($target)];
+    }
+
+    /**
      * POST /translate/auto - Translate a single text
      *
      * Body: { "text": "Hello", "source_lang": "en", "target_lang": "nl", "context": "title" }
@@ -347,15 +387,15 @@ class AutoTranslate {
     public static function rest_auto_translate($request) {
         $params = $request->get_json_params();
         $text = $params['text'] ?? '';
-        $source_lang = sanitize_text_field($params['source_lang'] ?? 'en');
-        $target_lang = sanitize_text_field($params['target_lang'] ?? 'nl');
+        [$source_lang, $target_lang] = self::resolve_lang_params($params);
         $context = sanitize_text_field($params['context'] ?? '');
 
-        // Optional: save result directly to a post
+        // Optional: save result directly to a post. Also forwarded into
+        // translate() so the memory lookup is scoped to this post (869enmrpz).
         $post_id = intval($params['post_id'] ?? 0);
         $field = sanitize_text_field($params['field'] ?? '');
 
-        $result = self::translate($text, $source_lang, $target_lang, $context);
+        $result = self::translate($text, $source_lang, $target_lang, $context, $post_id);
 
         // If post_id and field are provided, save the translation
         if ($result['success'] && $post_id > 0 && $field) {
@@ -379,8 +419,7 @@ class AutoTranslate {
      */
     public static function rest_batch_translate($request) {
         $params = $request->get_json_params();
-        $source_lang = sanitize_text_field($params['source_lang'] ?? 'en');
-        $target_lang = sanitize_text_field($params['target_lang'] ?? 'nl');
+        [$source_lang, $target_lang] = self::resolve_lang_params($params);
         $items = $params['items'] ?? [];
 
         if (empty($items)) {
@@ -396,7 +435,9 @@ class AutoTranslate {
             $post_id = intval($item['post_id'] ?? 0);
             $field = sanitize_text_field($item['field'] ?? '');
 
-            $result = self::translate($text, $source_lang, $target_lang, $context);
+            // $post_id scopes the memory lookup to this post so a different
+            // post's stored translation can never come back here (869enmrpz).
+            $result = self::translate($text, $source_lang, $target_lang, $context, $post_id);
 
             // Auto-save if post_id + field provided
             if ($result['success'] && $post_id > 0 && $field) {

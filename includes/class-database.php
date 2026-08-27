@@ -201,13 +201,18 @@ class Database {
     }
 
     /**
-     * Get all languages including inactive (for admin UI)
+     * Get every language row regardless of is_active, for the admin
+     * Languages management screen — an admin must be able to see and
+     * re-activate (or delete) a hidden language, not just active ones.
+     * Intentionally uncached: this is a low-traffic wp-admin page and it
+     * must never serve a stale row right after a toggle/add/delete.
      */
     public static function get_all_languages() {
         global $wpdb;
         $table = $wpdb->prefix . 'stm_languages';
+
         return $wpdb->get_results(
-            "SELECT * FROM {$table} ORDER BY order_index ASC, id ASC"
+            "SELECT * FROM {$table} ORDER BY order_index ASC"
         );
     }
 

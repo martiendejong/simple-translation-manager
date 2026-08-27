@@ -116,6 +116,13 @@ class PostEditor {
             'nonce'       => wp_create_nonce('stm_post_editor_nonce'),
             'restUrl'     => esc_url_raw(rest_url('stm/v1/translate/auto')),
             'restNonce'   => wp_create_nonce('wp_rest'),
+            // Sent with every auto-translate request so the server-side
+            // translation-memory lookup can be scoped to THIS post — without
+            // it, a near-duplicate-template post elsewhere on the site could
+            // have its stored translation silently reused here (869enmrpz).
+            // 0 on post-new.php (no post ID exists yet), which is fine: an
+            // unsaved post cannot yet be the source of a cross-post mix-up.
+            'postId'      => $post_id,
             'sourceLang'  => $current_lang,
             'defaultLang' => Settings::get_default_language(),
             'i18n' => [
@@ -168,7 +175,8 @@ class PostEditor {
 
                 // Save each field
                 foreach ($fields as $field_name => $value) {
-                    $field_name = sanitize_text_field($field_name);
+                    $field_name = sanitize_text_field(wp_unslash($field_name));
+                    $value = wp_unslash($value);
 
                     // Sanitize based on field type
                     if ($field_name === 'post_content') {
@@ -386,6 +394,25 @@ class PostEditor {
         }
 
         return $translation;
+    }
+
+    /**
+     * Reverse-lookup: which post has $slug as its translated post_name for
+     * $language_code? Used to resolve incoming /{lang}/.../{translated-slug}/
+     * requests back to the real post — see
+     * Frontend::resolve_translated_slug_request().
+     *
+     * @return int 0 when no translated slug matches.
+     */
+    public static function get_post_id_by_translated_slug($language_code, $slug) {
+        global $wpdb;
+        $table = $wpdb->prefix . 'stm_post_translations';
+
+        return (int) $wpdb->get_var($wpdb->prepare(
+            "SELECT post_id FROM {$table} WHERE field_name = 'post_name' AND language_code = %s AND translation = %s LIMIT 1",
+            $language_code,
+            $slug
+        ));
     }
 
     /**

@@ -129,51 +129,16 @@ $error_messages = [
     <div class="card" style="margin-top: 30px; max-width: 600px;">
         <h2>Add Language</h2>
 
-        <style>
-            #stm-lang-search-wrap { position: relative; display: inline-block; width: 100%; max-width: 350px; }
-            #stm-lang-search { width: 100%; box-sizing: border-box; }
-            #stm-lang-dropdown {
-                display: none;
-                position: absolute;
-                top: 100%; left: 0; right: 0;
-                background: #fff;
-                border: 1px solid #ccc;
-                border-top: none;
-                z-index: 9999;
-                max-height: 260px;
-                overflow-y: auto;
-                box-shadow: 0 4px 8px rgba(0,0,0,.12);
-            }
-            .stm-lang-option {
-                padding: 8px 10px;
-                cursor: pointer;
-                font-size: 13px;
-                border-bottom: 1px solid #f0f0f0;
-            }
-            .stm-lang-option:hover { background: #f0f6fc; }
-        </style>
-
         <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
             <input type="hidden" name="action" value="stm_add_language">
             <?php wp_nonce_field('stm_add_language'); ?>
 
             <table class="form-table">
                 <tr>
-                    <th><label for="stm-lang-search">Search language</label></th>
-                    <td>
-                        <div id="stm-lang-search-wrap">
-                            <input type="text" id="stm-lang-search" class="regular-text"
-                                   placeholder="Type a language name or code…" autocomplete="off">
-                            <div id="stm-lang-dropdown"></div>
-                        </div>
-                        <p class="description">Select from the list to auto-fill the fields below, or fill them in manually.</p>
-                    </td>
-                </tr>
-                <tr>
                     <th><label for="lang_code">Code <span style="color:red">*</span></label></th>
                     <td>
                         <input type="text" id="lang_code" name="lang_code" class="small-text"
-                               maxlength="3" placeholder="fr" required>
+                               maxlength="3" placeholder="nl" required>
                         <p class="description">2–3 lowercase letters (ISO 639-1/2)</p>
                     </td>
                 </tr>
@@ -181,14 +146,14 @@ $error_messages = [
                     <th><label for="lang_name">Name <span style="color:red">*</span></label></th>
                     <td>
                         <input type="text" id="lang_name" name="lang_name" class="regular-text"
-                               placeholder="French" required>
+                               placeholder="Dutch" required>
                     </td>
                 </tr>
                 <tr>
                     <th><label for="lang_native">Native Name</label></th>
                     <td>
                         <input type="text" id="lang_native" name="lang_native" class="regular-text"
-                               placeholder="Français">
+                               placeholder="Nederlands">
                         <p class="description">Leave empty to use Name</p>
                     </td>
                 </tr>
@@ -196,7 +161,7 @@ $error_messages = [
                     <th><label for="lang_flag">Flag Emoji</label></th>
                     <td>
                         <input type="text" id="lang_flag" name="lang_flag" class="small-text"
-                               placeholder="🇫🇷" maxlength="10">
+                               placeholder="🇳🇱" maxlength="10">
                     </td>
                 </tr>
                 <tr>
