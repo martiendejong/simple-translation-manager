@@ -201,17 +201,6 @@ class Database {
     }
 
     /**
-     * Get all languages including inactive (for admin UI)
-     */
-    public static function get_all_languages() {
-        global $wpdb;
-        $table = $wpdb->prefix . 'stm_languages';
-        return $wpdb->get_results(
-            "SELECT * FROM {$table} ORDER BY order_index ASC, id ASC"
-        );
-    }
-
-    /**
      * Get default language
      */
     public static function get_default_language() {

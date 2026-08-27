@@ -389,6 +389,25 @@ class PostEditor {
     }
 
     /**
+     * Reverse-lookup: which post has $slug as its translated post_name for
+     * $language_code? Used to resolve incoming /{lang}/.../{translated-slug}/
+     * requests back to the real post — see
+     * Frontend::resolve_translated_slug_request().
+     *
+     * @return int 0 when no translated slug matches.
+     */
+    public static function get_post_id_by_translated_slug($language_code, $slug) {
+        global $wpdb;
+        $table = $wpdb->prefix . 'stm_post_translations';
+
+        return (int) $wpdb->get_var($wpdb->prepare(
+            "SELECT post_id FROM {$table} WHERE field_name = 'post_name' AND language_code = %s AND translation = %s LIMIT 1",
+            $language_code,
+            $slug
+        ));
+    }
+
+    /**
      * Get posts in translation group
      */
     public static function get_translation_group_posts($translation_group) {

@@ -50,6 +50,7 @@ require_once STM_PLUGIN_DIR . 'includes/class-translation-memory.php';
 require_once STM_PLUGIN_DIR . 'includes/class-auto-translate.php';
 require_once STM_PLUGIN_DIR . 'includes/class-dashboard.php';
 require_once STM_PLUGIN_DIR . 'includes/class-hreflang.php';
+require_once STM_PLUGIN_DIR . 'includes/class-sitemap.php';
 require_once STM_PLUGIN_DIR . 'includes/class-seo-god-integration.php';
 
 // WP-CLI commands (only loaded if WP-CLI is available)
@@ -130,6 +131,120 @@ function stm_query_vars($vars) {
 add_filter('query_vars', 'stm_query_vars');
 
 /**
+ * Strip a leading language segment (e.g. "en/") off the raw request path
+ * before any other plugin's own `request` filter tries to resolve that path
+ * itself.
+ *
+ * Other plugins that own their own URL structure (a CPT plugin resolving
+ * /{location}/{offering}/ style paths, for example) typically read the raw
+ * $wp->request path directly rather than the query vars WordPress's rewrite
+ * engine produced, because their URL shape isn't expressed as a registered
+ * rewrite rule. Left untouched, such a plugin sees the language segment as
+ * the first path segment of its own routing scheme, fails to resolve it, and
+ * WordPress falls back to a 404 (guessed back to the default-language URL).
+ *
+ * Running at priority 1 — the earliest 'request' filters run — guarantees
+ * this stripping happens before any such plugin's own request-based routing,
+ * regardless of plugin load order. It also records the detected language on
+ * the query vars so it is available even when no rewrite rule ever matched
+ * this path (which is exactly the case for the plugins this exists for).
+ */
+function stm_strip_lang_prefix_from_request( $qv ) {
+    if ( is_admin() || ! STM\Settings::is_url_routing_enabled() || empty( $GLOBALS['wp'] ) ) {
+        return $qv;
+    }
+
+    $request = (string) $GLOBALS['wp']->request;
+    if ( '' === $request ) {
+        return $qv;
+    }
+
+    $segments   = explode( '/', $request );
+    $maybe_lang = $segments[0];
+    $default    = STM\Settings::get_default_language();
+
+    if ( '' === $maybe_lang || $maybe_lang === $default ) {
+        return $qv;
+    }
+
+    $active_codes = wp_list_pluck( STM\Database::get_languages(), 'code' );
+    if ( ! in_array( $maybe_lang, $active_codes, true ) ) {
+        return $qv;
+    }
+
+    array_shift( $segments );
+    $GLOBALS['wp']->request = implode( '/', $segments );
+    $qv['lang']             = $maybe_lang;
+
+    return $qv;
+}
+add_filter( 'request', 'stm_strip_lang_prefix_from_request', 1 );
+
+/**
+ * Voorpagina-fix voor de taalwissel: /en/ en /?lang=en zetten alleen de
+ * lang-query-var. WordPress past de statische-voorpagina-substitutie alleen
+ * toe op een "lege" request, dus met lang erin valt de main query terug op de
+ * blogindex (de "Updates"-lijst) in plaats van de homepage. Als lang de enige
+ * betekenisvolle var is, laden we expliciet de voorpagina; lang blijft staan
+ * zodat de taalbepaling (Frontend::get_current_language) blijft werken.
+ *
+ * Alleen van toepassing als er ook echt geen pad meer over is na het strippen
+ * van het taalsegment (stm_strip_lang_prefix_from_request hierboven) — een
+ * ander plugin dat zijn eigen resterende pad nog moet oplossen (bv. een
+ * locatie-/aanbodpagina) mag hier niet door overschreven worden met de
+ * voorpagina.
+ */
+function stm_front_page_request( $qv ) {
+    if ( ! isset( $qv['lang'] ) || ! empty( $GLOBALS['wp']->request ) ) {
+        return $qv;
+    }
+
+    $ignorable  = array( 'lang', 'preview', 'page', 'paged', 'cpage' );
+    $meaningful = array_diff_key( $qv, array_flip( $ignorable ) );
+
+    if ( empty( $meaningful ) && 'page' === get_option( 'show_on_front' ) && get_option( 'page_on_front' ) ) {
+        $qv['page_id'] = (int) get_option( 'page_on_front' );
+    }
+
+    return $qv;
+}
+add_filter( 'request', 'stm_front_page_request' );
+
+/**
+ * Prevent WordPress from stripping language URL prefixes via redirect_canonical.
+ *
+ * When URL routing is on, /en/t-zwaantje/ is a valid URL for the English
+ * version of that page. Without this hook WordPress's canonical redirect
+ * removes the /en/ prefix on every request, sending visitors back to the
+ * default-language URL and discarding the language context.
+ */
+function stm_prevent_lang_canonical_redirect( $redirect_url, $requested_url ) {
+    if ( ! STM\Settings::is_url_routing_enabled() ) {
+        return $redirect_url;
+    }
+
+    $path = parse_url( $requested_url, PHP_URL_PATH );
+    if ( ! $path ) {
+        return $redirect_url;
+    }
+
+    $default = STM\Settings::get_default_language();
+
+    foreach ( STM\Database::get_languages() as $lang ) {
+        if ( $lang->code === $default ) {
+            continue;
+        }
+        $prefix = '/' . $lang->code;
+        if ( $path === $prefix || $path === $prefix . '/' || 0 === strpos( $path, $prefix . '/' ) ) {
+            return false;
+        }
+    }
+
+    return $redirect_url;
+}
+add_filter( 'redirect_canonical', 'stm_prevent_lang_canonical_redirect', 10, 2 );
+
+/**
  * Initialize plugin
  */
 function stm_init() {
@@ -143,6 +258,8 @@ function stm_init() {
     STM\AutoTranslate::init();
     STM\Dashboard::init();
     STM\Hreflang::init();
+    STM\Sitemap::init();
     STM\SeoGodIntegration::init();
 }
 add_action('plugins_loaded', 'stm_init');
+
