@@ -543,3 +543,19 @@ always used (same limitation noted on task 869enr71g) — this predates and is u
 this change. Merged forward against master (task 869enr71g's `get_translation_placeholder()`
 landed first, same file, non-overlapping) — re-ran full suite post-merge, see below.
 Left: nothing outstanding for this task.
+
+## 2026-08-30 — task 958
+Done: `Hreflang::inject()` now only emits a non-default-language alternate when
+`has_translated_content()` confirms real translated content exists — fixes
+martiendejong.nl's homepage declaring hreflang="nl" for a URL that just 301-redirected
+back to English, plus the same fake-signal shape on every untranslated blog post. PR #38.
+Also applied the same patch directly to the live deployment via FTP (this site's plugin
+predates most of git master, per the established 278/929 deploy convention) and bumped
+STM_VERSION to `...+958`.
+Verified: `vendor/bin/phpunit` 180/180 pass (4 new tests in `tests/HreflangTest.php`).
+`phpcs --standard=phpcs.xml.dist` 0 errors. Live: homepage and an untranslated post no
+longer declare hreflang="nl"; genuinely translated pages (biography,
+claude-code-cursor-coaching) still do — confirmed via curl before and after the live patch.
+Left: nothing outstanding for this task. The underlying "front page has no Dutch
+translation at all" product gap (flagged by task 929) is unaddressed — this PR only stops
+the false signal, it doesn't build the missing Dutch homepage.
