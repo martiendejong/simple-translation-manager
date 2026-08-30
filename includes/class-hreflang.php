@@ -48,9 +48,22 @@ class Hreflang {
         echo "\n<!-- STM hreflang -->\n";
 
         foreach ( $languages as $lang ) {
-            $url = ( $lang->code === $default )
-                ? $current_url
-                : self::language_url( $lang->code, $current_url, $post );
+            if ( $lang->code === $default ) {
+                $url = $current_url;
+            } else {
+                // Only advertise a language version that actually has
+                // translated content behind it — a hreflang tag whose target
+                // just falls back to the default-language page (or, for
+                // non-singular content with no post to translate against,
+                // has no rendering path at all) is a fake localization
+                // signal: it tells crawlers/AI engines a version exists that
+                // doesn't, which erodes trust in the whole hreflang cluster
+                // (task 958).
+                if ( ! self::has_translated_content( $post, $lang->code ) ) {
+                    continue;
+                }
+                $url = self::language_url( $lang->code, $current_url, $post );
+            }
 
             echo '<link rel="alternate" hreflang="' . esc_attr( $lang->code ) . '" href="' . esc_url( $url ) . '">' . "\n";
         }
@@ -58,6 +71,28 @@ class Hreflang {
         // x-default always points to the default-language URL
         echo '<link rel="alternate" hreflang="x-default" href="' . esc_url( $current_url ) . '">' . "\n";
         echo "<!-- /STM hreflang -->\n\n";
+    }
+
+    /**
+     * Whether real content exists for $lang_code: either the post is
+     * natively written in that language, or a saved translation of it
+     * exists. Non-singular requests (archives, the posts-index front page)
+     * have no single post to check translation existence against — STM has
+     * no mechanism to translate an archive/listing page itself, so only the
+     * default language can be asserted true there until it does.
+     */
+    private static function has_translated_content( $post, string $lang_code ): bool {
+        if ( ! ( $post instanceof \WP_Post ) ) {
+            return false;
+        }
+
+        if ( PostEditor::get_post_language( $post->ID ) === $lang_code ) {
+            return true;
+        }
+
+        $translation = PostEditor::get_post_translation( $post->ID, $lang_code );
+
+        return ! empty( $translation['post_title'] ) || ! empty( $translation['post_content'] );
     }
 
     /**
