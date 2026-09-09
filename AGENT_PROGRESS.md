@@ -559,3 +559,14 @@ claude-code-cursor-coaching) still do — confirmed via curl before and after th
 Left: nothing outstanding for this task. The underlying "front page has no Dutch
 translation at all" product gap (flagged by task 929) is unaddressed — this PR only stops
 the false signal, it doesn't build the missing Dutch homepage.
+
+## 2026-09-09 — task 1915
+Plan: Pods Integration — add `STM\PodsIntegration` following the existing
+ElementorIntegration/SeoGodIntegration pattern (activates only when Pods is active).
+Detects a post's Pod via `pods_api()->load_pod()`, adds a dedicated "Pods Field
+Translations" meta box for translatable field types (text/paragraph/wysiwyg/etc.),
+stores per-field translations in the existing `wp_stm_post_translations` table
+(field_name = Pods field name, same table PostEditor already uses), and adds template
+function `stm_get_pods_translation($pod_name, $field_name, $lang, $post_id = null)` to
+functions.php. Relationship-ish field types (pick/file/avatar/taxonomy) are excluded from
+the translation UI and fall through to the live Pods value unchanged.
