@@ -461,7 +461,13 @@ class PostEditor {
     }
 
     /**
-     * Get post language
+     * Get post language.
+     *
+     * A manually-registered STM association is authoritative. Otherwise,
+     * defer to SEO God's per-post detected content language (task 2982)
+     * before falling back to the site default — the normal case for a post
+     * genuinely written in a non-default language but never manually
+     * registered through STM's editor UI (task 3047).
      */
     public static function get_post_language($post_id) {
         global $wpdb;
@@ -472,7 +478,31 @@ class PostEditor {
             $post_id
         ));
 
-        return $lang ?: Settings::get_default_language();
+        if ($lang) {
+            return $lang;
+        }
+
+        $detected = SeoGodIntegration::get_detected_content_language((int) $post_id);
+        if ($detected !== '' && self::is_known_language($detected)) {
+            return $detected;
+        }
+
+        return Settings::get_default_language();
+    }
+
+    /**
+     * Whether $code is one of STM's own configured active languages —
+     * guards against trusting a detected code SEO God returns that STM
+     * doesn't actually manage (would otherwise silently drop the
+     * default-language hreflang self-reference instead of just using it).
+     */
+    private static function is_known_language($code) {
+        foreach (Database::get_languages() as $lang) {
+            if ($lang->code === $code) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

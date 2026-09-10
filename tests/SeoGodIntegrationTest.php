@@ -77,4 +77,24 @@ class SeoGodIntegrationTest extends TestCase {
             'On default-language pages, the pre-hook value (e.g. get_locale() fallback) must be preserved unchanged.'
         );
     }
+
+    // -----------------------------------------------------------------
+    // get_detected_content_language() — reverse read: seo-god -> STM (task 3047)
+    // -----------------------------------------------------------------
+
+    public function test_get_detected_content_language_returns_seo_gods_filter_value(): void {
+        Functions\when('apply_filters')->alias(function ($tag, $value, ...$args) {
+            return $tag === 'seo_god_content_language' ? 'nl' : $value;
+        });
+
+        $this->assertSame('nl', SeoGodIntegration::get_detected_content_language(42));
+    }
+
+    public function test_get_detected_content_language_returns_empty_when_seo_god_has_no_signal(): void {
+        // No filter registered for the tag (SEO God inactive, or no detection
+        // for this post yet) — apply_filters() returns the default unchanged.
+        Functions\when('apply_filters')->returnArg(2);
+
+        $this->assertSame('', SeoGodIntegration::get_detected_content_language(42));
+    }
 }

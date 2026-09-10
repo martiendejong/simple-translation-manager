@@ -117,6 +117,22 @@ class SeoGodIntegration {
     }
 
     // -------------------------------------------------------------------------
+    // Reverse read: seo-god -> STM
+    // -------------------------------------------------------------------------
+
+    /**
+     * The per-post content language SEO God has detected (or an admin has
+     * manually set), via its `seo_god_content_language` filter (ClickUp
+     * task 2982). Returns '' when SEO God is inactive/not installed or has
+     * no signal for this post — apply_filters() returns the passed-in
+     * default unchanged when no filter is registered for the tag, so no
+     * separate "is SEO God active" check is needed here.
+     */
+    public static function get_detected_content_language( int $post_id ): string {
+        return (string) apply_filters( 'seo_god_content_language', '', $post_id );
+    }
+
+    // -------------------------------------------------------------------------
     // Helpers
     // -------------------------------------------------------------------------
 

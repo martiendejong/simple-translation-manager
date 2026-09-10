@@ -58,6 +58,9 @@ class HreflangTest extends TestCase {
         });
         Functions\when('remove_filter')->justReturn(true);
         Functions\when('add_filter')->justReturn(true);
+        // Default: no seo-god detection signal (SeoGodIntegration::get_detected_content_language()
+        // reads this via apply_filters) — individual tests override with an alias for 'nl'/'en'.
+        Functions\when('apply_filters')->returnArg(2);
 
         $this->wpdb->seed('wp_stm_languages', [
             'code' => 'en', 'name' => 'English', 'native_name' => 'English',
@@ -157,5 +160,62 @@ class HreflangTest extends TestCase {
         $html = ob_get_clean();
 
         $this->assertStringContainsString('hreflang="nl"', $html, 'A post natively written in Dutch is real Dutch content, not a fake signal.');
+    }
+
+    // -----------------------------------------------------------------
+    // Task 3047: a genuinely Dutch post never manually registered through
+    // STM's editor UI must self-declare hreflang="nl", not hreflang="en".
+    // -----------------------------------------------------------------
+
+    public function test_dutch_post_without_association_self_references_nl_not_en() {
+        $this->stubSingularPost(60, 'https://martiendejong.nl/tijdelijke-aanpassing-van-content/');
+
+        // No wp_stm_post_associations row for this post — SEO God's
+        // per-post content-language detection (task 2982) is the only
+        // signal available, and it says this post is Dutch.
+        Functions\when('apply_filters')->alias(function ($tag, $value, ...$args) {
+            return $tag === 'seo_god_content_language' ? 'nl' : $value;
+        });
+
+        ob_start();
+        Hreflang::inject();
+        $html = ob_get_clean();
+
+        $this->assertStringContainsString(
+            'hreflang="nl" href="https://martiendejong.nl/tijdelijke-aanpassing-van-content/"',
+            $html
+        );
+        $this->assertStringNotContainsString(
+            'hreflang="en"',
+            $html,
+            'A genuinely Dutch post with no real English translation must not self-declare hreflang="en".'
+        );
+        $this->assertStringContainsString(
+            'hreflang="x-default" href="https://martiendejong.nl/tijdelijke-aanpassing-van-content/"',
+            $html,
+            'x-default must point at the Dutch self-reference URL, not an English one.'
+        );
+    }
+
+    public function test_genuinely_english_post_is_unaffected_by_seo_god_integration() {
+        $this->stubSingularPost(61, 'https://martiendejong.nl/some-english-post/');
+
+        // No association row and no seo-god detection signal — the normal
+        // case for an ordinary English post today.
+        Functions\when('apply_filters')->returnArg(2);
+
+        ob_start();
+        Hreflang::inject();
+        $html = ob_get_clean();
+
+        $this->assertStringContainsString(
+            'hreflang="en" href="https://martiendejong.nl/some-english-post/"',
+            $html
+        );
+        $this->assertStringContainsString(
+            'hreflang="x-default" href="https://martiendejong.nl/some-english-post/"',
+            $html
+        );
+        $this->assertStringNotContainsString('hreflang="nl"', $html);
     }
 }

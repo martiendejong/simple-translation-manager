@@ -33,6 +33,17 @@ class Hreflang {
         $queried = is_singular() ? get_queried_object() : null;
         $post    = ( $queried instanceof \WP_Post ) ? $queried : null;
 
+        // A post's OWN language (its real STM association, or SEO God's
+        // detected content language, or the site default as last resort —
+        // see PostEditor::get_post_language()) is what "self-references"
+        // this URL, not necessarily the site default. Without this, a
+        // genuinely Dutch post that was never manually registered through
+        // STM's editor UI would self-declare hreflang="en" instead of
+        // hreflang="nl" (task 3047). Non-singular requests (archives, the
+        // front page) have no post to detect a language for, so they keep
+        // asserting the site default, same as before.
+        $self_lang = $post ? PostEditor::get_post_language( $post->ID ) : $default;
+
         // For singular content, build every language's URL from the post's
         // own default-language permalink (STM's substitution suppressed) so
         // each language's link can be resolved via Frontend::localize_permalink()
@@ -48,7 +59,7 @@ class Hreflang {
         echo "\n<!-- STM hreflang -->\n";
 
         foreach ( $languages as $lang ) {
-            if ( $lang->code === $default ) {
+            if ( $lang->code === $self_lang ) {
                 $url = $current_url;
             } else {
                 // Only advertise a language version that actually has
@@ -68,7 +79,7 @@ class Hreflang {
             echo '<link rel="alternate" hreflang="' . esc_attr( $lang->code ) . '" href="' . esc_url( $url ) . '">' . "\n";
         }
 
-        // x-default always points to the default-language URL
+        // x-default always points to this page's own (self-language) URL
         echo '<link rel="alternate" hreflang="x-default" href="' . esc_url( $current_url ) . '">' . "\n";
         echo "<!-- /STM hreflang -->\n\n";
     }

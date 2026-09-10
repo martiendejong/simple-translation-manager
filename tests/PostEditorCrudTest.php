@@ -589,6 +589,57 @@ class PostEditorCrudTest extends TestCase {
 
         $this->assertStringContainsString('🇩🇪', $output, 'A translation saved only in an inactive language must still count as a translation on the post list.');
     }
+
+    // -----------------------------------------------------------------
+    // get_post_language() — SEO God detected-language fallback (task 3047)
+    // -----------------------------------------------------------------
+
+    public function test_get_post_language_falls_back_to_seo_god_detected_language() {
+        $this->seedLanguages();
+        Functions\when('apply_filters')->alias(function ($tag, $value, ...$args) {
+            return $tag === 'seo_god_content_language' ? 'nl' : $value;
+        });
+
+        $this->assertSame(
+            'nl',
+            PostEditor::get_post_language(55),
+            'A post with no STM association row must defer to SEO God\'s detected content language before the site default.'
+        );
+    }
+
+    public function test_get_post_language_ignores_unknown_detected_language() {
+        $this->seedLanguages();
+        Functions\when('apply_filters')->alias(function ($tag, $value, ...$args) {
+            // SEO God only ever detects 'nl'/'en'/'' in practice, but a
+            // code STM doesn't manage must never be trusted as a language.
+            return $tag === 'seo_god_content_language' ? 'xx' : $value;
+        });
+
+        $this->assertSame('en', PostEditor::get_post_language(56));
+    }
+
+    public function test_get_post_language_falls_back_to_site_default_when_seo_god_has_no_signal() {
+        $this->seedLanguages();
+        Functions\when('apply_filters')->returnArg(2);
+
+        $this->assertSame('en', PostEditor::get_post_language(57));
+    }
+
+    public function test_get_post_language_prefers_real_stm_association_over_detected_language() {
+        $this->seedLanguages();
+        $this->wpdb->seed('wp_stm_post_associations', [
+            'post_id' => 58, 'language_code' => 'en', 'translation_group' => 'g1', 'is_original' => 1,
+        ]);
+        Functions\when('apply_filters')->alias(function ($tag, $value, ...$args) {
+            return $tag === 'seo_god_content_language' ? 'nl' : $value;
+        });
+
+        $this->assertSame(
+            'en',
+            PostEditor::get_post_language(58),
+            'A real, manually-registered STM association must win over SEO God\'s detection — no regression to existing behavior.'
+        );
+    }
 }
 
 /**
