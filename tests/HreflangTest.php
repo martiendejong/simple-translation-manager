@@ -172,9 +172,10 @@ class HreflangTest extends TestCase {
 
         // No wp_stm_post_associations row for this post — SEO God's
         // per-post content-language detection (task 2982) is the only
-        // signal available, and it says this post is Dutch.
+        // signal available, and it says this post is Dutch. SEO God
+        // returns a full locale tag ('nl-NL'), not STM's bare code ('nl').
         Functions\when('apply_filters')->alias(function ($tag, $value, ...$args) {
-            return $tag === 'seo_god_content_language' ? 'nl' : $value;
+            return $tag === 'seo_god_content_language' ? 'nl-NL' : $value;
         });
 
         ob_start();

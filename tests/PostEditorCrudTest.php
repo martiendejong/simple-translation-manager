@@ -596,8 +596,10 @@ class PostEditorCrudTest extends TestCase {
 
     public function test_get_post_language_falls_back_to_seo_god_detected_language() {
         $this->seedLanguages();
+        // SEO God's filter returns a full locale tag ('nl-NL'), not STM's
+        // bare code ('nl') — get_post_language() must normalize it.
         Functions\when('apply_filters')->alias(function ($tag, $value, ...$args) {
-            return $tag === 'seo_god_content_language' ? 'nl' : $value;
+            return $tag === 'seo_god_content_language' ? 'nl-NL' : $value;
         });
 
         $this->assertSame(
@@ -610,9 +612,8 @@ class PostEditorCrudTest extends TestCase {
     public function test_get_post_language_ignores_unknown_detected_language() {
         $this->seedLanguages();
         Functions\when('apply_filters')->alias(function ($tag, $value, ...$args) {
-            // SEO God only ever detects 'nl'/'en'/'' in practice, but a
-            // code STM doesn't manage must never be trusted as a language.
-            return $tag === 'seo_god_content_language' ? 'xx' : $value;
+            // A code STM doesn't manage must never be trusted as a language.
+            return $tag === 'seo_god_content_language' ? 'xx-XX' : $value;
         });
 
         $this->assertSame('en', PostEditor::get_post_language(56));
@@ -631,7 +632,7 @@ class PostEditorCrudTest extends TestCase {
             'post_id' => 58, 'language_code' => 'en', 'translation_group' => 'g1', 'is_original' => 1,
         ]);
         Functions\when('apply_filters')->alias(function ($tag, $value, ...$args) {
-            return $tag === 'seo_god_content_language' ? 'nl' : $value;
+            return $tag === 'seo_god_content_language' ? 'nl-NL' : $value;
         });
 
         $this->assertSame(

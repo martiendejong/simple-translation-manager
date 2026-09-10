@@ -82,9 +82,12 @@ class SeoGodIntegrationTest extends TestCase {
     // get_detected_content_language() — reverse read: seo-god -> STM (task 3047)
     // -----------------------------------------------------------------
 
-    public function test_get_detected_content_language_returns_seo_gods_filter_value(): void {
+    public function test_get_detected_content_language_normalizes_seo_gods_locale_tag(): void {
+        // SEO God's own filter returns a full locale tag (e.g. 'nl-NL',
+        // see SEO_God_Per_Page_SEO::normalize_language_tag()), not STM's
+        // bare 2-letter language codes.
         Functions\when('apply_filters')->alias(function ($tag, $value, ...$args) {
-            return $tag === 'seo_god_content_language' ? 'nl' : $value;
+            return $tag === 'seo_god_content_language' ? 'nl-NL' : $value;
         });
 
         $this->assertSame('nl', SeoGodIntegration::get_detected_content_language(42));
