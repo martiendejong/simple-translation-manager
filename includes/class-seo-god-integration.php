@@ -117,6 +117,32 @@ class SeoGodIntegration {
     }
 
     // -------------------------------------------------------------------------
+    // Reverse read: seo-god -> STM
+    // -------------------------------------------------------------------------
+
+    /**
+     * The per-post content language SEO God has detected (or an admin has
+     * manually set), via its `seo_god_content_language` filter (ClickUp
+     * task 2982), normalized to STM's bare language code ('nl') rather
+     * than SEO God's own full locale tag ('nl-NL') — the two plugins use
+     * different code shapes for the same underlying concept. Returns ''
+     * when SEO God is inactive/not installed or has no signal for this
+     * post — apply_filters() returns the passed-in default unchanged when
+     * no filter is registered for the tag, so no separate "is SEO God
+     * active" check is needed here.
+     */
+    public static function get_detected_content_language( int $post_id ): string {
+        $tag = (string) apply_filters( 'seo_god_content_language', '', $post_id );
+        if ( $tag === '' ) {
+            return '';
+        }
+
+        $parts = explode( '-', $tag );
+
+        return strtolower( $parts[0] );
+    }
+
+    // -------------------------------------------------------------------------
     // Helpers
     // -------------------------------------------------------------------------
 
