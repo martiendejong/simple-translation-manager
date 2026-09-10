@@ -559,3 +559,25 @@ claude-code-cursor-coaching) still do — confirmed via curl before and after th
 Left: nothing outstanding for this task. The underlying "front page has no Dutch
 translation at all" product gap (flagged by task 929) is unaddressed — this PR only stops
 the false signal, it doesn't build the missing Dutch homepage.
+
+## 2026-09-10 — task 3047
+Done: `PostEditor::get_post_language()` now consults SEO God's per-post detected
+content language (task 2982) before falling back to the site default, and
+`Hreflang::inject()` compares each language against the post's own resolved
+language instead of unconditionally the site default — fixes a genuinely Dutch
+post (no `wp_stm_post_associations` row) self-declaring hreflang="en"/x-default
+as English. Added `SeoGodIntegration::get_detected_content_language()` as the
+reverse-direction bridge; it normalizes SEO God's full locale tag ('nl-NL') to
+STM's bare code ('nl') — a mismatch only caught during live verification, not
+by the first pass of unit tests (fixed and covered before shipping). PR #41.
+Also applied the patch directly to the live deployment via FTP (same convention
+as task 958), backing up all 4 touched files server-side first, and bumped
+STM_VERSION to `...+958+3047`.
+Verified: `vendor/bin/phpunit` 188/188 pass (7 new/updated tests across
+HreflangTest, PostEditorCrudTest, SeoGodIntegrationTest). `phpcs` 0 errors.
+Live: `/tijdelijke-aanpassing-van-content/` and `/populatie-of-ondersoort/`
+(both genuinely Dutch) now emit hreflang="nl" self-reference + matching
+x-default, no hreflang="en"; homepage (English) unchanged; the one post with a
+real saved Dutch translation (task 958's regression case) still emits both
+hreflang="en" and hreflang="nl" correctly.
+Left: nothing outstanding for this task.
