@@ -30,8 +30,19 @@ class Hreflang {
         }
 
         $default = Settings::get_default_language();
-        $queried = is_singular() ? get_queried_object() : null;
-        $post    = ( $queried instanceof \WP_Post ) ? $queried : null;
+        $queried = null;
+        if ( is_singular() ) {
+            $queried = get_queried_object();
+        } elseif ( is_tax() || is_category() ) {
+            // Category/subcategory archives (e.g. the bcc_category taxonomy)
+            // query a WP_Term, not a WP_Post — resolving it here lets
+            // has_translated_content() below check STM's own term
+            // translations table instead of unconditionally treating every
+            // archive as untranslatable (task 3346).
+            $queried = get_queried_object();
+        }
+        $post = ( $queried instanceof \WP_Post ) ? $queried : null;
+        $term = ( $queried instanceof \WP_Term ) ? $queried : null;
 
         // A post's OWN language (its real STM association, or SEO God's
         // detected content language, or the site default as last resort —
@@ -70,7 +81,7 @@ class Hreflang {
                 // signal: it tells crawlers/AI engines a version exists that
                 // doesn't, which erodes trust in the whole hreflang cluster
                 // (task 958).
-                if ( ! self::has_translated_content( $post, $lang->code ) ) {
+                if ( ! self::has_translated_content( $post, $term, $lang->code ) ) {
                     continue;
                 }
                 $url = self::language_url( $lang->code, $current_url, $post );
@@ -86,24 +97,48 @@ class Hreflang {
 
     /**
      * Whether real content exists for $lang_code: either the post is
-     * natively written in that language, or a saved translation of it
-     * exists. Non-singular requests (archives, the posts-index front page)
-     * have no single post to check translation existence against — STM has
-     * no mechanism to translate an archive/listing page itself, so only the
-     * default language can be asserted true there until it does.
+     * natively written in that language, a saved translation of it exists,
+     * or — for a category/subcategory archive — a registered term
+     * translation exists in wp_stm_term_translations (task 3346). A
+     * post-type archive (e.g. /types/) queries neither a WP_Post nor a
+     * WP_Term, so it still has nothing to check translation existence
+     * against and keeps asserting only the default language, same as before.
      */
-    private static function has_translated_content( $post, string $lang_code ): bool {
-        if ( ! ( $post instanceof \WP_Post ) ) {
-            return false;
+    private static function has_translated_content( $post, $term, string $lang_code ): bool {
+        if ( $post instanceof \WP_Post ) {
+            if ( PostEditor::get_post_language( $post->ID ) === $lang_code ) {
+                return true;
+            }
+
+            $translation = PostEditor::get_post_translation( $post->ID, $lang_code );
+
+            return ! empty( $translation['post_title'] ) || ! empty( $translation['post_content'] );
         }
 
-        if ( PostEditor::get_post_language( $post->ID ) === $lang_code ) {
-            return true;
+        if ( $term instanceof \WP_Term ) {
+            return self::has_term_translation( $term->term_id, $lang_code );
         }
 
-        $translation = PostEditor::get_post_translation( $post->ID, $lang_code );
+        return false;
+    }
 
-        return ! empty( $translation['post_title'] ) || ! empty( $translation['post_content'] );
+    /**
+     * Whether a registered translation row exists for $term_id in
+     * $lang_code — the same wp_stm_term_translations lookup
+     * Frontend::filter_term() already uses to swap a term's displayed
+     * name/slug/description for the current request's language.
+     */
+    private static function has_term_translation( int $term_id, string $lang_code ): bool {
+        global $wpdb;
+        $table = $wpdb->prefix . 'stm_term_translations';
+
+        $found = $wpdb->get_var( $wpdb->prepare(
+            "SELECT term_id FROM {$table} WHERE term_id = %d AND language_code = %s LIMIT 1",
+            $term_id,
+            $lang_code
+        ) );
+
+        return ! empty( $found );
     }
 
     /**
