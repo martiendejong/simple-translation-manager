@@ -17,6 +17,7 @@ use Brain\Monkey;
 use Brain\Monkey\Functions;
 use PHPUnit\Framework\TestCase;
 use STM\Dashboard;
+use STM\Tests\Fakes\FakeWpdb;
 
 class DashboardTest extends TestCase {
 
@@ -123,5 +124,45 @@ class DashboardTest extends TestCase {
             "Post ID,Post Type,Target Language,Source Title,Source Content,Source Excerpt,Permalink,Edit Link,Translated Title,Translated Content,Translated Excerpt\r\n",
             $csv
         );
+    }
+
+    // =========================================================================
+    // Dashboard::get_stale_translations() (task 3520)
+    // =========================================================================
+
+    public function test_get_stale_translations_flags_a_post_translation_whose_source_has_changed() {
+        global $wpdb;
+        $wpdb = new FakeWpdb();
+
+        $wpdb->seed('wp_stm_post_translations', [
+            'post_id' => 42, 'field_name' => 'post_title', 'language_code' => 'nl',
+            'translation' => 'Oude titel', 'status' => 'machine',
+            'source_hash' => md5('Original title'), 'updated_at' => '2026-01-01 00:00:00',
+        ]);
+
+        Functions\when('get_post')->justReturn((object) ['ID' => 42, 'post_title' => 'Changed title']);
+
+        $stale = Dashboard::get_stale_translations();
+
+        $this->assertCount(1, $stale);
+        $this->assertSame('post', $stale[0]['type']);
+        $this->assertSame(42, $stale[0]['post_id']);
+        $this->assertSame('post_title', $stale[0]['field_name']);
+        $this->assertSame('machine', $stale[0]['status']);
+    }
+
+    public function test_get_stale_translations_omits_a_translation_whose_source_is_unchanged() {
+        global $wpdb;
+        $wpdb = new FakeWpdb();
+
+        $wpdb->seed('wp_stm_post_translations', [
+            'post_id' => 42, 'field_name' => 'post_title', 'language_code' => 'nl',
+            'translation' => 'Titel', 'status' => 'machine',
+            'source_hash' => md5('Same title'), 'updated_at' => '2026-01-01 00:00:00',
+        ]);
+
+        Functions\when('get_post')->justReturn((object) ['ID' => 42, 'post_title' => 'Same title']);
+
+        $this->assertSame([], Dashboard::get_stale_translations());
     }
 }

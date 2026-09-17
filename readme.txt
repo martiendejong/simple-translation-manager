@@ -4,7 +4,7 @@ Tags: translation, multilingual, i18n, language switcher, rest api
 Requires at least: 5.0
 Tested up to: 6.7
 Requires PHP: 7.4
-Stable tag: 1.3.2
+Stable tag: 1.4.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -80,6 +80,13 @@ output for search engines.
 2. Elementor in-editor translation panel.
 
 == Changelog ==
+
+= 1.4.0 =
+* Post and field-value translations now store a hash of their source text at save time and
+  are flagged stale in the dashboard when the source is later edited.
+* Post and field-value translations gain a status: machine, reviewed, or approved.
+* New `wp stm find-stale` and `wp stm clean-stale-translations` CLI commands (detection only —
+  neither ever deletes or overwrites a translation).
 
 = 1.2.1 =
 * Fixed a duplicate `Set-Cookie` header on the public search endpoint that caused intermittent

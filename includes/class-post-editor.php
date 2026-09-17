@@ -16,6 +16,91 @@ class PostEditor {
     private static $list_cache = [];
 
     /**
+     * stm_post_translations field_name values that alias a native WP_Post
+     * property rather than a postmeta key — the metabox writes the
+     * post_* names, while the REST API / dashboard quick-save / CLI import
+     * paths use the short names (see apply_legacy_field_aliases() above).
+     * Both must resolve to the same live source value for hashing, or a
+     * translation saved through one path would be flagged stale purely
+     * because it was read back through the other.
+     */
+    const NATIVE_FIELD_ALIASES = [
+        'post_title'   => 'post_title',
+        'post_content' => 'post_content',
+        'post_excerpt' => 'post_excerpt',
+        'post_name'    => 'post_name',
+        'title'        => 'post_title',
+        'content'      => 'post_content',
+        'excerpt'      => 'post_excerpt',
+    ];
+
+    /**
+     * The current live source text for a stm_post_translations field —
+     * same value a translation of $field_name is translating FROM right
+     * now. Native post fields (or their short-name aliases) are read off
+     * $post directly; anything else (a custom field, or Elementor's
+     * `_elementor_data`) falls back to postmeta, keyed by the raw
+     * field_name.
+     */
+    public static function get_source_field_value_from_post($post, $field_name) {
+        if (isset(self::NATIVE_FIELD_ALIASES[$field_name])) {
+            $prop = self::NATIVE_FIELD_ALIASES[$field_name];
+            return isset($post->$prop) ? (string) $post->$prop : '';
+        }
+
+        $post_id = isset($post->ID) ? (int) $post->ID : 0;
+        if (!$post_id) {
+            return '';
+        }
+
+        $meta = get_post_meta($post_id, $field_name, true);
+        return is_string($meta) ? $meta : '';
+    }
+
+    /**
+     * Same as get_source_field_value_from_post() but for callers that only
+     * have a post ID (the REST API, CLI, dashboard reads) — loads the post
+     * once and delegates.
+     */
+    public static function get_source_field_value($post_id, $field_name) {
+        if (isset(self::NATIVE_FIELD_ALIASES[$field_name])) {
+            $post = get_post($post_id);
+            return self::get_source_field_value_from_post($post ?: (object) [], $field_name);
+        }
+
+        $meta = get_post_meta($post_id, $field_name, true);
+        return is_string($meta) ? $meta : '';
+    }
+
+    /**
+     * Hash of the CURRENT live source value for a post field — the same
+     * md5() a translation's stored source_hash is compared against to
+     * detect staleness (task 3520).
+     */
+    public static function compute_source_hash($post_id, $field_name) {
+        return md5(self::get_source_field_value($post_id, $field_name));
+    }
+
+    /** Same as compute_source_hash() when the $post object is already at hand. */
+    public static function compute_source_hash_from_post($post, $field_name) {
+        return md5(self::get_source_field_value_from_post($post, $field_name));
+    }
+
+    /**
+     * Is a stored translation stale? True when the source field's content
+     * has changed since $source_hash was recorded. A translation that was
+     * never hashed (legacy row, source_hash NULL/empty — normally cleared
+     * by Database::maybe_upgrade()'s one-time backfill) is treated as
+     * unknown rather than stale, since there is nothing to compare against.
+     */
+    public static function is_translation_stale($post_id, $field_name, $source_hash) {
+        if (empty($source_hash)) {
+            return false;
+        }
+        return $source_hash !== self::compute_source_hash($post_id, $field_name);
+    }
+
+    /**
      * Initialize post editor hooks
      */
     public static function init() {
@@ -340,6 +425,7 @@ class PostEditor {
                         'field_name' => $field_name,
                         'language_code' => $lang_code,
                         'translation' => $value,
+                        'source_hash' => self::compute_source_hash_from_post($post, $field_name),
                     ];
 
                     if ($existing) {

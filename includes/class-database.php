@@ -76,6 +76,9 @@ class Database {
             ) {$charset_collate};";
 
             // Table 4: Post/Page Translations
+            // source_hash = md5(current source value) at save time, compared
+            // against the LIVE source at read time to flag a translation
+            // stale when the source has since changed (task 3520).
             $table_post_translations = $wpdb->prefix . 'stm_post_translations';
             $sql_post_translations = "CREATE TABLE IF NOT EXISTS {$table_post_translations} (
                 id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
@@ -83,12 +86,15 @@ class Database {
                 field_name varchar(100) NOT NULL,
                 language_code varchar(10) NOT NULL,
                 translation text NOT NULL,
+                source_hash char(32) DEFAULT NULL,
+                status varchar(20) NOT NULL DEFAULT 'machine',
                 created_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 updated_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                 PRIMARY KEY (id),
                 UNIQUE KEY post_field_lang (post_id, field_name, language_code),
                 KEY post_id (post_id),
-                KEY language_code (language_code)
+                KEY language_code (language_code),
+                KEY status (status)
             ) {$charset_collate};";
 
             // Table 5: Post Associations (links translated versions)
@@ -125,7 +131,10 @@ class Database {
             ) {$charset_collate};";
 
             // Table 7: Field Value Translations (standardized values shared across posts)
-            // value_hash = md5(source_value) keeps the unique key within index limits
+            // value_hash = md5(source_value) keeps the unique key within index limits,
+            // and doubles as this table's staleness signal (task 3520): a row is stale
+            // once its value_hash no longer matches any value currently in use for that
+            // field, so no separate source-hash column is needed here.
             $table_field_values = $wpdb->prefix . 'stm_field_value_translations';
             $sql_field_values = "CREATE TABLE IF NOT EXISTS {$table_field_values} (
                 id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
@@ -134,12 +143,14 @@ class Database {
                 source_value text NOT NULL,
                 language_code varchar(10) NOT NULL,
                 translation text NOT NULL,
+                status varchar(20) NOT NULL DEFAULT 'machine',
                 created_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 updated_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                 PRIMARY KEY (id),
                 UNIQUE KEY field_value_lang (field_name, value_hash, language_code),
                 KEY field_name (field_name),
-                KEY language_code (language_code)
+                KEY language_code (language_code),
+                KEY status (status)
             ) {$charset_collate};";
 
             require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
@@ -166,7 +177,26 @@ class Database {
             return;
         }
         self::create_tables();
+        self::backfill_post_translation_hashes();
         update_option('stm_db_version', STM_VERSION);
+    }
+
+    /**
+     * One-time backfill for rows saved before source_hash existed (task 3520).
+     * Only touches rows that have never been hashed (source_hash IS NULL), so
+     * running this again on a later upgrade is a no-op for everything already
+     * backfilled — it must never re-stamp an existing hash, or a real source
+     * edit made between two upgrades would be silently marked "fresh" again.
+     */
+    private static function backfill_post_translation_hashes() {
+        global $wpdb;
+        $table = $wpdb->prefix . 'stm_post_translations';
+
+        $rows = $wpdb->get_results("SELECT id, post_id, field_name FROM {$table} WHERE source_hash IS NULL");
+        foreach ($rows as $row) {
+            $hash = PostEditor::compute_source_hash((int) $row->post_id, $row->field_name);
+            $wpdb->update($table, ['source_hash' => $hash], ['id' => $row->id]);
+        }
     }
 
     /**
