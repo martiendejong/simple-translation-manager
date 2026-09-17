@@ -629,3 +629,11 @@ existed yet — its insert was skipped (a real translation was already
 present) so no test data was ever written; the mu-plugin and its containing
 `mu-plugins/` directory (which didn't exist before) were removed afterward.
 Left: nothing outstanding for this task.
+
+## 2026-09-17 — task 3520
+Done: plan — add source_hash + status columns to stm_post_translations and
+stm_field_value_translations, wire hash computation into the real save
+paths, detect staleness live (stored hash vs current source), surface it
+on the dashboard, and add `wp stm find-stale` / `wp stm clean-stale-translations`.
+Verified: not yet — implementation starting now.
+Left: everything below this entry.
