@@ -545,6 +545,7 @@ class API {
         }
 
         $table = $wpdb->prefix . 'stm_post_translations';
+        $source_hash = PostEditor::compute_source_hash($post_id, $field);
 
         $existing = $wpdb->get_var($wpdb->prepare(
             "SELECT id FROM {$table} WHERE post_id = %d AND field_name = %s AND language_code = %s",
@@ -554,7 +555,7 @@ class API {
         if ($existing) {
             $wpdb->update(
                 $table,
-                ['translation' => $translation, 'updated_at' => current_time('mysql')],
+                ['translation' => $translation, 'source_hash' => $source_hash, 'updated_at' => current_time('mysql')],
                 ['id' => $existing]
             );
         } else {
@@ -563,6 +564,7 @@ class API {
                 'field_name'    => $field,
                 'language_code' => $language_code,
                 'translation'   => $translation,
+                'source_hash'   => $source_hash,
             ]);
         }
 
@@ -800,6 +802,7 @@ class API {
             'field_name'    => 'post_name',
             'language_code' => $language_code,
             'translation'   => $slug,
+            'source_hash'   => PostEditor::compute_source_hash($post_id, 'post_name'),
         ];
 
         if ($existing) {
@@ -1230,6 +1233,8 @@ class API {
         $errors = [];
 
         foreach ($translations as $field => $translation) {
+            $source_hash = PostEditor::compute_source_hash($post_id, $field);
+
             // Check if exists
             $existing = $wpdb->get_var($wpdb->prepare(
                 "SELECT id FROM {$table} WHERE post_id = %d AND field_name = %s AND language_code = %s",
@@ -1240,9 +1245,9 @@ class API {
                 // Update
                 $result = $wpdb->update(
                     $table,
-                    ['translation' => $translation, 'updated_at' => current_time('mysql')],
+                    ['translation' => $translation, 'source_hash' => $source_hash, 'updated_at' => current_time('mysql')],
                     ['id' => $existing],
-                    ['%s', '%s'],
+                    ['%s', '%s', '%s'],
                     ['%d']
                 );
             } else {
@@ -1253,9 +1258,10 @@ class API {
                         'post_id' => $post_id,
                         'field_name' => $field,
                         'language_code' => $lang_code,
-                        'translation' => $translation
+                        'translation' => $translation,
+                        'source_hash' => $source_hash,
                     ],
-                    ['%d', '%s', '%s', '%s']
+                    ['%d', '%s', '%s', '%s', '%s']
                 );
             }
 

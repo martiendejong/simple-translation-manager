@@ -185,6 +185,59 @@ class FieldValues {
     }
 
     /**
+     * Hashes of every value currently in use for a field — the same
+     * md5(meta_value) a translation row's value_hash is compared against
+     * to detect staleness (task 3520). A value-translation table row is
+     * its OWN source hash (value_hash = md5(source_value) at save time),
+     * so there is nothing to re-hash here; a row goes stale the moment its
+     * value_hash stops appearing in this live set, i.e. no post uses that
+     * exact wording for the field anymore.
+     *
+     * @return array value_hash => true (membership set)
+     */
+    public static function get_current_value_hashes($field_name) {
+        global $wpdb;
+
+        $field_name = sanitize_key($field_name);
+        $fields = self::get_registered_fields();
+        $post_types = $fields[$field_name]['post_types'] ?? [];
+
+        $type_sql = '';
+        $params = [$field_name];
+        if (!empty($post_types)) {
+            $placeholders = implode(',', array_fill(0, count($post_types), '%s'));
+            $type_sql = "AND p.post_type IN ({$placeholders})";
+            $params = array_merge($params, $post_types);
+        }
+
+        $rows = $wpdb->get_results($wpdb->prepare(
+            "SELECT DISTINCT pm.meta_value AS value
+             FROM {$wpdb->postmeta} pm
+             INNER JOIN {$wpdb->posts} p ON p.ID = pm.post_id
+             WHERE pm.meta_key = %s
+             AND pm.meta_value != ''
+             AND p.post_status NOT IN ('trash', 'auto-draft', 'inherit')
+             {$type_sql}",
+            $params
+        ));
+
+        $hashes = [];
+        foreach ($rows as $row) {
+            $hashes[md5($row->value)] = true;
+        }
+        return $hashes;
+    }
+
+    /**
+     * Is a stored value translation stale? True when no post currently uses
+     * the exact source wording this translation was made from.
+     */
+    public static function is_translation_stale($field_name, $value_hash) {
+        $hashes = self::get_current_value_hashes($field_name);
+        return !isset($hashes[$value_hash]);
+    }
+
+    /**
      * All stored translations for a field
      *
      * @return array value_hash => [language_code => translation]
