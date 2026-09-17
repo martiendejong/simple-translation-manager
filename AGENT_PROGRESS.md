@@ -631,9 +631,24 @@ present) so no test data was ever written; the mu-plugin and its containing
 Left: nothing outstanding for this task.
 
 ## 2026-09-17 — task 3520
-Done: plan — add source_hash + status columns to stm_post_translations and
-stm_field_value_translations, wire hash computation into the real save
-paths, detect staleness live (stored hash vs current source), surface it
-on the dashboard, and add `wp stm find-stale` / `wp stm clean-stale-translations`.
-Verified: not yet — implementation starting now.
-Left: everything below this entry.
+Done: added source_hash + status (machine/reviewed/approved) to
+stm_post_translations, and status to stm_field_value_translations (reusing
+its existing value_hash as the staleness signal instead of a duplicate
+column). Wired hash computation into every real write path (metabox,
+REST single/bulk save, slug save, dashboard quick-save) plus a one-time
+upgrade backfill for existing rows. Added a "Stale Translations" dashboard
+tab and `wp stm find-stale` / `wp stm clean-stale-translations` CLI
+commands (list-only, never delete/rewrite). PR #43.
+Verified: `php -l` clean on all changed files, `phpcs --standard=phpcs.xml.dist`
+0 errors, full PHPUnit suite 200/200 (9 new tests, including one asserting
+a source edit flips an existing translation to stale on each table). No
+live WP install on this host, so the CLI/dashboard UI itself wasn't
+smoke-tested end-to-end — PHPUnit against FakeWpdb is this repo's
+established machine-verification bar per the task's own instructions.
+Left: nothing outstanding for this task's Done-when list. Elementor's
+own `_elementor_data` row (same stm_post_translations table) intentionally
+was not wired into hash computation — Brain\Monkey tests for
+ElementorIntegration::save_language_data() don't stub get_post_meta, and
+the task's technical notes never named Elementor; if elementor page
+content should also get staleness detection, that's a small, separate
+follow-up.
