@@ -93,6 +93,28 @@ class HreflangTest extends TestCase {
 
     private function stubNonSingularArchive() {
         Functions\when('is_singular')->justReturn(false);
+        Functions\when('is_tax')->justReturn(false);
+        Functions\when('is_category')->justReturn(false);
+    }
+
+    private function stubTaxonomyArchive(int $termId, string $archivePath) {
+        Functions\when('is_singular')->justReturn(false);
+        Functions\when('is_tax')->justReturn(true);
+        Functions\when('is_category')->justReturn(false);
+        // get_queried_object() must return a real WP_Term instance for the
+        // `instanceof \WP_Term` check in Hreflang::inject() — Brain Monkey
+        // can't fake instanceof, so define a minimal stand-in once per run.
+        if (!class_exists('WP_Term', false)) {
+            eval('class WP_Term { public $term_id; public $taxonomy = ""; }');
+        }
+        $term = new \WP_Term();
+        $term->term_id = $termId;
+        Functions\when('get_queried_object')->justReturn($term);
+        // canonical_url() builds the current URL from home_url(add_query_arg([]))
+        // — stand in for "the archive's own default-language path".
+        Functions\when('add_query_arg')->alias(function ($args, $url = null) use ($archivePath) {
+            return $archivePath;
+        });
     }
 
     // -----------------------------------------------------------------
@@ -109,6 +131,57 @@ class HreflangTest extends TestCase {
         $this->assertStringContainsString('hreflang="en"', $html);
         $this->assertStringContainsString('hreflang="x-default"', $html);
         $this->assertStringNotContainsString('hreflang="nl"', $html, 'The front page has no translated Dutch version — it must not claim one exists.');
+    }
+
+    public function test_post_type_archive_falls_back_to_default_language_only() {
+        // /types/ (archive-bcc_type.php): get_queried_object() there returns
+        // a WP_Post_Type, which is neither a WP_Post nor a WP_Term — there is
+        // no per-language row to key a translation lookup on, so it keeps
+        // asserting only the default language (task 3346).
+        $this->stubNonSingularArchive();
+
+        ob_start();
+        Hreflang::inject();
+        $html = ob_get_clean();
+
+        $this->assertStringContainsString('hreflang="en"', $html);
+        $this->assertStringContainsString('hreflang="x-default"', $html);
+        $this->assertStringNotContainsString('hreflang="nl"', $html);
+    }
+
+    // -----------------------------------------------------------------
+    // Task 3346: category/subcategory archives with a registered term
+    // translation get the same full hreflang set translated pages do.
+    // -----------------------------------------------------------------
+
+    public function test_category_archive_without_term_translation_omits_alternate_language() {
+        $this->stubTaxonomyArchive(78, '/some-other-category/');
+
+        ob_start();
+        Hreflang::inject();
+        $html = ob_get_clean();
+
+        $this->assertStringContainsString('hreflang="en"', $html);
+        $this->assertStringContainsString('hreflang="x-default"', $html);
+        $this->assertStringNotContainsString('hreflang="nl"', $html, 'An untranslated category archive must not advertise a Dutch alternate.');
+    }
+
+    public function test_category_archive_with_term_translation_includes_alternate_language() {
+        $this->stubTaxonomyArchive(77, '/founding-racers-brescia/');
+
+        $this->wpdb->seed('wp_stm_term_translations', [
+            'term_id' => 77, 'language_code' => 'nl',
+            'name' => 'Founding Racers Brescia (NL)', 'slug' => 'founding-racers-brescia',
+            'description' => null,
+        ]);
+
+        ob_start();
+        Hreflang::inject();
+        $html = ob_get_clean();
+
+        $this->assertStringContainsString('hreflang="en" href="https://martiendejong.nl/founding-racers-brescia/"', $html);
+        $this->assertStringContainsString('hreflang="nl" href="https://martiendejong.nl/nl/founding-racers-brescia/"', $html);
+        $this->assertStringContainsString('hreflang="x-default" href="https://martiendejong.nl/founding-racers-brescia/"', $html);
     }
 
     // -----------------------------------------------------------------

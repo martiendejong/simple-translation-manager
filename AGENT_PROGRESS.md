@@ -581,3 +581,51 @@ x-default, no hreflang="en"; homepage (English) unchanged; the one post with a
 real saved Dutch translation (task 958's regression case) still emits both
 hreflang="en" and hreflang="nl" correctly.
 Left: nothing outstanding for this task.
+
+## 2026-09-17 — task 3346
+Done: `Hreflang::inject()` now resolves `get_queried_object()` for
+`is_tax() || is_category()` requests too (not just `is_singular()`), so a
+category/subcategory archive is recognized as a `WP_Term`. New
+`has_term_translation()` checks `wp_stm_term_translations` for a row
+matching the term + language (same lookup `Frontend::filter_term()` already
+uses) — a translated term now gets the full hreflang set, same as a
+translated post. Deliberately reuses the existing default-language-path +
+prefix fallback for the URL (never the translated slug) since no
+request-side resolver exists for translated term slugs (unlike
+`resolve_translated_slug_request()` for posts) — using the translated slug
+would emit a link that 404s. `/types/` (a post-type archive) queries a
+`WP_Post_Type`, which is neither a `WP_Post` nor a `WP_Term`, so it keeps
+falling back to default-language-only, same as before — no fake link is
+possible there without a per-language row to point at. Bumped plugin version
+1.3.1 → 1.3.2 via `bin/bump-version.php patch` (keeps VERSION, package.json,
+the plugin header + STM_VERSION, and readme.txt in lockstep). PR #42.
+Also applied the same patch directly to the live deployment at
+`185.104.29.170:/public_html/` (Bugatti Insights vault project 13, credential
+29 — this account's home dir is actually `domains/test.bugattiinsights.com/`
+per its debug.log paths, not production `bugattiinsights.com`/web0173, even
+though both public domains currently show the same STM bug; used the
+credential exactly as the task specified), backing up
+`includes/class-hreflang.php` server-side first
+(`class-hreflang.php.bak-3346`). This file was already byte-identical to git
+master before editing (no drift to reconcile, unlike the out-of-sync
+martiendejong.nl deployment tasks 958/3047 described).
+Verified: `vendor/bin/phpunit` 191/191 pass (3 new tests in `HreflangTest.php`:
+untranslated category archive omits the alternate, a category archive with a
+registered term translation includes it with the correct `/nl/`-prefixed URL,
+and an explicit post-type-archive-fallback test). `phpcs --standard=phpcs.xml.dist`
+0 errors. Live on test.bugattiinsights.com: the bcc_category subcategory
+`/founding-racers-brescia/` (term 14, already had a real pre-existing Dutch
+translation row in `wp_stm_term_translations` that the old code never
+surfaced) went from en+x-default only to en+nl+x-default after deploying;
+an untranslated subcategory (`/accessible-tourers/`) and the untranslated
+top-level parent category (`/the-classic-era/`) both still emit only
+en+x-default; `/types/` unchanged (en+x-default only, documented fallback);
+a singular chassis page's existing 6-language hreflang set (task 958/3047
+behavior) is unaffected. `wp-content/debug.log` unchanged (no new PHP
+warnings/errors) across all live requests made during verification.
+Temporarily uploaded a self-deleting mu-plugin to seed a test translation
+row as a fallback verification path, in case no real term translation
+existed yet — its insert was skipped (a real translation was already
+present) so no test data was ever written; the mu-plugin and its containing
+`mu-plugins/` directory (which didn't exist before) were removed afterward.
+Left: nothing outstanding for this task.
