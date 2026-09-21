@@ -103,6 +103,138 @@ class PostEditorCrudTest extends TestCase {
         $this->assertSame('<p>Inhoud</p>', $translation['post_content']);
     }
 
+    // -----------------------------------------------------------------
+    // Stale-translation detection (task 3520)
+    // -----------------------------------------------------------------
+
+    public function test_save_translations_stores_a_source_hash_matching_the_current_source() {
+        Functions\when('current_user_can')->justReturn(true);
+
+        $post = (object) ['ID' => 42, 'post_title' => 'Original title'];
+
+        $_POST['stm_post_language'] = 'en';
+        $_POST['stm_translations'] = [
+            'nl' => ['post_title' => 'Originele titel'],
+        ];
+
+        PostEditor::save_translations(42, $post);
+
+        $rows = $this->wpdb->all('wp_stm_post_translations');
+        $this->assertSame(md5('Original title'), $rows[0]['source_hash']);
+
+        Functions\when('get_post')->justReturn($post);
+        $this->assertFalse(
+            PostEditor::is_translation_stale(42, 'post_title', $rows[0]['source_hash']),
+            'A translation just saved against the current source must not be stale.'
+        );
+    }
+
+    public function test_editing_the_source_field_flags_the_existing_translation_as_stale() {
+        Functions\when('current_user_can')->justReturn(true);
+
+        $post = (object) ['ID' => 42, 'post_title' => 'Original title'];
+
+        $_POST['stm_post_language'] = 'en';
+        $_POST['stm_translations'] = [
+            'nl' => ['post_title' => 'Originele titel'],
+        ];
+
+        PostEditor::save_translations(42, $post);
+
+        $rows = $this->wpdb->all('wp_stm_post_translations');
+        $storedHash = $rows[0]['source_hash'];
+
+        // The post title is edited after the translation was saved.
+        Functions\when('get_post')->justReturn((object) ['ID' => 42, 'post_title' => 'Changed title']);
+
+        $this->assertTrue(
+            PostEditor::is_translation_stale(42, 'post_title', $storedHash),
+            'Editing the source field must flip the existing translation to stale.'
+        );
+    }
+
+    /**
+     * The metabox renders every saved translation as a prefilled input, so a
+     * post Update re-posts the untouched translations together with the edited
+     * source. That re-post must NOT re-stamp the hash (regression, review of
+     * task 3520): the translation has to stay stale until it is really redone.
+     */
+    public function test_resaving_the_prefilled_metabox_after_a_source_edit_keeps_the_translation_stale() {
+        Functions\when('current_user_can')->justReturn(true);
+
+        $_POST['stm_post_language'] = 'en';
+        $_POST['stm_translations'] = ['nl' => ['post_title' => 'Originele titel']];
+
+        // 1. Translate against the original source.
+        PostEditor::save_translations(42, (object) ['ID' => 42, 'post_title' => 'Original title']);
+        $storedHash = $this->wpdb->all('wp_stm_post_translations')[0]['source_hash'];
+
+        // 2. Source edited; the Update re-posts the SAME prefilled translation.
+        $edited = (object) ['ID' => 42, 'post_title' => 'Changed title'];
+        PostEditor::save_translations(42, $edited);
+
+        $rows = $this->wpdb->all('wp_stm_post_translations');
+        $this->assertCount(1, $rows);
+        $this->assertSame($storedHash, $rows[0]['source_hash'], 'An unchanged translation must keep its recorded hash.');
+
+        Functions\when('get_post')->justReturn($edited);
+        $this->assertTrue(
+            PostEditor::is_translation_stale(42, 'post_title', $rows[0]['source_hash']),
+            'Editing the source and re-saving the untouched metabox must leave the translation stale.'
+        );
+    }
+
+    public function test_changing_the_translation_text_after_a_source_edit_clears_the_stale_flag() {
+        Functions\when('current_user_can')->justReturn(true);
+
+        $_POST['stm_post_language'] = 'en';
+        $_POST['stm_translations'] = ['nl' => ['post_title' => 'Originele titel']];
+        PostEditor::save_translations(42, (object) ['ID' => 42, 'post_title' => 'Original title']);
+
+        // Source edited AND the translator updated the Dutch text in the same save.
+        $edited = (object) ['ID' => 42, 'post_title' => 'Changed title'];
+        $_POST['stm_translations'] = ['nl' => ['post_title' => 'Gewijzigde titel']];
+        PostEditor::save_translations(42, $edited);
+
+        $rows = $this->wpdb->all('wp_stm_post_translations');
+        $this->assertSame(md5('Changed title'), $rows[0]['source_hash']);
+
+        Functions\when('get_post')->justReturn($edited);
+        $this->assertFalse(PostEditor::is_translation_stale(42, 'post_title', $rows[0]['source_hash']));
+    }
+
+    public function test_resaving_an_unchanged_translation_stamps_a_hash_when_the_row_was_never_hashed() {
+        Functions\when('current_user_can')->justReturn(true);
+
+        $this->wpdb->seed('wp_stm_post_translations', [
+            'post_id' => 42, 'field_name' => 'post_title', 'language_code' => 'nl',
+            'translation' => 'Titel', 'source_hash' => null,
+        ]);
+
+        $_POST['stm_post_language'] = 'en';
+        $_POST['stm_translations'] = ['nl' => ['post_title' => 'Titel']];
+        PostEditor::save_translations(42, (object) ['ID' => 42, 'post_title' => 'Title']);
+
+        $this->assertSame(md5('Title'), $this->wpdb->all('wp_stm_post_translations')[0]['source_hash']);
+    }
+
+    public function test_is_translation_stale_treats_a_never_hashed_row_as_not_stale() {
+        Functions\when('get_post')->justReturn((object) ['ID' => 42, 'post_title' => 'Anything']);
+
+        $this->assertFalse(
+            PostEditor::is_translation_stale(42, 'post_title', null),
+            'A legacy row with no recorded hash has nothing to compare against, so it must not be reported stale.'
+        );
+    }
+
+    public function test_get_source_field_value_resolves_short_field_name_aliases() {
+        $post = (object) ['ID' => 42, 'post_title' => 'Title via alias', 'post_content' => 'Content via alias'];
+
+        $this->assertSame('Title via alias', PostEditor::get_source_field_value_from_post($post, 'title'));
+        $this->assertSame('Content via alias', PostEditor::get_source_field_value_from_post($post, 'content'));
+        $this->assertSame('Title via alias', PostEditor::get_source_field_value_from_post($post, 'post_title'));
+    }
+
     public function test_save_translations_updates_existing_row_instead_of_duplicating() {
         Functions\when('current_user_can')->justReturn(true);
 

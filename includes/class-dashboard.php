@@ -39,7 +39,7 @@ class Dashboard {
 
         // Read-only tab selection (no state change), so a nonce is not required here.
         $active_tab = sanitize_key(wp_unslash($_GET['tab'] ?? 'overview')); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
-        $allowed_tabs = ['overview', 'missing', 'recent'];
+        $allowed_tabs = ['overview', 'missing', 'recent', 'stale'];
         if (!in_array($active_tab, $allowed_tabs, true)) {
             $active_tab = 'overview';
         }
@@ -72,6 +72,8 @@ class Dashboard {
             $data['missing']  = self::get_missing_translations($filters);
         } elseif ($active_tab === 'recent') {
             $data['recent'] = self::get_recent_translations(50);
+        } elseif ($active_tab === 'stale') {
+            $data['stale'] = self::get_stale_translations();
         }
 
         // Expose to template
@@ -344,6 +346,63 @@ class Dashboard {
     }
 
     /**
+     * Every translation whose source content has changed since it was
+     * saved — post/field translations via a stored source_hash mismatch,
+     * field-value translations via an orphaned value_hash (task 3520).
+     * Detection only: nothing here modifies or deletes a translation.
+     *
+     * @return array of ['type' => 'post'|'field_value', ...]
+     */
+    public static function get_stale_translations() {
+        global $wpdb;
+        $stale = [];
+
+        $table_pt = $wpdb->prefix . 'stm_post_translations';
+        $post_rows = $wpdb->get_results(
+            "SELECT id, post_id, field_name, language_code, status, source_hash, updated_at FROM {$table_pt}"
+        );
+        foreach ($post_rows as $row) {
+            if (!PostEditor::is_translation_stale((int) $row->post_id, $row->field_name, $row->source_hash)) {
+                continue;
+            }
+            $post = get_post((int) $row->post_id);
+            $stale[] = [
+                'type'          => 'post',
+                'post_id'       => (int) $row->post_id,
+                'post_title'    => $post ? $post->post_title : '',
+                'field_name'    => $row->field_name,
+                'language_code' => $row->language_code,
+                'status'        => $row->status,
+                'updated_at'    => $row->updated_at,
+            ];
+        }
+
+        $table_fv = $wpdb->prefix . 'stm_field_value_translations';
+        $fv_rows = $wpdb->get_results(
+            "SELECT id, field_name, value_hash, source_value, language_code, status, updated_at FROM {$table_fv}"
+        );
+        $hash_cache = [];
+        foreach ($fv_rows as $row) {
+            if (!isset($hash_cache[$row->field_name])) {
+                $hash_cache[$row->field_name] = FieldValues::get_current_value_hashes($row->field_name);
+            }
+            if (isset($hash_cache[$row->field_name][$row->value_hash])) {
+                continue;
+            }
+            $stale[] = [
+                'type'          => 'field_value',
+                'field_name'    => $row->field_name,
+                'source_value'  => $row->source_value,
+                'language_code' => $row->language_code,
+                'status'        => $row->status,
+                'updated_at'    => $row->updated_at,
+            ];
+        }
+
+        return $stale;
+    }
+
+    /**
      * AJAX: quick-save a post field translation.
      */
     public static function ajax_quick_save_translation() {
@@ -387,6 +446,7 @@ class Dashboard {
             'field_name'    => $field_name,
             'language_code' => $language_code,
             'translation'   => $translation,
+            'source_hash'   => PostEditor::compute_source_hash_from_post($post, $field_name),
         ];
 
         if ($existing) {

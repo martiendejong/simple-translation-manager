@@ -629,3 +629,36 @@ existed yet — its insert was skipped (a real translation was already
 present) so no test data was ever written; the mu-plugin and its containing
 `mu-plugins/` directory (which didn't exist before) were removed afterward.
 Left: nothing outstanding for this task.
+
+## 2026-09-17 — task 3520
+Done: added source_hash + status (machine/reviewed/approved) to
+stm_post_translations, and status to stm_field_value_translations (reusing
+its existing value_hash as the staleness signal instead of a duplicate
+column). Wired hash computation into every real write path (metabox,
+REST single/bulk save, slug save, dashboard quick-save) plus a one-time
+upgrade backfill for existing rows. Added a "Stale Translations" dashboard
+tab and `wp stm find-stale` / `wp stm clean-stale-translations` CLI
+commands (list-only, never delete/rewrite). PR #43.
+Verified: `php -l` clean on all changed files, `phpcs --standard=phpcs.xml.dist`
+0 errors, full PHPUnit suite 200/200 (9 new tests, including one asserting
+a source edit flips an existing translation to stale on each table). No
+live WP install on this host, so the CLI/dashboard UI itself wasn't
+smoke-tested end-to-end — PHPUnit against FakeWpdb is this repo's
+established machine-verification bar per the task's own instructions.
+Left: nothing outstanding for this task's Done-when list. Elementor's
+own `_elementor_data` row (same stm_post_translations table) intentionally
+was not wired into hash computation — Brain\Monkey tests for
+ElementorIntegration::save_language_data() don't stub get_post_meta, and
+the task's technical notes never named Elementor; if elementor page
+content should also get staleness detection, that's a small, separate
+follow-up.
+
+## 2026-09-21 - task 3520 (round 2, review fixes on PR #43)
+Done: fixed both review findings. (1) PostEditor::save_translations now keeps the stored source_hash when the re-posted metabox text equals the stored translation (new resolve_source_hash_for_save helper), so a source edit followed by a normal post Update no longer un-stales everything. (2) ElementorIntegration::save_language_data now stamps/keeps the hash for _elementor_data rows with the same rule, so backfilled rows can be flagged and cleared.
+Verified: php -l clean, phpcs 0 errors, PHPUnit 205/205 (5 new: save -> edit source -> re-save same payload stays stale, text change clears it, unhashed legacy row gets stamped, Elementor stale/retranslate cycle). Mutation check: with the re-stamp bug reintroduced, both new stale-cycle tests fail. No live WP install, so metabox flow is proven via the real save_translations code against FakeWpdb.
+Left: nothing for the review findings. reviewed/approved are never set by any UI yet (ticket left transitions open).
+
+## 2026-09-21 - task 3520 (round 3, reviewer fix on PR #43)
+Done: the keep-hash-on-unchanged rule compared byte-for-byte, so a translation written by REST/CLI/AI (LF newlines, raw "&") was re-stamped fresh on the first metabox Update after a source edit (browser textareas post CRLF, kses rewrites "&"). It now ignores line endings and runs the stored text through the same sanitizer (new PostEditor::sanitize_translation_value) before comparing.
+Verified: php -l clean, phpcs 0 errors, PHPUnit 208/208 (3 new in StaleHashResaveNormalizationTest; the CRLF case failed on the round-2 code before the fix). Not checked in wp-admin: no live WordPress on this host.
+Left: nothing for the review findings. reviewed/approved are still set by no UI (ticket left transitions open).

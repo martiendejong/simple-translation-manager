@@ -16,6 +16,136 @@ class PostEditor {
     private static $list_cache = [];
 
     /**
+     * stm_post_translations field_name values that alias a native WP_Post
+     * property rather than a postmeta key — the metabox writes the
+     * post_* names, while the REST API / dashboard quick-save / CLI import
+     * paths use the short names (see apply_legacy_field_aliases() above).
+     * Both must resolve to the same live source value for hashing, or a
+     * translation saved through one path would be flagged stale purely
+     * because it was read back through the other.
+     */
+    const NATIVE_FIELD_ALIASES = [
+        'post_title'   => 'post_title',
+        'post_content' => 'post_content',
+        'post_excerpt' => 'post_excerpt',
+        'post_name'    => 'post_name',
+        'title'        => 'post_title',
+        'content'      => 'post_content',
+        'excerpt'      => 'post_excerpt',
+    ];
+
+    /**
+     * The current live source text for a stm_post_translations field —
+     * same value a translation of $field_name is translating FROM right
+     * now. Native post fields (or their short-name aliases) are read off
+     * $post directly; anything else (a custom field, or Elementor's
+     * `_elementor_data`) falls back to postmeta, keyed by the raw
+     * field_name.
+     */
+    public static function get_source_field_value_from_post($post, $field_name) {
+        if (isset(self::NATIVE_FIELD_ALIASES[$field_name])) {
+            $prop = self::NATIVE_FIELD_ALIASES[$field_name];
+            return isset($post->$prop) ? (string) $post->$prop : '';
+        }
+
+        $post_id = isset($post->ID) ? (int) $post->ID : 0;
+        if (!$post_id) {
+            return '';
+        }
+
+        $meta = get_post_meta($post_id, $field_name, true);
+        return is_string($meta) ? $meta : '';
+    }
+
+    /**
+     * Same as get_source_field_value_from_post() but for callers that only
+     * have a post ID (the REST API, CLI, dashboard reads) — loads the post
+     * once and delegates.
+     */
+    public static function get_source_field_value($post_id, $field_name) {
+        if (isset(self::NATIVE_FIELD_ALIASES[$field_name])) {
+            $post = get_post($post_id);
+            return self::get_source_field_value_from_post($post ?: (object) [], $field_name);
+        }
+
+        $meta = get_post_meta($post_id, $field_name, true);
+        return is_string($meta) ? $meta : '';
+    }
+
+    /**
+     * Hash of the CURRENT live source value for a post field — the same
+     * md5() a translation's stored source_hash is compared against to
+     * detect staleness (task 3520).
+     */
+    public static function compute_source_hash($post_id, $field_name) {
+        return md5(self::get_source_field_value($post_id, $field_name));
+    }
+
+    /** Same as compute_source_hash() when the $post object is already at hand. */
+    public static function compute_source_hash_from_post($post, $field_name) {
+        return md5(self::get_source_field_value_from_post($post, $field_name));
+    }
+
+    /**
+     * The source_hash to store when a form re-posts a translation (task 3520).
+     *
+     * The metabox renders every existing translation as a PREFILLED input inside
+     * the normal post edit form, so each post Update re-posts every untouched
+     * translation. Re-stamping the hash from the (possibly just edited) source on
+     * those re-posts would mark a stale translation fresh again, so the stored
+     * hash is kept whenever the row already exists with an identical translation
+     * text and a recorded hash. It is only (re)stamped when the row is new, the
+     * text was actually changed, or the row was never hashed.
+     *
+     * @param object|null $existing   Existing row (translation, source_hash) or null
+     * @param string      $translation Submitted translation text
+     * @param string      $fresh_hash  md5 of the current live source value
+     */
+    public static function resolve_source_hash_for_save($existing, $translation, $fresh_hash) {
+        // Browsers submit textarea newlines as CRLF while API/CLI/AI-written rows
+        // hold bare LF, so line endings alone must not count as a text change.
+        $normalize = static function ($text) {
+            return str_replace(["\r\n", "\r"], "\n", (string) $text);
+        };
+
+        if ($existing && !empty($existing->source_hash) && $normalize($existing->translation) === $normalize($translation)) {
+            return $existing->source_hash;
+        }
+        return $fresh_hash;
+    }
+
+    /**
+     * Sanitize a submitted translation by field type (post form save path).
+     * Shared by the save loop and by the keep-hash comparison, which runs the
+     * STORED text through the same sanitizer so a row written raw by the
+     * REST/CLI path (e.g. a bare "&") is not mistaken for an edit when the
+     * metabox re-posts it and kses normalizes it.
+     */
+    public static function sanitize_translation_value($field_name, $value) {
+        if ($field_name === 'post_content') {
+            return wp_kses_post($value);
+        }
+        if ($field_name === 'post_name') {
+            return sanitize_title($value);
+        }
+        return sanitize_text_field($value);
+    }
+
+    /**
+     * Is a stored translation stale? True when the source field's content
+     * has changed since $source_hash was recorded. A translation that was
+     * never hashed (legacy row, source_hash NULL/empty — normally cleared
+     * by Database::maybe_upgrade()'s one-time backfill) is treated as
+     * unknown rather than stale, since there is nothing to compare against.
+     */
+    public static function is_translation_stale($post_id, $field_name, $source_hash) {
+        if (empty($source_hash)) {
+            return false;
+        }
+        return $source_hash !== self::compute_source_hash($post_id, $field_name);
+    }
+
+    /**
      * Initialize post editor hooks
      */
     public static function init() {
@@ -312,16 +442,10 @@ class PostEditor {
                     $value = wp_unslash($value);
 
                     // Sanitize based on field type
-                    if ($field_name === 'post_content') {
-                        $value = wp_kses_post($value);
-                    } elseif ($field_name === 'post_name') {
-                        $value = sanitize_title($value);
-                    } else {
-                        $value = sanitize_text_field($value);
-                    }
+                    $value = self::sanitize_translation_value($field_name, $value);
 
-                    $existing = $wpdb->get_var($wpdb->prepare(
-                        "SELECT id FROM {$table} WHERE post_id = %d AND field_name = %s AND language_code = %s",
+                    $existing = $wpdb->get_row($wpdb->prepare(
+                        "SELECT id, translation, source_hash FROM {$table} WHERE post_id = %d AND field_name = %s AND language_code = %s",
                         $post_id,
                         $field_name,
                         $lang_code
@@ -330,7 +454,7 @@ class PostEditor {
                     // Empty value — delete existing row if present
                     if (empty($value)) {
                         if ($existing) {
-                            $wpdb->delete($table, ['id' => $existing]);
+                            $wpdb->delete($table, ['id' => $existing->id]);
                         }
                         continue;
                     }
@@ -340,10 +464,18 @@ class PostEditor {
                         'field_name' => $field_name,
                         'language_code' => $lang_code,
                         'translation' => $value,
+                        'source_hash' => self::resolve_source_hash_for_save(
+                            $existing ? (object) [
+                                'translation' => self::sanitize_translation_value($field_name, $existing->translation),
+                                'source_hash' => $existing->source_hash,
+                            ] : null,
+                            $value,
+                            self::compute_source_hash_from_post($post, $field_name)
+                        ),
                     ];
 
                     if ($existing) {
-                        $wpdb->update($table, $data, ['id' => $existing]);
+                        $wpdb->update($table, $data, ['id' => $existing->id]);
                     } else {
                         $wpdb->insert($table, $data);
                     }

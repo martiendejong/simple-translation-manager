@@ -98,3 +98,14 @@
 .stm-dashboard .stm-quick-status.is-success { color: #00a32a; }
 .stm-dashboard .stm-quick-status.is-error   { color: #d63638; }
 .stm-dashboard .stm-quick-status.is-pending { color: #646970; }
+
+.stm-dashboard .stm-badge-stale {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 3px;
+    background: #fcf0f1;
+    color: #d63638;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+}

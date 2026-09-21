@@ -232,6 +232,64 @@ class CLI {
 
         \WP_CLI::line("");
     }
+
+    /**
+     * List translations whose source content has changed since they were saved.
+     *
+     * ## EXAMPLES
+     *
+     *     wp stm find-stale
+     */
+    public function find_stale($args, $assoc_args) {
+        $stale = Dashboard::get_stale_translations();
+
+        if (empty($stale)) {
+            \WP_CLI::success('No stale translations found.');
+            return;
+        }
+
+        foreach ($stale as $row) {
+            \WP_CLI::line(self::format_stale_row($row));
+        }
+
+        \WP_CLI::warning(count($stale) . ' stale translation(s) found.');
+    }
+
+    /**
+     * Report stale translations flagged for cleanup. Detection only — this
+     * command never deletes or overwrites a translation; it exists so a
+     * cleanup workflow has something to review before anyone touches data
+     * by hand.
+     *
+     * ## EXAMPLES
+     *
+     *     wp stm clean-stale-translations
+     */
+    public function clean_stale_translations($args, $assoc_args) {
+        \WP_CLI::line('Detection only — this command never deletes or overwrites a translation.');
+
+        $stale = Dashboard::get_stale_translations();
+
+        if (empty($stale)) {
+            \WP_CLI::success('No stale translations found.');
+            return;
+        }
+
+        foreach ($stale as $row) {
+            \WP_CLI::line(self::format_stale_row($row));
+        }
+
+        \WP_CLI::warning(count($stale) . ' stale translation(s) detected. Review and re-save each one (dashboard or post editor) — nothing was changed.');
+    }
+
+    private static function format_stale_row($row) {
+        if ($row['type'] === 'post') {
+            $label = $row['post_title'] !== '' ? $row['post_title'] : ('#' . $row['post_id']);
+            return "[POST] #{$row['post_id']} ({$label}) field={$row['field_name']} lang={$row['language_code']} status={$row['status']}";
+        }
+
+        return "[FIELD VALUE] field={$row['field_name']} value=\"{$row['source_value']}\" lang={$row['language_code']} status={$row['status']}";
+    }
 }
 
 \WP_CLI::add_command('stm', 'STM\CLI');

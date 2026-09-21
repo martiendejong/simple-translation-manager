@@ -3,12 +3,13 @@
  * Admin Template: Translation Dashboard
  *
  * Variables available:
- * - $active_tab (string): overview|missing|recent
+ * - $active_tab (string): overview|missing|recent|stale
  * - $languages (array)
  * - $default_lang (object|null)
  * - $coverage (array|null): overview tab
  * - $filters (array|null), $missing (array|null): missing tab
  * - $recent (array|null): recent tab
+ * - $stale (array|null): stale tab
  */
 if (!defined('ABSPATH')) exit;
 
@@ -17,6 +18,7 @@ $tabs = [
     'overview' => __('Overview', 'simple-translation-manager'),
     'missing'  => __('Missing Translations', 'simple-translation-manager'),
     'recent'   => __('Recent Translations', 'simple-translation-manager'),
+    'stale'    => __('Stale Translations', 'simple-translation-manager'),
 ];
 ?>
 <div class="wrap stm-dashboard">
@@ -37,5 +39,7 @@ $tabs = [
         <?php require __DIR__ . '/admin-dashboard-missing.php'; ?>
     <?php elseif ($active_tab === 'recent') : ?>
         <?php require __DIR__ . '/admin-dashboard-recent.php'; ?>
+    <?php elseif ($active_tab === 'stale') : ?>
+        <?php require __DIR__ . '/admin-dashboard-stale.php'; ?>
     <?php endif; ?>
 </div>
