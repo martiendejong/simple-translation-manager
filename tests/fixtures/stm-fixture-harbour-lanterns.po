@@ -1,0 +1,27 @@
+# STM-FX-HARBOUR-LANTERNS-PO
+# Synthetic test fixture, invented for STM's own test suite. Not shipped in the
+# plugin ZIP; no real site, person or customer data.
+msgid ""
+msgstr ""
+"Project-Id-Version: STM fixture\n"
+"Language: fr\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgctxt "quayfx"
+msgid "fx.quay.lamplighter.count"
+msgstr "L'allumeur de reverberes de Tessellate Quay compte sept papillons de nuit avant le crepuscule."
+
+msgctxt "quayfx"
+msgid "fx.quay.ferry.timetable"
+msgstr "Le ferry de cuivre part des que la cloche du port a sonne deux fois."
+
+#, fuzzy
+msgctxt "quayfx"
+msgid "fx.quay.market.rule"
+msgstr "Les tourtes aux balanes ne sont vendues qu'aux voyageurs capables de nommer trois marees."
+
+msgctxt "quayfx"
+msgid "fx.quay.untranslated.sign"
+msgstr ""

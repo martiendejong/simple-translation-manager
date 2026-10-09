@@ -25,6 +25,10 @@ class FakeWpdb {
     private $tables = [];
     private $nextId = [];
 
+    public function get_charset_collate() {
+        return 'DEFAULT CHARACTER SET utf8mb4';
+    }
+
     public function prepare($query, ...$args) {
         if (count($args) === 1 && is_array($args[0])) {
             $args = $args[0];
