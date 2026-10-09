@@ -10,6 +10,11 @@
  * - XLIFF (XML Localization Interchange File Format) - used by SDL Trados, memoQ, Memsource
  * - PO/POT (Portable Object) - used by GNU gettext, Poedit, Loco Translate
  *
+ * [STM-DN-22] Review status survives a round trip: STM "published" is XLIFF
+ * state "final" and a PO entry without the fuzzy flag; STM "draft" is
+ * "needs-review-translation" and a fuzzy PO entry. An import only publishes
+ * what the file marks as final (or translated, or non-fuzzy).
+ *
  * @package SimpleTranslationManager
  */
 
@@ -283,6 +288,9 @@ class ImportExport {
             $string_key = (string) $unit['id'];
             $target = $unit->target;
 
+            // [STM-DN-23] An empty target is skipped, never imported as a blank
+            // translation: importing a partly translated file must not wipe
+            // translations that already exist.
             if (!$target || !strlen((string) $target)) {
                 $result['skipped']++;
                 continue;

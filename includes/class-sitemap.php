@@ -98,7 +98,7 @@ class Sitemap_Provider extends \WP_Sitemaps_Provider {
 
         $urls = [];
 
-        // Build every URL from the post's default-language permalink (STM's
+        // [STM-DN-17] Build every URL from the post's default-language permalink (STM's
         // own current-request substitution suppressed) via the same
         // Frontend::localize_permalink() lookup filter_permalink() and
         // Hreflang use — so a translated slug set for $object_subtype is

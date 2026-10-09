@@ -87,7 +87,7 @@ class AutoTranslate {
             return ['success' => true, 'translation' => $text, 'provider' => 'passthrough', 'error' => ''];
         }
 
-        // Check translation memory first. $context carries the field being
+        // [STM-DN-13] Check translation memory first. $context carries the field being
         // translated (post_title/post_excerpt/post_content/post_name — see
         // translateField() in admin-post-editor.js) and MUST be forwarded so
         // the memory lookup can scope matches to that same field. Without it,

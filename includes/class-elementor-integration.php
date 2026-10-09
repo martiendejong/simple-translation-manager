@@ -6,7 +6,7 @@
 /**
  * Elementor Integration
  *
- * Makes Elementor page/widget content translatable without touching
+ * [STM-DN-18] Makes Elementor page/widget content translatable without touching
  * Elementor's own `_elementor_data` post meta:
  *
  * - The page author's original Elementor content (whatever language it was

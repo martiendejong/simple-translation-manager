@@ -174,6 +174,9 @@ class Database {
             dbDelta($sql_term_translations);
             dbDelta($sql_field_values);
         } catch (\Exception $e) {
+            // [STM-DN-02] Log, do not rethrow: this also runs from plugins_loaded
+            // (via maybe_upgrade()), where an uncaught exception would take the
+            // whole site down instead of only degrading this plugin.
             error_log('[STM] [STM-E-DB-CREATE-TABLES-SCHEMA] Error creating tables: ' . $e->getMessage());
         }
     }
@@ -182,6 +185,11 @@ class Database {
      * Run schema upgrades when the plugin was updated without reactivation
      * (e.g. FTP deploys). Compares the stored schema version to STM_VERSION
      * and re-runs dbDelta, which only applies missing changes.
+     *
+     * [STM-DN-01] Upgrades stay additive: dbDelta creates missing tables,
+     * columns and indexes and never drops or rewrites data, which is what lets
+     * an update keep every stored translation. A destructive schema change
+     * belongs in its own explicit, reviewed migration, not in this method.
      */
     public static function maybe_upgrade() {
         $installed = get_option(self::OPTION_DB_VERSION, '');
@@ -239,6 +247,11 @@ class Database {
 
     /**
      * Get all active languages
+     *
+     * [STM-DN-03] Cached for an hour: language rows change rarely and are read
+     * on nearly every translated request. Writers delete the CACHE_* keys
+     * instead of waiting for the TTL, so the TTL is a safety net and not the
+     * invalidation mechanism.
      */
     public static function get_languages() {
         global $wpdb;

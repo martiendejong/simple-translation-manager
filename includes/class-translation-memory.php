@@ -174,7 +174,7 @@ class TranslationMemory {
             return null;
         }
 
-        // Cross-post restriction: when the caller knows which post it is
+        // [STM-DN-12] Cross-post restriction: when the caller knows which post it is
         // translating, never return a translation row belonging to a
         // DIFFERENT post — an identical-looking title/excerpt/content string
         // is still the wrong post's translation once saved under the wrong

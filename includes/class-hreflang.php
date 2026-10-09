@@ -48,7 +48,7 @@ class Hreflang {
         $post = ( $queried instanceof \WP_Post ) ? $queried : null;
         $term = ( $queried instanceof \WP_Term ) ? $queried : null;
 
-        // A post's OWN language (its real STM association, or SEO God's
+        // [STM-DN-08] A post's OWN language (its real STM association, or SEO God's
         // detected content language, or the site default as last resort —
         // see PostEditor::get_post_language()) is what "self-references"
         // this URL, not necessarily the site default. Without this, a
@@ -77,7 +77,7 @@ class Hreflang {
             if ( $lang->code === $self_lang ) {
                 $url = $current_url;
             } else {
-                // Only advertise a language version that actually has
+                // [STM-DN-07] Only advertise a language version that actually has
                 // translated content behind it — a hreflang tag whose target
                 // just falls back to the default-language page (or, for
                 // non-singular content with no post to translate against,

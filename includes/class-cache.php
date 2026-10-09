@@ -34,6 +34,11 @@ class Cache {
     /**
      * Get translation from cache or database
      *
+     * [STM-DN-04] Visitors only ever get status='published' rows, so drafts and
+     * unreviewed imports stay invisible on the front end. A miss is cached as
+     * well (see the comment below), so a string without a published translation
+     * costs one query per TTL instead of one per request.
+     *
      * @param string $key Translation key
      * @param string $lang Language code
      * @param string $context Context (optional)
@@ -220,6 +225,10 @@ class Cache {
 
     /**
      * Make cache key
+     *
+     * [STM-DN-05] The key is hashed so any string key, context or language code
+     * maps to a fixed-length key made only of characters every object-cache
+     * backend accepts.
      */
     private static function make_cache_key($key, $lang, $context) {
         return md5("{$context}:{$key}:{$lang}");
@@ -228,7 +237,7 @@ class Cache {
     /**
      * Flush all STM translation cache
      *
-     * Uses a version key so only STM entries are invalidated — does NOT
+     * [STM-DN-06] Uses a version key so only STM entries are invalidated — does NOT
      * call wp_cache_flush() which would wipe a shared Redis/Memcached instance.
      */
     public static function flush_all() {

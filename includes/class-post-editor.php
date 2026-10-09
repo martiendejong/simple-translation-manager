@@ -467,7 +467,7 @@ class PostEditor {
     /**
      * Get post language.
      *
-     * A manually-registered STM association is authoritative. Otherwise,
+     * [STM-DN-19] A manually-registered STM association is authoritative. Otherwise,
      * defer to SEO God's per-post detected content language (task 2982)
      * before falling back to the site default — the normal case for a post
      * genuinely written in a non-default language but never manually

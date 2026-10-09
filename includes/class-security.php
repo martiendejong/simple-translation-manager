@@ -120,6 +120,11 @@ class Security {
      *
      * Allows HTML tags that are safe for translation content
      *
+     * [STM-DN-24] The allowlist is deliberately small (inline formatting and
+     * links). Every write path that stores translated text - admin save, REST,
+     * XLIFF/PO import, Elementor - runs it, so output code can rely on stored
+     * values being limited to these tags.
+     *
      * @param string $text Translation text
      * @return string
      */

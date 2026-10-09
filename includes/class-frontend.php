@@ -36,7 +36,7 @@ class Frontend {
         add_filter('page_link', [__CLASS__, 'filter_page_link'], 20, 3);
         add_filter('post_link', [__CLASS__, 'filter_post_link'], 20, 3);
 
-        // Resolve an incoming translated-slug URL back to the real post
+        // [STM-DN-09] Resolve an incoming translated-slug URL back to the real post
         // before WordPress's own post_name lookup runs. Priority 2 — right
         // after stm_strip_lang_prefix_from_request() (priority 1, see
         // simple-translation-manager.php) — so this runs before ANY other
@@ -112,7 +112,7 @@ class Frontend {
             }
         }
 
-        // In URL routing mode the URL structure is authoritative: if neither a
+        // [STM-DN-10] In URL routing mode the URL structure is authoritative: if neither a
         // rewrite query var nor an explicit ?lang= param is present, we are on
         // a default-language URL (e.g. /). The cookie must NOT override this —
         // otherwise returning to / after visiting /en/ stays in English because
@@ -134,7 +134,7 @@ class Frontend {
     }
 
     /**
-     * Persist the ?lang= choice in a cookie — at most once per request, and
+     * [STM-DN-11] Persist the ?lang= choice in a cookie — at most once per request, and
      * only when it is actually possible to send a header. Both guards exist
      * because this is called from inside content filters (the_title,
      * post_type_link, ...) that WordPress runs once per post in a loop, not

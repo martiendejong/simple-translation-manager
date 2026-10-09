@@ -85,7 +85,7 @@ function stm_deactivate() {
 register_deactivation_hook(__FILE__, 'stm_deactivate');
 
 /**
- * Inject language-prefixed rewrite rules for every non-default language.
+ * [STM-DN-15] Inject language-prefixed rewrite rules for every non-default language.
  *
  * For each existing WordPress rewrite rule we add a clone prefixed with the
  * language code, e.g.:
@@ -139,7 +139,7 @@ function stm_query_vars($vars) {
 add_filter('query_vars', 'stm_query_vars');
 
 /**
- * Strip a leading language segment (e.g. "en/") off the raw request path
+ * [STM-DN-14] Strip a leading language segment (e.g. "en/") off the raw request path
  * before any other plugin's own `request` filter tries to resolve that path
  * itself.
  *
@@ -219,7 +219,7 @@ function stm_front_page_request( $qv ) {
 add_filter( 'request', 'stm_front_page_request' );
 
 /**
- * Prevent WordPress from stripping language URL prefixes via redirect_canonical.
+ * [STM-DN-16] Prevent WordPress from stripping language URL prefixes via redirect_canonical.
  *
  * When URL routing is on, /en/t-zwaantje/ is a valid URL for the English
  * version of that page. Without this hook WordPress's canonical redirect
