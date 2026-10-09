@@ -130,6 +130,44 @@ class ProvenanceToolTest extends TestCase {
         }
     }
 
+    public function test_a_docblock_tag_names_the_declaration_it_documents_not_the_one_above() {
+        $src = implode("\n", [
+            '<?php',                                    // 1
+            'namespace Sample;',                        // 2
+            '',                                         // 3
+            'class Box {',                              // 4
+            '    /**',                                  // 5
+            '     * [STM-SYM-99] documents the constant below',  // 6
+            '     */',                                  // 7
+            '    const A = 1;',                         // 8
+            '',                                         // 9
+            '    public function run() {',              // 10
+            '        // [STM-DN-98] inline note inside run()',   // 11
+            '        return 1;',                        // 12
+            '    }',                                    // 13
+            '',                                         // 14
+            '    /**',                                  // 15
+            '     * [STM-DN-97] documents second()',    // 16
+            '     */',                                  // 17
+            '    public function second() {}',          // 18
+            '}',                                        // 19
+        ]);
+        $lines = preg_split('/\R/', $src);
+        $this->assertSame('Box::A', stm_prov_symbol_for_line($lines, 6), 'a docblock tag belongs to the declaration after it');
+        $this->assertSame('Box::run', stm_prov_symbol_for_line($lines, 11), 'an inline tag belongs to the enclosing function');
+        $this->assertSame('Box::second', stm_prov_symbol_for_line($lines, 16));
+    }
+
+    public function test_every_symbol_doc_in_the_real_tree_resolves_to_a_constant() {
+        $symbolDocs = array_filter(stm_prov_collect_markers($this->root()), static function ($m) {
+            return $m['kind'] === 'symbol-doc';
+        });
+        $this->assertNotEmpty($symbolDocs);
+        foreach ($symbolDocs as $marker) {
+            $this->assertMatchesRegularExpression('/::[A-Z][A-Z0-9_]+$/', $marker['symbol'], "{$marker['id']} in {$marker['file']} should name the constant it documents");
+        }
+    }
+
     public function test_private_outputs_refuse_to_land_inside_the_repository() {
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionMessage('inside the plugin repository');

@@ -6,9 +6,9 @@
 /**
  * Source-provenance tooling for Simple Translation Manager (task 5182).
  *
- * Development-only: this script is excluded from the plugin ZIP (see
- * .gitattributes). It never runs inside WordPress and never talks to the
- * network.
+ * Development-only: this script is excluded from the plugin ZIP (the ZIP is
+ * built from the STM_PROV_DIST_PATHS allowlist below). It never runs inside
+ * WordPress and never talks to the network.
  *
  * What it is for: STM is GPL software and forks are welcome. When someone
  * asks "where did this code come from?", the recognition points added by
@@ -247,9 +247,72 @@ function stm_prov_is_distributed_source(string $rel): bool
     return (bool) preg_match('#^(includes/|templates/|assets/|simple-translation-manager\.php$|uninstall\.php$)#', $rel);
 }
 
-/** Nearest enclosing "Class::member" for a 1-based line, best effort. */
+/** Nearest class declared at or above a 0-based line index, or null. */
+function stm_prov_class_above(array $lines, int $idx): ?string
+{
+    for ($i = min($idx, count($lines) - 1); $i >= 0; $i--) {
+        if (preg_match('/^\s*(?:final\s+|abstract\s+)?class\s+([A-Za-z_][A-Za-z0-9_]*)/', $lines[$i], $m)) {
+            return $m[1];
+        }
+    }
+    return null;
+}
+
+/**
+ * A tag inside a docblock belongs to the declaration the docblock
+ * documents, which comes AFTER it. When the 1-based line sits inside such a
+ * docblock, return that declaration ("Class::member", a global function, or a
+ * class name); null when the line is not inside a docblock or nothing is
+ * declared right after it.
+ */
+function stm_prov_documented_symbol(array $lines, int $lineNo): ?string
+{
+    $idx  = min($lineNo, count($lines)) - 1;
+    $open = null;
+    for ($i = $idx; $i >= 0; $i--) {
+        if ($i < $idx && strpos($lines[$i], '*/') !== false) {
+            return null; // a comment closed above this line: it is not inside a docblock
+        }
+        if (preg_match('/^\s*\/\*\*/', $lines[$i])) {
+            $open = $i;
+            break;
+        }
+    }
+    if ($open === null) {
+        return null;
+    }
+
+    $end = $idx;
+    while ($end < count($lines) && strpos($lines[$end], '*/') === false) {
+        $end++;
+    }
+
+    $limit = min(count($lines), $end + 16);
+    for ($n = $end + 1; $n < $limit; $n++) {
+        $line = $lines[$n];
+        if (trim($line) === '' || preg_match('/^\s*(?:namespace|use)\s/', $line) || preg_match('/^\s*(?:\/\/|#\[)/', $line)) {
+            continue;
+        }
+        if (preg_match('/^\s*(?:final\s+|abstract\s+)?class\s+([A-Za-z_][A-Za-z0-9_]*)/', $line, $m)) {
+            return $m[1];
+        }
+        if (preg_match('/^\s*(?:(?:public|protected|private|static|final|abstract)\s+)*(?:function|const)\s+&?([A-Za-z_][A-Za-z0-9_]*)/', $line, $m)) {
+            $class = stm_prov_class_above($lines, $n);
+            return $class !== null ? $class . '::' . $m[1] : $m[1];
+        }
+        break;
+    }
+    return null;
+}
+
+/** Enclosing "Class::member" for a 1-based line; a docblock tag names what the docblock documents. Best effort. */
 function stm_prov_symbol_for_line(array $lines, int $lineNo): string
 {
+    $documented = stm_prov_documented_symbol($lines, $lineNo);
+    if ($documented !== null) {
+        return $documented;
+    }
+
     $member = null;
     $class  = null;
 
