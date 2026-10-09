@@ -631,6 +631,6 @@ present) so no test data was ever written; the mu-plugin and its containing
 Left: nothing outstanding for this task.
 
 ## 2026-10-09 - task 5182
-Done: (in progress) source provenance markers + verifiable release lineage. Draft PR opened first; details land as commits.
-Verified: not yet - baseline before changes: `vendor/bin/phpunit` 191 tests / 412 assertions pass on origin/master 1068c19.
-Left: see PR body.
+Done: source provenance markers + verifiable release lineage (PR #44): SPDX/copyright/Source-Id headers on 87 own PHP/JS files, additive `stm_diag` codes, named constants, design notes, synthetic fixtures, and `bin/provenance.php` (check, manifest, compare, release record, demo) kept out of the ZIP. docs/PROVENANCE.md explains the conventions.
+Verified: `vendor/bin/phpunit` 216 tests / 838 assertions pass (baseline 191 / 412 on origin/master 1068c19); jest 18/18; `php -l` clean on every PHP file; phpcs (project ruleset) clean, same as master. Plugin Check not run here (host cannot, see task 5144).
+Left: Martien to confirm the rights-holder wording (ProsperGenics is not named until its legal name is confirmed); the authoritative manifest + release record are generated from master at release time (squash merge changes the commit ids); tag signing needs a signing key, none exists on this host.

@@ -23,7 +23,12 @@
  *   php bin/provenance.php apply-headers [repo-root]
  *   php bin/provenance.php manifest      [repo-root] [--out=FILE] [--no-git]
  *   php bin/provenance.php compare       <reference-root> <candidate-root> [--format=json|md] [--out=FILE]
+ *   php bin/provenance.php release       [repo-root] --out-dir=DIR [--commit=REF] [--published=YYYY-MM-DD]
+ *   php bin/provenance.php verify-release <release-record.json> [--repo=ROOT]
  *   php bin/provenance.php demo          [--format=json|md]
+ *
+ * manifest and release write only OUTSIDE the repository: the manifest lists
+ * every recognition point and must not sit next to the code it describes.
  */
 
 const STM_PROV_HOLDER = 'Martien de Jong';
@@ -554,16 +559,41 @@ function stm_prov_compare(string $referenceRoot, string $candidateRoot): array
     $candidateSpace = stm_prov_normalize_space($candidateAll);
 
     $findings = [];
+    $noticeSeen = [];
     foreach ($markers as $marker) {
         if ($marker['kind'] === 'fixture') {
             continue; // fixtures are not distributed; they only matter when whole repos are compared
         }
+
+        if ($marker['kind'] === 'copyright-header') {
+            // The same notice sits in every file; report it once. GPL requires keeping it, so
+            // finding it in a candidate is expected of any compliant fork and is not an indicator.
+            if (isset($noticeSeen[$marker['id']])) {
+                continue;
+            }
+            $noticeSeen[$marker['id']] = true;
+            $where = [];
+            foreach ($candidate as $rel => $contents) {
+                if (strpos($contents, 'SPDX-FileCopyrightText: ' . $marker['id']) !== false) {
+                    $where[] = $rel;
+                }
+            }
+            $findings[] = [
+                'kind' => $marker['kind'], 'id' => $marker['id'], 'reference_file' => $marker['file'], 'symbol' => $marker['symbol'],
+                'match' => $where ? 'notice-retained' : 'none', 'candidate_files' => $where,
+            ];
+            continue;
+        }
+
         $needle = in_array($marker['kind'], ['design-note', 'symbol-doc'], true) ? '[' . $marker['id'] . ']' : $marker['id'];
         $match  = 'none';
         $where  = [];
 
         foreach ($candidate as $rel => $contents) {
-            if (strpos($contents, $needle) !== false) {
+            $hit = $marker['kind'] === 'source-id'
+                ? (bool) preg_match('/Source-Id:\s*' . preg_quote($needle, '/') . '(?![a-z0-9.\-])/', $contents)
+                : strpos($contents, $needle) !== false;
+            if ($hit) {
                 $match   = 'verbatim';
                 $where[] = $rel;
             }
@@ -573,7 +603,10 @@ function stm_prov_compare(string $referenceRoot, string $candidateRoot): array
             // Same marker with a different leading project token (STM-DN-07 -> ZZQ-DN-07, stm.api -> zzq.api).
             $tail = preg_replace('/^(?:\[)?(?:STM|stm)[-._]/', '', $needle);
             if ($tail !== $needle && strlen($tail) >= 5) {
-                $regex = '/(?<![A-Za-z0-9])[A-Za-z0-9]{2,8}[-._]' . preg_quote(rtrim($tail, ']'), '/') . '/';
+                $core = preg_quote(rtrim($tail, ']'), '/');
+                $regex = $marker['kind'] === 'source-id'
+                    ? '/Source-Id:\s*(?!stm\.)[a-z0-9]{2,8}\.' . $core . '(?![a-z0-9.\-])/'
+                    : '/(?<![A-Za-z0-9])[A-Za-z0-9]{2,8}[-._]' . $core . '(?![A-Za-z0-9])/';
                 foreach ($candidate as $rel => $contents) {
                     if (preg_match($regex, $contents)) {
                         $match   = 'renamed';
@@ -583,12 +616,8 @@ function stm_prov_compare(string $referenceRoot, string $candidateRoot): array
             }
         }
 
-        $proseMatch = false;
-        if ($match === 'none' && $marker['context'] !== '' && strlen($marker['context']) >= 30) {
-            $proseMatch = strpos($candidateSpace, $marker['context']) !== false;
-            if ($proseMatch) {
-                $match = 'prose-only';
-            }
+        if ($match === 'none' && $marker['context'] !== '' && strlen($marker['context']) >= 30 && strpos($candidateSpace, $marker['context']) !== false) {
+            $match = 'prose-only';
         }
 
         $findings[] = [
@@ -659,6 +688,7 @@ function stm_prov_compare(string $referenceRoot, string $candidateRoot): array
         'markers_verbatim'       => $count($findings, 'match', 'verbatim'),
         'markers_renamed'        => $count($findings, 'match', 'renamed'),
         'markers_prose_only'     => $count($findings, 'match', 'prose-only'),
+        'notices_retained'       => $count($findings, 'match', 'notice-retained'),
         'files_checked'          => count($files),
         'files_byte_identical'   => $count($files, 'status', 'byte-identical'),
         'files_renamed_or_edited' => $count($files, 'status', 'renamed-or-lightly-edited'),
@@ -671,6 +701,8 @@ function stm_prov_compare(string $referenceRoot, string $candidateRoot): array
         $class = 'prefix-renamed-indicators';
     } elseif ($summary['files_partial_overlap'] > 0) {
         $class = 'partial-overlap-only';
+    } elseif ($summary['notices_retained'] > 0) {
+        $class = 'copyright-notice-only';
     } else {
         $class = 'no-recognition-points-found';
     }
@@ -715,6 +747,209 @@ function stm_prov_report_markdown(array $report, string $title = 'Provenance com
         $out .= "None.\n";
     }
     return $out;
+}
+
+// ---------------------------------------------------------------------------
+// Release record: exact ZIP, commit, SHA-256, publication date
+// ---------------------------------------------------------------------------
+
+/**
+ * Paths that make up the distributed plugin ZIP. An allowlist, not an exclude
+ * list: a new top-level file (a test, a fixture, a script) stays out of the
+ * ZIP until someone deliberately adds it here.
+ */
+const STM_PROV_DIST_PATHS = [
+    'simple-translation-manager.php',
+    'uninstall.php',
+    'readme.txt',
+    'includes',
+    'templates',
+    'assets',
+    'docs/editors/pdf', // linked from the Documentation admin screen
+];
+
+/** Path fragments that must never appear inside a release ZIP. */
+const STM_PROV_ZIP_FORBIDDEN = '#(^|/)(tests|bin|vendor|node_modules|coverage|\.git|\.github|\.phpunit\.cache)(/|$)|(^|/)(AGENT_PROGRESS\.md|phpunit\.xml|phpcs\.xml\.dist|composer\.(json|lock)|package(-lock)?\.json|jest\.config\.js|test-bulk-api\.php)$#';
+
+function stm_prov_is_inside(string $path, string $root): bool
+{
+    $root = realpath($root);
+    $dir  = realpath(dirname($path));
+    if ($root === false || $dir === false) {
+        return false;
+    }
+    $root = rtrim(str_replace('\\', '/', $root), '/') . '/';
+    $dir  = rtrim(str_replace('\\', '/', $dir), '/') . '/';
+    return strpos($dir, $root) === 0;
+}
+
+/** Private outputs (manifest, release record, ZIP) must not land in the public repository. */
+function stm_prov_assert_outside_repo(string $path, string $root): void
+{
+    if (!is_dir(dirname($path))) {
+        mkdir(dirname($path), 0777, true);
+    }
+    if (stm_prov_is_inside($path, $root)) {
+        throw new RuntimeException("Refusing to write {$path}: it is inside the plugin repository. Use a private location outside {$root}.");
+    }
+}
+
+/**
+ * Entry names of a ZIP file, read from its central directory (no ext-zip needed).
+ *
+ * @return string[]
+ */
+function stm_prov_zip_entries(string $zipPath): array
+{
+    $data = (string) file_get_contents($zipPath);
+    $eocd = strrpos($data, "PK\x05\x06");
+    if ($eocd === false) {
+        throw new RuntimeException("{$zipPath} is not a ZIP file (no end-of-central-directory record)");
+    }
+    $total = unpack('v', substr($data, $eocd + 10, 2))[1];
+    $pos   = unpack('V', substr($data, $eocd + 16, 4))[1];
+    $names = [];
+    for ($i = 0; $i < $total; $i++) {
+        if (substr($data, $pos, 4) !== "PK\x01\x02") {
+            throw new RuntimeException("{$zipPath}: corrupt central directory entry {$i}");
+        }
+        $len     = unpack('vname/vextra/vcomment', substr($data, $pos + 28, 6));
+        $names[] = substr($data, $pos + 46, $len['name']);
+        $pos    += 46 + $len['name'] + $len['extra'] + $len['comment'];
+    }
+    return $names;
+}
+
+/** Problems in a list of ZIP entry names. Empty = fine. @return string[] */
+function stm_prov_zip_problems(array $entries): array
+{
+    $problems = [];
+    foreach ($entries as $name) {
+        if (preg_match(STM_PROV_ZIP_FORBIDDEN, $name)) {
+            $problems[] = "{$name}: development-only file inside the release ZIP";
+        }
+    }
+    if (!in_array('simple-translation-manager/simple-translation-manager.php', $entries, true)) {
+        $problems[] = 'simple-translation-manager/simple-translation-manager.php is missing from the ZIP';
+    }
+    return $problems;
+}
+
+function stm_prov_run(string $command, ?int &$code = null): string
+{
+    $output = [];
+    exec($command . ' 2>&1', $output, $code);
+    return trim(implode("\n", $output));
+}
+
+/** Build the distribution ZIP for $commit with git archive. Same commit, same git => same bytes. */
+function stm_prov_build_zip(string $root, string $commit, string $zipPath): void
+{
+    stm_prov_assert_outside_repo($zipPath, $root);
+    $paths = implode(' ', array_map('escapeshellarg', STM_PROV_DIST_PATHS));
+    $out   = stm_prov_run(
+        'git -C ' . escapeshellarg($root) . ' archive --format=zip --prefix=simple-translation-manager/ -o '
+        . escapeshellarg($zipPath) . ' ' . escapeshellarg($commit) . ' -- ' . $paths,
+        $code
+    );
+    if ($code !== 0) {
+        throw new RuntimeException("git archive failed: {$out}");
+    }
+    $problems = stm_prov_zip_problems(stm_prov_zip_entries($zipPath));
+    if ($problems) {
+        @unlink($zipPath);
+        throw new RuntimeException("Release ZIP rejected:\n" . implode("\n", $problems));
+    }
+}
+
+/** Is a signing key usable on this machine? Reported, never assumed. */
+function stm_prov_signing_status(string $root): array
+{
+    $format = stm_prov_git($root, 'config --get gpg.format') ?? 'openpgp';
+    $key    = stm_prov_git($root, 'config --get user.signingkey');
+    $gpg    = stm_prov_run('gpg --list-secret-keys --with-colons', $gpgCode);
+    $hasGpg = $gpgCode === 0 && preg_match('/^sec:/m', $gpg) === 1;
+
+    $available = ($format === 'ssh') ? ($key !== null) : ($hasGpg || $key !== null);
+    return [
+        'available' => $available,
+        'format'    => $format,
+        'detail'    => $available
+            ? 'A signing key is configured; the tag signature is verified separately.'
+            : 'No signing key (user.signingkey / GPG secret key) is configured on this machine, so the release tag cannot be signed here.',
+    ];
+}
+
+/** State of the v<version> tag for $commit: missing, unsigned, or signed (verification is separate). */
+function stm_prov_tag_status(string $root, string $version, string $commit): array
+{
+    $tag = 'v' . $version;
+    $obj = stm_prov_git($root, 'rev-parse --verify --quiet refs/tags/' . escapeshellarg($tag));
+    if ($obj === null) {
+        return ['name' => $tag, 'exists' => false, 'points_at' => null, 'signed' => null];
+    }
+    $target = stm_prov_git($root, 'rev-parse ' . escapeshellarg($tag . '^{commit}'));
+    $body   = (string) stm_prov_git($root, 'cat-file -p ' . escapeshellarg($obj));
+    return [
+        'name'           => $tag,
+        'exists'         => true,
+        'points_at'      => $target,
+        'matches_commit' => $target === $commit,
+        'signed'         => (bool) preg_match('/-----BEGIN (PGP|SSH) SIGNATURE-----/', $body),
+    ];
+}
+
+/**
+ * Build the ZIP for $commit and return the release record.
+ *
+ * @param string $published YYYY-MM-DD the release was (or will be) published
+ */
+function stm_prov_release(string $root, string $commit, string $zipPath, string $published): array
+{
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $published)) {
+        throw new InvalidArgumentException("--published must be YYYY-MM-DD, got '{$published}'");
+    }
+    $sha = stm_prov_git($root, 'rev-parse --verify ' . escapeshellarg($commit . '^{commit}'));
+    if ($sha === null) {
+        throw new RuntimeException("Unknown commit '{$commit}'");
+    }
+    $version = trim((string) stm_prov_git($root, 'show ' . escapeshellarg($sha . ':VERSION')));
+
+    stm_prov_build_zip($root, $sha, $zipPath);
+
+    return [
+        'schema'    => 'stm-release-record/1',
+        'plugin'    => ['slug' => 'simple-translation-manager', 'version' => $version],
+        'commit'    => $sha,
+        'tree'      => stm_prov_git($root, 'rev-parse ' . escapeshellarg($sha . '^{tree}')),
+        'zip'       => [
+            'file'     => basename($zipPath),
+            'bytes'    => filesize($zipPath),
+            'sha256'   => hash_file('sha256', $zipPath),
+            'entries'  => count(stm_prov_zip_entries($zipPath)),
+            'built_by' => 'git archive from the commit above, limited to STM_PROV_DIST_PATHS',
+        ],
+        'published' => $published,
+        'tag'       => stm_prov_tag_status($root, $version, $sha),
+        'signing'   => stm_prov_signing_status($root),
+        'notice'    => 'The SHA-256 identifies this exact file as published. It says nothing about a rewritten, repackaged or modified copy, and it is not evidence of copying.',
+    ];
+}
+
+/** Rebuild the ZIP from the recorded commit and compare hashes. */
+function stm_prov_verify_release(string $root, array $record): array
+{
+    $tmp = sys_get_temp_dir() . '/stm-prov-verify-' . bin2hex(random_bytes(4)) . '.zip';
+    try {
+        $rebuilt = stm_prov_release($root, $record['commit'], $tmp, $record['published']);
+    } finally {
+        @unlink($tmp);
+    }
+    return [
+        'recorded_sha256' => $record['zip']['sha256'],
+        'rebuilt_sha256'  => $rebuilt['zip']['sha256'],
+        'match'           => $record['zip']['sha256'] === $rebuilt['zip']['sha256'],
+    ];
 }
 
 // ---------------------------------------------------------------------------
@@ -877,9 +1112,9 @@ function stm_prov_cli(array $argv): int
             $manifest = stm_prov_build_manifest($root, !isset($opts['no-git']));
             $json     = json_encode($manifest, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . "\n";
             if (!empty($opts['out'])) {
+                stm_prov_assert_outside_repo($opts['out'], $root);
                 file_put_contents($opts['out'], $json);
                 echo 'Manifest written: ' . $opts['out'] . ' (' . count($manifest['markers']) . " markers, " . count($manifest['modules']) . " modules)\n";
-                echo "Keep it OUTSIDE the plugin repository and ZIP.\n";
             } else {
                 echo $json;
             }
@@ -901,6 +1136,36 @@ function stm_prov_cli(array $argv): int
             }
             return 0;
 
+        case 'release':
+            if (empty($opts['out-dir'])) {
+                fwrite(STDERR, "Usage: php bin/provenance.php release [repo-root] --out-dir=DIR [--commit=REF] [--published=YYYY-MM-DD]\n");
+                return 1;
+            }
+            $commit  = is_string($opts['commit'] ?? null) ? $opts['commit'] : 'HEAD';
+            $date    = is_string($opts['published'] ?? null) ? $opts['published'] : gmdate('Y-m-d');
+            $version = trim((string) stm_prov_git($root, 'show ' . escapeshellarg($commit . ':VERSION')));
+            $dir     = rtrim($opts['out-dir'], '/\\');
+            $record  = stm_prov_release($root, $commit, $dir . '/simple-translation-manager-' . $version . '.zip', $date);
+            $recordFile = $dir . '/release-record-' . $version . '.json';
+            stm_prov_assert_outside_repo($recordFile, $root);
+            file_put_contents($recordFile, json_encode($record, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n");
+            echo "ZIP:    {$record['zip']['file']} ({$record['zip']['bytes']} bytes, {$record['zip']['entries']} entries)\n";
+            echo "SHA256: {$record['zip']['sha256']}\n";
+            echo "Commit: {$record['commit']}  Published: {$record['published']}\n";
+            echo 'Tag:    ' . $record['tag']['name'] . ($record['tag']['exists'] ? ($record['tag']['signed'] ? ' (signed)' : ' (exists, NOT signed)') : ' (does not exist yet)') . "\n";
+            echo 'Signing available on this machine: ' . ($record['signing']['available'] ? 'yes' : 'NO - ' . $record['signing']['detail']) . "\n";
+            return 0;
+
+        case 'verify-release':
+            $recordFile = $pos[0] ?? '';
+            if ($recordFile === '' || !is_file($recordFile)) {
+                fwrite(STDERR, "Usage: php bin/provenance.php verify-release <release-record.json> [--repo=ROOT]\n");
+                return 1;
+            }
+            $result = stm_prov_verify_release(is_string($opts['repo'] ?? null) ? $opts['repo'] : dirname(__DIR__), json_decode((string) file_get_contents($recordFile), true));
+            echo ($result['match'] ? 'MATCH' : 'MISMATCH') . ": recorded {$result['recorded_sha256']}, rebuilt {$result['rebuilt_sha256']}\n";
+            return $result['match'] ? 0 : 2;
+
         case 'demo':
             $reports = stm_prov_demo(dirname(__DIR__));
             foreach ($reports as $name => $report) {
@@ -913,10 +1178,16 @@ function stm_prov_cli(array $argv): int
             return 0;
     }
 
-    fwrite(STDERR, "Usage: php bin/provenance.php <check|apply-headers|manifest|compare|demo> [args]\n");
+    fwrite(STDERR, "Usage: php bin/provenance.php <check|apply-headers|manifest|compare|release|verify-release|demo> [args]\n");
     return 1;
 }
 
 if (PHP_SAPI === 'cli' && isset($argv[0]) && realpath($argv[0]) === __FILE__) {
-    exit(stm_prov_cli($argv));
+    try {
+        exit(stm_prov_cli($argv));
+    } catch (Throwable $e) {
+        fwrite(STDERR, 'error: ' . $e->getMessage() . "
+");
+        exit(1);
+    }
 }
