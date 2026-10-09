@@ -1,4 +1,8 @@
 <?php
+// SPDX-License-Identifier: GPL-2.0-or-later
+// SPDX-FileCopyrightText: 2026 Martien de Jong
+// Source-Id: stm.test.fakes-fakewpdb
+
 /**
  * Minimal in-memory stand-in for $wpdb.
  *
@@ -20,6 +24,10 @@ class FakeWpdb {
 
     private $tables = [];
     private $nextId = [];
+
+    public function get_charset_collate() {
+        return 'DEFAULT CHARACTER SET utf8mb4';
+    }
 
     public function prepare($query, ...$args) {
         if (count($args) === 1 && is_array($args[0])) {

@@ -1,4 +1,8 @@
 <?php
+// SPDX-License-Identifier: GPL-2.0-or-later
+// SPDX-FileCopyrightText: 2026 Martien de Jong
+// Source-Id: stm.test.dashboardimportexportsqlsafetytest
+
 /**
  * PHPUnit tests: Dashboard::get_coverage_stats() / get_missing_translations()
  * and ImportExport::export_xliff() / export_po().

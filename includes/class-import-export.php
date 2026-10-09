@@ -1,10 +1,19 @@
 <?php
+// SPDX-License-Identifier: GPL-2.0-or-later
+// SPDX-FileCopyrightText: 2026 Martien de Jong
+// Source-Id: stm.import-export
+
 /**
  * XLIFF/PO Import/Export
  *
  * Support for industry-standard translation file formats:
  * - XLIFF (XML Localization Interchange File Format) - used by SDL Trados, memoQ, Memsource
  * - PO/POT (Portable Object) - used by GNU gettext, Poedit, Loco Translate
+ *
+ * [STM-DN-22] Review status survives a round trip: STM "published" is XLIFF
+ * state "final" and a PO entry without the fuzzy flag; STM "draft" is
+ * "needs-review-translation" and a fuzzy PO entry. An import only publishes
+ * what the file marks as final (or translated, or non-fuzzy).
  *
  * @package SimpleTranslationManager
  */
@@ -27,7 +36,7 @@ class ImportExport {
      * Register REST API routes
      */
     public static function register_routes() {
-        $namespace = 'stm/v1';
+        $namespace = API::REST_NAMESPACE;
 
         register_rest_route($namespace, '/export/xliff', [
             'methods' => 'GET',
@@ -279,6 +288,9 @@ class ImportExport {
             $string_key = (string) $unit['id'];
             $target = $unit->target;
 
+            // [STM-DN-23] An empty target is skipped, never imported as a blank
+            // translation: importing a partly translated file must not wipe
+            // translations that already exist.
             if (!$target || !strlen((string) $target)) {
                 $result['skipped']++;
                 continue;
@@ -526,7 +538,7 @@ class ImportExport {
         $params = $request->get_json_params() ?: $request->get_body_params();
 
         if (empty($files['file'])) {
-            return new \WP_Error('no_file', 'No file uploaded', ['status' => 400]);
+            return new \WP_Error('no_file', 'No file uploaded', ['status' => 400, 'stm_diag' => 'STM-E-IMPEX-REST-IMPORT-FILE-NO-FILE']);
         }
 
         $file = $files['file'];
@@ -539,7 +551,7 @@ class ImportExport {
         } elseif (strpos($filename, '.po') !== false) {
             $result = self::import_po($content, $lang);
         } else {
-            return new \WP_Error('unsupported_format', 'Supported formats: .xliff, .xlf, .po', ['status' => 400]);
+            return new \WP_Error('unsupported_format', 'Supported formats: .xliff, .xlf, .po', ['status' => 400, 'stm_diag' => 'STM-E-IMPEX-REST-IMPORT-FILE-UNSUPPORTED-FORMAT']);
         }
 
         return rest_ensure_response($result);

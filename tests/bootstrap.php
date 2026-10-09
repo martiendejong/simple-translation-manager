@@ -1,4 +1,8 @@
 <?php
+// SPDX-License-Identifier: GPL-2.0-or-later
+// SPDX-FileCopyrightText: 2026 Martien de Jong
+// Source-Id: stm.test.bootstrap
+
 /**
  * PHPUnit bootstrap — unit-tests the plugin's PHP classes against Brain
  * Monkey WordPress-function stubs and an in-memory FakeWpdb, so the suite
@@ -9,6 +13,10 @@
  */
 
 require_once dirname(__DIR__) . '/vendor/autoload.php';
+
+// ABSPATH stands in for a WordPress install: tests/wp-stubs/ holds just the one core file
+// (wp-admin/includes/upgrade.php) the plugin require_once()s, with a recording dbDelta().
+if (!defined('ABSPATH')) define('ABSPATH', __DIR__ . '/wp-stubs/');
 
 if (!defined('OBJECT'))  define('OBJECT', 'OBJECT');
 if (!defined('ARRAY_A')) define('ARRAY_A', 'ARRAY_A');

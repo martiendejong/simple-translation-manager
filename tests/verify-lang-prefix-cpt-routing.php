@@ -1,4 +1,8 @@
 <?php
+// SPDX-License-Identifier: GPL-2.0-or-later
+// SPDX-FileCopyrightText: 2026 Martien de Jong
+// Source-Id: stm.test.verify-lang-prefix-cpt-routing
+
 /**
  * Automated verification for task 869ecwc03 — path-prefixed language URLs
  * (/en/, /de/) on pages owned by another plugin's own routing (locations,

@@ -1,4 +1,8 @@
 <?php
+// SPDX-License-Identifier: GPL-2.0-or-later
+// SPDX-FileCopyrightText: 2026 Martien de Jong
+// Source-Id: stm.string-scanner
+
 /**
  * String Scanner
  *
@@ -8,6 +12,9 @@
  * the default-language translation with the fallback text already used in
  * the call. Re-running the scan never creates duplicate strings or
  * overwrites a translation a human has since edited.
+ *
+ * [STM-DN-21] Idempotent by design: the scan runs on every activation and
+ * from the admin button, so running it again must never put existing work at risk.
  */
 
 namespace STM;

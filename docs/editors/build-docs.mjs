@@ -1,4 +1,8 @@
 #!/usr/bin/env node
+// SPDX-License-Identifier: GPL-2.0-or-later
+// SPDX-FileCopyrightText: 2026 Martien de Jong
+// Source-Id: stm.docs.build-docs
+
 // Regenerates the editor documentation in three formats from the markdown sources:
 //   * HTML (docs/editors/wordpress/*.html) - standalone, styled, paste-ready for WordPress
 //   * WXR (docs/editors/wordpress/editors-docs.wxr.xml) - WordPress Tools > Import payload

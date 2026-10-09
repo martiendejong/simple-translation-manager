@@ -1,4 +1,8 @@
 <?php
+// SPDX-License-Identifier: GPL-2.0-or-later
+// SPDX-FileCopyrightText: 2026 Martien de Jong
+// Source-Id: stm.test.dashboardwpdieguardstest
+
 /**
  * PHPUnit tests: the wp_die() permission/nonce-guard branches in
  * Dashboard::render_page(), Dashboard::export_coverage_csv() and

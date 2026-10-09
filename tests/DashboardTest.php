@@ -1,4 +1,8 @@
 <?php
+// SPDX-License-Identifier: GPL-2.0-or-later
+// SPDX-FileCopyrightText: 2026 Martien de Jong
+// Source-Id: stm.test.dashboardtest
+
 /**
  * PHPUnit tests: Dashboard::build_coverage_csv_export() / build_missing_csv_export().
  *

@@ -1,4 +1,8 @@
 <?php
+// SPDX-License-Identifier: GPL-2.0-or-later
+// SPDX-FileCopyrightText: 2026 Martien de Jong
+// Source-Id: stm.auto-translate
+
 /**
  * AI Auto-Translate Integration
  *
@@ -29,7 +33,7 @@ class AutoTranslate {
      * Register REST API routes
      */
     public static function register_routes() {
-        $namespace = 'stm/v1';
+        $namespace = API::REST_NAMESPACE;
 
         register_rest_route($namespace, '/translate/auto', [
             'methods' => 'POST',
@@ -83,7 +87,7 @@ class AutoTranslate {
             return ['success' => true, 'translation' => $text, 'provider' => 'passthrough', 'error' => ''];
         }
 
-        // Check translation memory first. $context carries the field being
+        // [STM-DN-13] Check translation memory first. $context carries the field being
         // translated (post_title/post_excerpt/post_content/post_name — see
         // translateField() in admin-post-editor.js) and MUST be forwarded so
         // the memory lookup can scope matches to that same field. Without it,
@@ -423,7 +427,7 @@ class AutoTranslate {
         $items = $params['items'] ?? [];
 
         if (empty($items)) {
-            return new \WP_Error('empty_items', 'No items to translate', ['status' => 400]);
+            return new \WP_Error('empty_items', 'No items to translate', ['status' => 400, 'stm_diag' => 'STM-E-AUTO-REST-BATCH-TRANSLATE-EMPTY-ITEMS']);
         }
 
         $results = [];

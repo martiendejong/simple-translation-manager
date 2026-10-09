@@ -1,4 +1,8 @@
 <?php
+// SPDX-License-Identifier: GPL-2.0-or-later
+// SPDX-FileCopyrightText: 2026 Martien de Jong
+// Source-Id: stm.database
+
 /**
  * Database Schema and Operations
  *
@@ -15,6 +19,25 @@
 namespace STM;
 
 class Database {
+
+    /**
+     * [STM-SYM-03] Option holding the plugin version the schema was last
+     * brought up to. maybe_upgrade() compares it with STM_VERSION.
+     */
+    const OPTION_DB_VERSION = 'stm_db_version';
+
+    /**
+     * [STM-SYM-04] Object-cache key for the active-language list. Everything
+     * that adds, toggles, edits or deletes a language deletes this key, so
+     * the writers and get_languages() must agree on one spelling.
+     */
+    const CACHE_ACTIVE_LANGUAGES = 'stm_active_languages';
+
+    /**
+     * [STM-SYM-05] Object-cache key for the default-language row; deleted
+     * together with CACHE_ACTIVE_LANGUAGES whenever the default may change.
+     */
+    const CACHE_DEFAULT_LANGUAGE = 'stm_default_language';
 
     /**
      * Create database tables
@@ -151,7 +174,10 @@ class Database {
             dbDelta($sql_term_translations);
             dbDelta($sql_field_values);
         } catch (\Exception $e) {
-            error_log('[STM] Error creating tables: ' . $e->getMessage());
+            // [STM-DN-02] Log, do not rethrow: this also runs from plugins_loaded
+            // (via maybe_upgrade()), where an uncaught exception would take the
+            // whole site down instead of only degrading this plugin.
+            error_log('[STM] [STM-E-DB-CREATE-TABLES-SCHEMA] Error creating tables: ' . $e->getMessage());
         }
     }
 
@@ -159,14 +185,19 @@ class Database {
      * Run schema upgrades when the plugin was updated without reactivation
      * (e.g. FTP deploys). Compares the stored schema version to STM_VERSION
      * and re-runs dbDelta, which only applies missing changes.
+     *
+     * [STM-DN-01] Upgrades stay additive: dbDelta creates missing tables,
+     * columns and indexes and never drops or rewrites data, which is what lets
+     * an update keep every stored translation. A destructive schema change
+     * belongs in its own explicit, reviewed migration, not in this method.
      */
     public static function maybe_upgrade() {
-        $installed = get_option('stm_db_version', '');
+        $installed = get_option(self::OPTION_DB_VERSION, '');
         if ($installed === STM_VERSION) {
             return;
         }
         self::create_tables();
-        update_option('stm_db_version', STM_VERSION);
+        update_option(self::OPTION_DB_VERSION, STM_VERSION);
     }
 
     /**
@@ -205,23 +236,28 @@ class Database {
                 if (!$exists) {
                     $result = $wpdb->insert($table, $lang);
                     if ($result === false) {
-                        error_log('[STM] Failed to insert language: ' . $lang['code']);
+                        error_log('[STM] [STM-E-DB-SEED-DEFAULT-LANGUAGES-INSERT] Failed to insert language: ' . $lang['code']);
                     }
                 }
             }
         } catch (\Exception $e) {
-            error_log('[STM] Error seeding languages: ' . $e->getMessage());
+            error_log('[STM] [STM-E-DB-SEED-DEFAULT-LANGUAGES-EXCEPTION] Error seeding languages: ' . $e->getMessage());
         }
     }
 
     /**
      * Get all active languages
+     *
+     * [STM-DN-03] Cached for an hour: language rows change rarely and are read
+     * on nearly every translated request. Writers delete the CACHE_* keys
+     * instead of waiting for the TTL, so the TTL is a safety net and not the
+     * invalidation mechanism.
      */
     public static function get_languages() {
         global $wpdb;
         $table = $wpdb->prefix . 'stm_languages';
 
-        $cache_key = 'stm_active_languages';
+        $cache_key = self::CACHE_ACTIVE_LANGUAGES;
         $languages = wp_cache_get($cache_key);
 
         if (false === $languages) {
@@ -257,7 +293,7 @@ class Database {
         global $wpdb;
         $table = $wpdb->prefix . 'stm_languages';
 
-        $cache_key = 'stm_default_language';
+        $cache_key = self::CACHE_DEFAULT_LANGUAGE;
         $language = wp_cache_get($cache_key);
 
         if (false === $language) {

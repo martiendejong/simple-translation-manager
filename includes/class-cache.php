@@ -1,4 +1,8 @@
 <?php
+// SPDX-License-Identifier: GPL-2.0-or-later
+// SPDX-FileCopyrightText: 2026 Martien de Jong
+// Source-Id: stm.cache
+
 /**
  * Caching Layer
  *
@@ -21,7 +25,19 @@ class Cache {
     const TTL = 3600;
 
     /**
+     * [STM-SYM-02] Key of the generation counter that lives inside GROUP.
+     * flush_all() bumps it instead of calling wp_cache_flush(), so a shared
+     * Redis/Memcached instance keeps every other plugin's entries.
+     */
+    const VERSION_KEY = 'stm_cache_version';
+
+    /**
      * Get translation from cache or database
+     *
+     * [STM-DN-04] Visitors only ever get status='published' rows, so drafts and
+     * unreviewed imports stay invisible on the front end. A miss is cached as
+     * well (see the comment below), so a string without a published translation
+     * costs one query per TTL instead of one per request.
      *
      * @param string $key Translation key
      * @param string $lang Language code
@@ -96,7 +112,7 @@ class Cache {
 
         // Log database errors (not empty results)
         if ($wpdb->last_error) {
-            error_log("[STM] DB error getting translation for post {$post_id} field {$field}: " . $wpdb->last_error);
+            error_log("[STM] [STM-E-CACHE-GET-POST-TRANSLATION-DB-READ] DB error getting translation for post {$post_id} field {$field}: " . $wpdb->last_error);
         }
 
         // Store in cache (even if null)
@@ -138,7 +154,7 @@ class Cache {
         ));
 
         if ($wpdb->last_error) {
-            error_log("[STM] DB error getting field value translation for {$field}: " . $wpdb->last_error);
+            error_log("[STM] [STM-E-CACHE-GET-FIELD-VALUE-TRANSLATION-DB-READ] DB error getting field value translation for {$field}: " . $wpdb->last_error);
         }
 
         // Store in cache (empty string = known miss, avoids repeated queries)
@@ -209,6 +225,10 @@ class Cache {
 
     /**
      * Make cache key
+     *
+     * [STM-DN-05] The key is hashed so any string key, context or language code
+     * maps to a fixed-length key made only of characters every object-cache
+     * backend accepts.
      */
     private static function make_cache_key($key, $lang, $context) {
         return md5("{$context}:{$key}:{$lang}");
@@ -217,22 +237,22 @@ class Cache {
     /**
      * Flush all STM translation cache
      *
-     * Uses a version key so only STM entries are invalidated — does NOT
+     * [STM-DN-06] Uses a version key so only STM entries are invalidated — does NOT
      * call wp_cache_flush() which would wipe a shared Redis/Memcached instance.
      */
     public static function flush_all() {
-        $version = (int) wp_cache_get('stm_cache_version', self::GROUP);
-        wp_cache_set('stm_cache_version', $version + 1, self::GROUP, 0);
+        $version = (int) wp_cache_get(self::VERSION_KEY, self::GROUP);
+        wp_cache_set(self::VERSION_KEY, $version + 1, self::GROUP, 0);
     }
 
     /**
      * Build a version-stamped cache key so flush_all() invalidates without a global flush
      */
     private static function versioned_key($raw_key) {
-        $version = wp_cache_get('stm_cache_version', self::GROUP);
+        $version = wp_cache_get(self::VERSION_KEY, self::GROUP);
         if ($version === false) {
             $version = 1;
-            wp_cache_set('stm_cache_version', $version, self::GROUP, 0);
+            wp_cache_set(self::VERSION_KEY, $version, self::GROUP, 0);
         }
         return 'v' . $version . '_' . $raw_key;
     }

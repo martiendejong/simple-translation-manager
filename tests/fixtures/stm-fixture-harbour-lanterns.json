@@ -1,0 +1,10 @@
+{
+  "_fixture": "STM-FX-HARBOUR-LANTERNS-JSON",
+  "_note": "Synthetic test fixture invented for STM's own test suite; not shipped in the plugin ZIP.",
+  "lang": "de",
+  "translations": {
+    "fx.quay.lamplighter.count": "Der Laternenanzuender von Tessellate Quay zaehlt vor der Daemmerung sieben Motten.",
+    "fx.quay.ferry.timetable": "Die kupferne Faehre legt ab, sobald die Hafenglocke zweimal geklungen hat.",
+    "fx.quay.keeper.greeting": "Willkommen, Reisender; achte auf die dritte Stufe, sie summt."
+  }
+}

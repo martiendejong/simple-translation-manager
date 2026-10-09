@@ -1,4 +1,8 @@
 <?php
+// SPDX-License-Identifier: GPL-2.0-or-later
+// SPDX-FileCopyrightText: 2026 Martien de Jong
+// Source-Id: stm.test.seogodintegrationtest
+
 /**
  * PHPUnit tests: SeoGodIntegration::provide_current_language() — the
  * seo_god_current_language filter hook that tells SEO God which language

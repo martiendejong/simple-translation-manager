@@ -1,4 +1,8 @@
 <?php
+// SPDX-License-Identifier: GPL-2.0-or-later
+// SPDX-FileCopyrightText: 2026 Martien de Jong
+// Source-Id: stm.test.apisqlsafetytest
+
 /**
  * PHPUnit tests: SQL-injection safety for API::get_strings(), API::get_translations()
  * and API::export_json().

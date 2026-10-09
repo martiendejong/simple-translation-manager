@@ -1,4 +1,8 @@
 <?php
+// SPDX-License-Identifier: GPL-2.0-or-later
+// SPDX-FileCopyrightText: 2026 Martien de Jong
+// Source-Id: stm.test.translationsscreentest
+
 /**
  * PHPUnit tests: task 869enr71g — when a language's translation is missing,
  * the Translation Strings screen should show the default language's text as

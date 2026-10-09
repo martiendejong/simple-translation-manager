@@ -629,3 +629,13 @@ existed yet — its insert was skipped (a real translation was already
 present) so no test data was ever written; the mu-plugin and its containing
 `mu-plugins/` directory (which didn't exist before) were removed afterward.
 Left: nothing outstanding for this task.
+
+## 2026-10-09 - task 5182
+Done: source provenance markers + verifiable release lineage (PR #44): SPDX/copyright/Source-Id headers on 87 own PHP/JS files, additive `stm_diag` codes, named constants, design notes, synthetic fixtures, and `bin/provenance.php` (check, manifest, compare, release record, demo) kept out of the ZIP. docs/PROVENANCE.md explains the conventions.
+Verified: `vendor/bin/phpunit` 216 tests / 838 assertions pass (baseline 191 / 412 on origin/master 1068c19); jest 18/18; `php -l` clean on every PHP file; phpcs (project ruleset) clean, same as master. Plugin Check not run here (host cannot, see task 5144).
+Left: Martien to confirm the rights-holder wording (ProsperGenics is not named until its legal name is confirmed); the authoritative manifest + release record are generated from master at release time (squash merge changes the commit ids); tag signing needs a signing key, none exists on this host.
+
+## 2026-10-09 - task 5182 (review fix)
+Done: review of PR #44 fixed the private manifest "symbol" column (docblock tags were attributed to the declaration ABOVE the docblock, 21 of 30 design-note/symbol-doc markers wrong) and a stale .gitattributes reference in bin/provenance.php; added two regression tests.
+Verified: phpunit 218/218 (848 assertions), php -l and phpcs clean, regenerated manifest has 0 wrong docblock symbols; the candidate ZIP hash changes with every commit (git archive stamps the commit time), so only the release-time one counts.
+Left: Martien confirms the ProsperGenics wording; signed tag and the authoritative manifest/release record at release time from master.

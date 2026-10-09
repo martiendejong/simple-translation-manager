@@ -1,4 +1,8 @@
 <?php
+// SPDX-License-Identifier: GPL-2.0-or-later
+// SPDX-FileCopyrightText: 2026 Martien de Jong
+// Source-Id: stm.frontend
+
 /**
  * Frontend Integration
  *
@@ -11,6 +15,12 @@
 namespace STM;
 
 class Frontend {
+
+    /**
+     * [STM-SYM-06] Name of the cookie that remembers a visitor's ?lang= choice
+     * (consulted only in query-param mode, never in URL-routing mode).
+     */
+    const LANG_COOKIE = 'stm_lang';
 
     /**
      * Initialize frontend hooks
@@ -26,7 +36,7 @@ class Frontend {
         add_filter('page_link', [__CLASS__, 'filter_page_link'], 20, 3);
         add_filter('post_link', [__CLASS__, 'filter_post_link'], 20, 3);
 
-        // Resolve an incoming translated-slug URL back to the real post
+        // [STM-DN-09] Resolve an incoming translated-slug URL back to the real post
         // before WordPress's own post_name lookup runs. Priority 2 — right
         // after stm_strip_lang_prefix_from_request() (priority 1, see
         // simple-translation-manager.php) — so this runs before ANY other
@@ -102,7 +112,7 @@ class Frontend {
             }
         }
 
-        // In URL routing mode the URL structure is authoritative: if neither a
+        // [STM-DN-10] In URL routing mode the URL structure is authoritative: if neither a
         // rewrite query var nor an explicit ?lang= param is present, we are on
         // a default-language URL (e.g. /). The cookie must NOT override this —
         // otherwise returning to / after visiting /en/ stays in English because
@@ -113,8 +123,8 @@ class Frontend {
         }
 
         // Priority 3: cookie — only consulted in query-param (non-URL-routing) mode.
-        if ( isset( $_COOKIE['stm_lang'] ) ) {
-            $lang = sanitize_text_field( wp_unslash( $_COOKIE['stm_lang'] ) );
+        if ( isset( $_COOKIE[self::LANG_COOKIE] ) ) {
+            $lang = sanitize_text_field( wp_unslash( $_COOKIE[self::LANG_COOKIE] ) );
             if ( Security::validate_language_code( $lang ) ) {
                 return $lang;
             }
@@ -124,7 +134,7 @@ class Frontend {
     }
 
     /**
-     * Persist the ?lang= choice in a cookie — at most once per request, and
+     * [STM-DN-11] Persist the ?lang= choice in a cookie — at most once per request, and
      * only when it is actually possible to send a header. Both guards exist
      * because this is called from inside content filters (the_title,
      * post_type_link, ...) that WordPress runs once per post in a loop, not
@@ -140,7 +150,7 @@ class Frontend {
         }
 
         self::$cookie_written = true;
-        setcookie( 'stm_lang', $lang, time() + ( 86400 * 30 ), '/' );
+        setcookie( self::LANG_COOKIE, $lang, time() + ( 86400 * 30 ), '/' );
     }
 
     /**

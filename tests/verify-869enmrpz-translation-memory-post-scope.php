@@ -1,4 +1,8 @@
 <?php
+// SPDX-License-Identifier: GPL-2.0-or-later
+// SPDX-FileCopyrightText: 2026 Martien de Jong
+// Source-Id: stm.test.verify-869enmrpz-translation-memory-post-scope
+
 /**
  * Automated verification for task 869enmrpz — auto-translate's translation
  * memory reusing one post's stored translation for a DIFFERENT post, because

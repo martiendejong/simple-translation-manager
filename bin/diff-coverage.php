@@ -1,4 +1,8 @@
 <?php
+// SPDX-License-Identifier: GPL-2.0-or-later
+// SPDX-FileCopyrightText: 2026 Martien de Jong
+// Source-Id: stm.bin.diff-coverage
+
 /**
  * Gate: % of touched (git-diff-added) executable lines that are covered,
  * per PHPUnit's Clover XML report.

@@ -1,4 +1,8 @@
 <?php
+// SPDX-License-Identifier: GPL-2.0-or-later
+// SPDX-FileCopyrightText: 2026 Martien de Jong
+// Source-Id: stm.test.verify-869e8cekd-admin-shows-inactive-languages
+
 /**
  * Standalone verification for ClickUp task 869e8cekd (follow-up):
  * the admin Languages screen must list every language, including hidden

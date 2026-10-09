@@ -1,4 +1,8 @@
 <?php
+// SPDX-License-Identifier: GPL-2.0-or-later
+// SPDX-FileCopyrightText: 2026 Martien de Jong
+// Source-Id: stm.api
+
 /**
  * REST API Endpoints
  *
@@ -11,6 +15,15 @@ namespace STM;
 class API {
 
     /**
+     * [STM-SYM-01] The one REST namespace every STM route is registered under.
+     * Clients address the plugin as /wp-json/stm/v1/..., so the value is part
+     * of the public contract; the constant only stops the modules that
+     * register routes (API, ImportExport, TranslationMemory, AutoTranslate,
+     * ElementorIntegration) from each spelling it out on their own.
+     */
+    const REST_NAMESPACE = 'stm/v1';
+
+    /**
      * Initialize REST API
      */
     public static function init() {
@@ -21,7 +34,7 @@ class API {
      * Register all REST routes
      */
     public static function register_routes() {
-        $namespace = 'stm/v1';
+        $namespace = self::REST_NAMESPACE;
 
         // Languages
         register_rest_route($namespace, '/languages', [
@@ -211,11 +224,11 @@ class API {
 
         // Validate inputs
         if (!Security::validate_language_code($code)) {
-            return new \WP_Error('invalid_code', 'Invalid language code (must be 2-3 letters)', ['status' => 400]);
+            return new \WP_Error('invalid_code', 'Invalid language code (must be 2-3 letters)', ['status' => 400, 'stm_diag' => 'STM-E-API-CREATE-LANGUAGE-INVALID-CODE']);
         }
 
         if ($flag_emoji && !Security::validate_flag_emoji($flag_emoji)) {
-            return new \WP_Error('invalid_emoji', 'Invalid flag emoji', ['status' => 400]);
+            return new \WP_Error('invalid_emoji', 'Invalid flag emoji', ['status' => 400, 'stm_diag' => 'STM-E-API-CREATE-LANGUAGE-INVALID-EMOJI']);
         }
 
         try {
@@ -235,14 +248,14 @@ class API {
                 throw new \Exception('Database operation failed');
             }
 
-            wp_cache_delete('stm_active_languages');
+            wp_cache_delete(Database::CACHE_ACTIVE_LANGUAGES);
             wp_cache_delete('stm_all_languages');
             // New language means new rewrite rules needed
             flush_rewrite_rules( false );
             return rest_ensure_response(['id' => $wpdb->insert_id, 'success' => true]);
         } catch (\Exception $e) {
             Security::log('Error creating language: ' . $e->getMessage(), 'error');
-            return new \WP_Error('db_error', 'Failed to create language', ['status' => 500]);
+            return new \WP_Error('db_error', 'Failed to create language', ['status' => 500, 'stm_diag' => 'STM-E-API-CREATE-LANGUAGE-DB-ERROR']);
         }
     }
 
@@ -302,11 +315,11 @@ class API {
 
         // Validate inputs
         if (!Security::validate_translation_key($string_key)) {
-            return new \WP_Error('invalid_key', 'Invalid translation key format', ['status' => 400]);
+            return new \WP_Error('invalid_key', 'Invalid translation key format', ['status' => 400, 'stm_diag' => 'STM-E-API-CREATE-STRING-INVALID-KEY']);
         }
 
         if (!Security::validate_context($context)) {
-            return new \WP_Error('invalid_context', 'Invalid context format', ['status' => 400]);
+            return new \WP_Error('invalid_context', 'Invalid context format', ['status' => 400, 'stm_diag' => 'STM-E-API-CREATE-STRING-INVALID-CONTEXT']);
         }
 
         try {
@@ -325,7 +338,7 @@ class API {
             return rest_ensure_response(['id' => $wpdb->insert_id, 'success' => true]);
         } catch (\Exception $e) {
             Security::log('Error creating string: ' . $e->getMessage(), 'error');
-            return new \WP_Error('db_error', 'Failed to create string', ['status' => 500]);
+            return new \WP_Error('db_error', 'Failed to create string', ['status' => 500, 'stm_diag' => 'STM-E-API-CREATE-STRING-DB-ERROR']);
         }
     }
 
@@ -340,7 +353,7 @@ class API {
         $context = Security::sanitize_context($request['context'] ?? 'general');
 
         if ($string_key && !Security::validate_translation_key($string_key)) {
-            return new \WP_Error('invalid_key', 'Invalid translation key format', ['status' => 400]);
+            return new \WP_Error('invalid_key', 'Invalid translation key format', ['status' => 400, 'stm_diag' => 'STM-E-API-UPDATE-STRING-INVALID-KEY']);
         }
 
         $update = [];
@@ -349,7 +362,7 @@ class API {
         }
         if ($request['context'] !== null) {
             if (!Security::validate_context($context)) {
-                return new \WP_Error('invalid_context', 'Invalid context format', ['status' => 400]);
+                return new \WP_Error('invalid_context', 'Invalid context format', ['status' => 400, 'stm_diag' => 'STM-E-API-UPDATE-STRING-INVALID-CONTEXT']);
             }
             $update['context'] = $context;
         }
@@ -358,7 +371,7 @@ class API {
         }
 
         if (empty($update)) {
-            return new \WP_Error('no_data', 'No fields to update', ['status' => 400]);
+            return new \WP_Error('no_data', 'No fields to update', ['status' => 400, 'stm_diag' => 'STM-E-API-UPDATE-STRING-NO-DATA']);
         }
 
         $exists = $wpdb->get_var($wpdb->prepare(
@@ -366,13 +379,13 @@ class API {
             $id
         ));
         if (!$exists) {
-            return new \WP_Error('not_found', 'String not found', ['status' => 404]);
+            return new \WP_Error('not_found', 'String not found', ['status' => 404, 'stm_diag' => 'STM-E-API-UPDATE-STRING-NOT-FOUND']);
         }
 
         $result = $wpdb->update($wpdb->prefix . 'stm_strings', $update, ['id' => $id]);
 
         if ($result === false) {
-            return new \WP_Error('db_error', 'Failed to update string', ['status' => 500]);
+            return new \WP_Error('db_error', 'Failed to update string', ['status' => 500, 'stm_diag' => 'STM-E-API-UPDATE-STRING-DB-ERROR']);
         }
 
         return rest_ensure_response(['success' => true]);
@@ -392,7 +405,7 @@ class API {
         ));
 
         if (!$string) {
-            return new \WP_Error('not_found', 'String not found', ['status' => 404]);
+            return new \WP_Error('not_found', 'String not found', ['status' => 404, 'stm_diag' => 'STM-E-API-DELETE-STRING-NOT-FOUND']);
         }
 
         $wpdb->delete($wpdb->prefix . 'stm_translations', ['string_id' => $id]);
@@ -469,7 +482,7 @@ class API {
         ));
 
         if (!$row) {
-            return new \WP_Error('not_found', 'Translation not found', ['status' => 404]);
+            return new \WP_Error('not_found', 'Translation not found', ['status' => 404, 'stm_diag' => 'STM-E-API-UPDATE-TRANSLATION-NOT-FOUND']);
         }
 
         $update = [
@@ -482,7 +495,7 @@ class API {
         $result = $wpdb->update($wpdb->prefix . 'stm_translations', $update, ['id' => $id]);
 
         if ($result === false) {
-            return new \WP_Error('db_error', 'Failed to update translation', ['status' => 500]);
+            return new \WP_Error('db_error', 'Failed to update translation', ['status' => 500, 'stm_diag' => 'STM-E-API-UPDATE-TRANSLATION-DB-ERROR']);
         }
 
         Cache::invalidate_string($row->string_key, $row->context);
@@ -499,7 +512,7 @@ class API {
         $post_id = intval($request['id']);
 
         if (!get_post($post_id)) {
-            return new \WP_Error('not_found', 'Post not found', ['status' => 404]);
+            return new \WP_Error('not_found', 'Post not found', ['status' => 404, 'stm_diag' => 'STM-E-API-GET-POST-TRANSLATIONS-NOT-FOUND']);
         }
 
         $rows = $wpdb->get_results($wpdb->prepare(
@@ -533,15 +546,15 @@ class API {
         $translation = Security::sanitize_translation($request['translation'] ?? '');
 
         if (!get_post($post_id)) {
-            return new \WP_Error('not_found', 'Post not found', ['status' => 404]);
+            return new \WP_Error('not_found', 'Post not found', ['status' => 404, 'stm_diag' => 'STM-E-API-SAVE-POST-TRANSLATION-NOT-FOUND']);
         }
 
         if (!Security::validate_language_code($language_code)) {
-            return new \WP_Error('invalid_language', 'Invalid language code', ['status' => 400]);
+            return new \WP_Error('invalid_language', 'Invalid language code', ['status' => 400, 'stm_diag' => 'STM-E-API-SAVE-POST-TRANSLATION-INVALID-LANGUAGE']);
         }
 
         if (empty($field) || !preg_match('/^[a-z0-9_-]+$/i', $field)) {
-            return new \WP_Error('invalid_field', 'Invalid field name', ['status' => 400]);
+            return new \WP_Error('invalid_field', 'Invalid field name', ['status' => 400, 'stm_diag' => 'STM-E-API-SAVE-POST-TRANSLATION-INVALID-FIELD']);
         }
 
         $table = $wpdb->prefix . 'stm_post_translations';
@@ -583,11 +596,11 @@ class API {
         $language_code = sanitize_text_field($request['lang']);
 
         if (!get_post($post_id)) {
-            return new \WP_Error('not_found', 'Post not found', ['status' => 404]);
+            return new \WP_Error('not_found', 'Post not found', ['status' => 404, 'stm_diag' => 'STM-E-API-DELETE-POST-TRANSLATION-NOT-FOUND']);
         }
 
         if (!Security::validate_language_code($language_code)) {
-            return new \WP_Error('invalid_language', 'Invalid language code', ['status' => 400]);
+            return new \WP_Error('invalid_language', 'Invalid language code', ['status' => 400, 'stm_diag' => 'STM-E-API-DELETE-POST-TRANSLATION-INVALID-LANGUAGE']);
         }
 
         $table = $wpdb->prefix . 'stm_post_translations';
@@ -598,7 +611,7 @@ class API {
         ]);
 
         if ($deleted === false) {
-            return new \WP_Error('db_error', 'Failed to delete translation', ['status' => 500]);
+            return new \WP_Error('db_error', 'Failed to delete translation', ['status' => 500, 'stm_diag' => 'STM-E-API-DELETE-POST-TRANSLATION-DB-ERROR']);
         }
 
         Cache::invalidate_post($post_id);
@@ -618,7 +631,7 @@ class API {
 
         // Validate inputs
         if (!Security::validate_language_code($language_code)) {
-            return new \WP_Error('invalid_language', 'Invalid language code', ['status' => 400]);
+            return new \WP_Error('invalid_language', 'Invalid language code', ['status' => 400, 'stm_diag' => 'STM-E-API-CREATE-TRANSLATION-INVALID-LANGUAGE']);
         }
 
         try {
@@ -649,7 +662,7 @@ class API {
             return rest_ensure_response(['id' => $wpdb->insert_id, 'success' => true]);
         } catch (\Exception $e) {
             Security::log('Error creating translation: ' . $e->getMessage(), 'error');
-            return new \WP_Error('db_error', 'Failed to create translation', ['status' => 500]);
+            return new \WP_Error('db_error', 'Failed to create translation', ['status' => 500, 'stm_diag' => 'STM-E-API-CREATE-TRANSLATION-DB-ERROR']);
         }
     }
 
@@ -749,7 +762,7 @@ class API {
             ]);
         } catch (\Exception $e) {
             Security::log('Error in bulk create translations: ' . $e->getMessage(), 'error');
-            return new \WP_Error('db_error', 'Failed to bulk create translations', ['status' => 500]);
+            return new \WP_Error('db_error', 'Failed to bulk create translations', ['status' => 500, 'stm_diag' => 'STM-E-API-BULK-CREATE-TRANSLATIONS-DB-ERROR']);
         }
     }
 
@@ -784,7 +797,7 @@ class API {
         $slug = sanitize_title($request['slug']);
 
         if (!Security::validate_language_code($language_code)) {
-            return new \WP_Error('invalid_language', 'Invalid language code', ['status' => 400]);
+            return new \WP_Error('invalid_language', 'Invalid language code', ['status' => 400, 'stm_diag' => 'STM-E-API-SAVE-POST-SLUG-INVALID-LANGUAGE']);
         }
 
         global $wpdb;
@@ -825,7 +838,7 @@ class API {
         ));
 
         if (!$lang) {
-            return new \WP_Error('not_found', 'Language not found', ['status' => 404]);
+            return new \WP_Error('not_found', 'Language not found', ['status' => 404, 'stm_diag' => 'STM-E-API-UPDATE-LANGUAGE-NOT-FOUND']);
         }
 
         $update = [];
@@ -837,16 +850,16 @@ class API {
         if (isset($request['is_active']))   $update['is_active']   = $request['is_active'] ? 1 : 0;
 
         if (empty($update)) {
-            return new \WP_Error('no_data', 'Nothing to update', ['status' => 400]);
+            return new \WP_Error('no_data', 'Nothing to update', ['status' => 400, 'stm_diag' => 'STM-E-API-UPDATE-LANGUAGE-NO-DATA']);
         }
 
         $result = $wpdb->update($wpdb->prefix . 'stm_languages', $update, ['id' => $id]);
 
         if ($result === false) {
-            return new \WP_Error('db_error', 'Failed to update language', ['status' => 500]);
+            return new \WP_Error('db_error', 'Failed to update language', ['status' => 500, 'stm_diag' => 'STM-E-API-UPDATE-LANGUAGE-DB-ERROR']);
         }
 
-        wp_cache_delete('stm_active_languages');
+        wp_cache_delete(Database::CACHE_ACTIVE_LANGUAGES);
 
         if (isset($update['is_active'])) {
             flush_rewrite_rules(false);
@@ -865,15 +878,15 @@ class API {
         $lang    = sanitize_text_field($request['lang']);
 
         if (!get_post($post_id)) {
-            return new \WP_Error('not_found', 'Post not found', ['status' => 404]);
+            return new \WP_Error('not_found', 'Post not found', ['status' => 404, 'stm_diag' => 'STM-E-API-DELETE-POST-LANGUAGE-TRANSLATIONS-NOT-FOUND']);
         }
 
         if (!Security::validate_language_code($lang)) {
-            return new \WP_Error('invalid_language', 'Invalid language code', ['status' => 400]);
+            return new \WP_Error('invalid_language', 'Invalid language code', ['status' => 400, 'stm_diag' => 'STM-E-API-DELETE-POST-LANGUAGE-TRANSLATIONS-INVALID-LANGUAGE']);
         }
 
         if (!current_user_can('edit_post', $post_id)) {
-            return new \WP_Error('forbidden', 'Insufficient permissions', ['status' => 403]);
+            return new \WP_Error('forbidden', 'Insufficient permissions', ['status' => 403, 'stm_diag' => 'STM-E-API-DELETE-POST-LANGUAGE-TRANSLATIONS-FORBIDDEN']);
         }
 
         $deleted = $wpdb->delete(
@@ -901,18 +914,18 @@ class API {
         ));
 
         if (!$lang) {
-            return new \WP_Error('not_found', 'Language not found', ['status' => 404]);
+            return new \WP_Error('not_found', 'Language not found', ['status' => 404, 'stm_diag' => 'STM-E-API-DELETE-LANGUAGE-NOT-FOUND']);
         }
 
         if ($lang->is_default) {
-            return new \WP_Error('cannot_delete_default', 'Cannot delete the default language', ['status' => 400]);
+            return new \WP_Error('cannot_delete_default', 'Cannot delete the default language', ['status' => 400, 'stm_diag' => 'STM-E-API-DELETE-LANGUAGE-CANNOT-DELETE-DEFAULT']);
         }
 
         $wpdb->delete($wpdb->prefix . 'stm_post_translations', ['language_code' => $lang->code], ['%s']);
         $wpdb->delete($wpdb->prefix . 'stm_translations',      ['language_code' => $lang->code], ['%s']);
         $wpdb->delete($wpdb->prefix . 'stm_languages',         ['id' => $id],                    ['%d']);
 
-        wp_cache_delete('stm_active_languages');
+        wp_cache_delete(Database::CACHE_ACTIVE_LANGUAGES);
         flush_rewrite_rules(false);
 
         return rest_ensure_response(['success' => true, 'code' => $lang->code]);
@@ -940,7 +953,7 @@ class API {
         ));
 
         if (!$string) {
-            return new \WP_Error('not_found', 'String not found', ['status' => 404]);
+            return new \WP_Error('not_found', 'String not found', ['status' => 404, 'stm_diag' => 'STM-E-API-GET-STRING-NOT-FOUND']);
         }
 
         $string->translations = self::parse_translations($string->translations);
@@ -1036,13 +1049,13 @@ class API {
         $dry_run  = (bool) ($request->get_param('dry_run') ?? false);
 
         if (empty($data) || !is_array($data)) {
-            return new \WP_Error('empty_data', 'No data provided', ['status' => 400]);
+            return new \WP_Error('empty_data', 'No data provided', ['status' => 400, 'stm_diag' => 'STM-E-API-IMPORT-JSON-EMPTY-DATA']);
         }
 
         $result = self::process_import($data, $dry_run);
 
         if (isset($result['error'])) {
-            return new \WP_Error('import_error', $result['error'], ['status' => 400]);
+            return new \WP_Error('import_error', $result['error'], ['status' => 400, 'stm_diag' => 'STM-E-API-IMPORT-JSON-IMPORT-ERROR']);
         }
 
         return rest_ensure_response($result);
@@ -1175,7 +1188,7 @@ class API {
         // Validate using helper function
         $validation = stm_validate_bulk_translation_data($translations, $lang_code);
         if (!$validation['valid']) {
-            return new \WP_Error('validation_error', implode('; ', $validation['errors']), ['status' => 400]);
+            return new \WP_Error('validation_error', implode('; ', $validation['errors']), ['status' => 400, 'stm_diag' => 'STM-E-API-BULK-POST-TRANSLATIONS-VALIDATION-ERROR']);
         }
 
         $results = [
@@ -1263,7 +1276,7 @@ class API {
                 $success++;
             } else {
                 $errors[] = "Failed to save $field: " . $wpdb->last_error;
-                error_log("[STM] Translation save error for post $post_id field $field: " . $wpdb->last_error);
+                error_log("[STM] [STM-E-API-SAVE-POST-TRANSLATIONS-DB-WRITE] Translation save error for post $post_id field $field: " . $wpdb->last_error);
             }
         }
 

@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  STM-FX-HARBOUR-LANTERNS-XLF
+  Synthetic test fixture. Every sentence below is invented for STM's own test
+  suite (the harbour, its lamplighter and its ferry do not exist). It is not
+  shipped in the plugin ZIP and carries no real site, person or customer data.
+-->
+<xliff version="1.2" xmlns="urn:oasis:names:tc:xliff:document:1.2">
+  <file source-language="en" target-language="nl" datatype="plaintext" original="stm-fixture-harbour-lanterns">
+    <body>
+      <trans-unit id="fx.quay.lamplighter.count">
+        <note from="context">quayfx</note>
+        <source xml:lang="en">The lamplighter of Tessellate Quay counts seven moths before dusk.</source>
+        <target xml:lang="nl" state="final">De lantaarnopsteker van Tessellate Quay telt zeven motten voor de schemering.</target>
+      </trans-unit>
+      <trans-unit id="fx.quay.ferry.timetable">
+        <note from="context">quayfx</note>
+        <source xml:lang="en">The copper ferry leaves whenever the harbour bell has rung twice.</source>
+        <target xml:lang="nl" state="translated">De koperen veerboot vertrekt zodra de havenklok twee keer heeft geluid.</target>
+      </trans-unit>
+      <trans-unit id="fx.quay.market.rule">
+        <note from="context">quayfx</note>
+        <source xml:lang="en">Barnacle pies are sold only to travellers who can name three tides.</source>
+        <target xml:lang="nl" state="needs-review-translation">Zeepokkentaarten worden alleen verkocht aan reizigers die drie getijden kunnen noemen.</target>
+      </trans-unit>
+      <trans-unit id="fx.quay.keeper.greeting">
+        <note from="context">quayfx</note>
+        <source xml:lang="en">Welcome, traveller; mind the third step, it hums.</source>
+        <target xml:lang="nl" state="final">Welkom, reiziger; let op de derde trede, die zoemt.</target>
+      </trans-unit>
+      <trans-unit id="fx.quay.untranslated.sign">
+        <note from="context">quayfx</note>
+        <source xml:lang="en">Nobody has translated the weather vane yet.</source>
+        <target xml:lang="nl" state="new"></target>
+      </trans-unit>
+    </body>
+  </file>
+</xliff>

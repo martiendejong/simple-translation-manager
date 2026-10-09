@@ -1,8 +1,12 @@
 <?php
+// SPDX-License-Identifier: GPL-2.0-or-later
+// SPDX-FileCopyrightText: 2026 Martien de Jong
+// Source-Id: stm.field-values
+
 /**
  * Field Value Translations
  *
- * Some custom post type fields hold standardized values that repeat across
+ * [STM-DN-20] Some custom post type fields hold standardized values that repeat across
  * many posts (e.g. coachwork = "Cabriolet", color = "Black"). Instead of
  * translating those per post in stm_post_translations, a field can be marked
  * as "value-translatable": each distinct VALUE gets one translation per

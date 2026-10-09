@@ -1,4 +1,8 @@
 <?php
+// SPDX-License-Identifier: GPL-2.0-or-later
+// SPDX-FileCopyrightText: 2026 Martien de Jong
+// Source-Id: stm.translation-memory
+
 /**
  * Translation Memory System
  *
@@ -37,7 +41,7 @@ class TranslationMemory {
      * Register REST API routes
      */
     public static function register_routes() {
-        $namespace = 'stm/v1';
+        $namespace = API::REST_NAMESPACE;
 
         register_rest_route($namespace, '/memory/suggest', [
             'methods' => 'POST',
@@ -170,7 +174,7 @@ class TranslationMemory {
             return null;
         }
 
-        // Cross-post restriction: when the caller knows which post it is
+        // [STM-DN-12] Cross-post restriction: when the caller knows which post it is
         // translating, never return a translation row belonging to a
         // DIFFERENT post — an identical-looking title/excerpt/content string
         // is still the wrong post's translation once saved under the wrong
@@ -414,7 +418,7 @@ class TranslationMemory {
         $field = sanitize_text_field($params['field_type'] ?? '');
 
         if (empty($text)) {
-            return new \WP_Error('empty_text', 'Text parameter is required', ['status' => 400]);
+            return new \WP_Error('empty_text', 'Text parameter is required', ['status' => 400, 'stm_diag' => 'STM-E-TM-REST-SUGGEST-EMPTY-TEXT']);
         }
 
         $suggestions = self::suggest($text, $lang, $field);

@@ -1,4 +1,8 @@
 <?php
+// SPDX-License-Identifier: GPL-2.0-or-later
+// SPDX-FileCopyrightText: 2026 Martien de Jong
+// Source-Id: stm.test.post-editor-crud
+
 /**
  * CLI entry point for the post/page editor translation CRUD test suite.
  *

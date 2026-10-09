@@ -1,8 +1,12 @@
 <?php
+// SPDX-License-Identifier: GPL-2.0-or-later
+// SPDX-FileCopyrightText: 2026 Martien de Jong
+// Source-Id: stm.elementor-integration
+
 /**
  * Elementor Integration
  *
- * Makes Elementor page/widget content translatable without touching
+ * [STM-DN-18] Makes Elementor page/widget content translatable without touching
  * Elementor's own `_elementor_data` post meta:
  *
  * - The page author's original Elementor content (whatever language it was
@@ -328,19 +332,19 @@ class ElementorIntegration {
     // -------------------------------------------------------------------------
 
     public static function register_routes() {
-        register_rest_route( 'stm/v1', '/posts/(?P<id>\d+)/elementor/(?P<lang>[a-zA-Z]{2,3})', [
+        register_rest_route( API::REST_NAMESPACE, '/posts/(?P<id>\d+)/elementor/(?P<lang>[a-zA-Z]{2,3})', [
             'methods'             => 'GET',
             'callback'            => [ __CLASS__, 'rest_get' ],
             'permission_callback' => [ __CLASS__, 'check_edit_post_permission' ],
         ] );
 
-        register_rest_route( 'stm/v1', '/posts/(?P<id>\d+)/elementor/(?P<lang>[a-zA-Z]{2,3})', [
+        register_rest_route( API::REST_NAMESPACE, '/posts/(?P<id>\d+)/elementor/(?P<lang>[a-zA-Z]{2,3})', [
             'methods'             => 'POST',
             'callback'            => [ __CLASS__, 'rest_save' ],
             'permission_callback' => [ __CLASS__, 'check_edit_post_permission' ],
         ] );
 
-        register_rest_route( 'stm/v1', '/posts/(?P<id>\d+)/elementor/(?P<lang>[a-zA-Z]{2,3})', [
+        register_rest_route( API::REST_NAMESPACE, '/posts/(?P<id>\d+)/elementor/(?P<lang>[a-zA-Z]{2,3})', [
             'methods'             => 'DELETE',
             'callback'            => [ __CLASS__, 'rest_delete' ],
             'permission_callback' => [ __CLASS__, 'check_edit_post_permission' ],
@@ -360,10 +364,10 @@ class ElementorIntegration {
         $lang    = sanitize_text_field( $request['lang'] );
 
         if ( ! get_post( $post_id ) ) {
-            return new \WP_Error( 'not_found', 'Post not found', [ 'status' => 404 ] );
+            return new \WP_Error( 'not_found', 'Post not found', [ 'status' => 404, 'stm_diag' => 'STM-E-ELEM-REST-GET-NOT-FOUND' ] );
         }
         if ( ! Security::validate_language_code( $lang ) ) {
-            return new \WP_Error( 'invalid_language', 'Invalid language code', [ 'status' => 400 ] );
+            return new \WP_Error( 'invalid_language', 'Invalid language code', [ 'status' => 400, 'stm_diag' => 'STM-E-ELEM-REST-GET-INVALID-LANGUAGE' ] );
         }
 
         $source = self::get_source_data( $post_id );
@@ -383,13 +387,13 @@ class ElementorIntegration {
         $translations = $request->get_param( 'translations' );
 
         if ( ! get_post( $post_id ) ) {
-            return new \WP_Error( 'not_found', 'Post not found', [ 'status' => 404 ] );
+            return new \WP_Error( 'not_found', 'Post not found', [ 'status' => 404, 'stm_diag' => 'STM-E-ELEM-REST-SAVE-NOT-FOUND' ] );
         }
         if ( ! Security::validate_language_code( $lang ) ) {
-            return new \WP_Error( 'invalid_language', 'Invalid language code', [ 'status' => 400 ] );
+            return new \WP_Error( 'invalid_language', 'Invalid language code', [ 'status' => 400, 'stm_diag' => 'STM-E-ELEM-REST-SAVE-INVALID-LANGUAGE' ] );
         }
         if ( ! is_array( $translations ) ) {
-            return new \WP_Error( 'invalid_translations', 'Translations must be an object of element id to field values', [ 'status' => 400 ] );
+            return new \WP_Error( 'invalid_translations', 'Translations must be an object of element id to field values', [ 'status' => 400, 'stm_diag' => 'STM-E-ELEM-REST-SAVE-INVALID-TRANSLATIONS' ] );
         }
 
         $clean = [];
@@ -418,7 +422,7 @@ class ElementorIntegration {
         $lang    = sanitize_text_field( $request['lang'] );
 
         if ( ! Security::validate_language_code( $lang ) ) {
-            return new \WP_Error( 'invalid_language', 'Invalid language code', [ 'status' => 400 ] );
+            return new \WP_Error( 'invalid_language', 'Invalid language code', [ 'status' => 400, 'stm_diag' => 'STM-E-ELEM-REST-DELETE-INVALID-LANGUAGE' ] );
         }
 
         self::delete_language_data( $post_id, $lang );
