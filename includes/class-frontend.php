@@ -17,6 +17,12 @@ namespace STM;
 class Frontend {
 
     /**
+     * [STM-SYM-06] Name of the cookie that remembers a visitor's ?lang= choice
+     * (consulted only in query-param mode, never in URL-routing mode).
+     */
+    const LANG_COOKIE = 'stm_lang';
+
+    /**
      * Initialize frontend hooks
      */
     public static function init() {
@@ -117,8 +123,8 @@ class Frontend {
         }
 
         // Priority 3: cookie — only consulted in query-param (non-URL-routing) mode.
-        if ( isset( $_COOKIE['stm_lang'] ) ) {
-            $lang = sanitize_text_field( wp_unslash( $_COOKIE['stm_lang'] ) );
+        if ( isset( $_COOKIE[self::LANG_COOKIE] ) ) {
+            $lang = sanitize_text_field( wp_unslash( $_COOKIE[self::LANG_COOKIE] ) );
             if ( Security::validate_language_code( $lang ) ) {
                 return $lang;
             }
@@ -144,7 +150,7 @@ class Frontend {
         }
 
         self::$cookie_written = true;
-        setcookie( 'stm_lang', $lang, time() + ( 86400 * 30 ), '/' );
+        setcookie( self::LANG_COOKIE, $lang, time() + ( 86400 * 30 ), '/' );
     }
 
     /**

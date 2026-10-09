@@ -33,7 +33,7 @@ class AutoTranslate {
      * Register REST API routes
      */
     public static function register_routes() {
-        $namespace = 'stm/v1';
+        $namespace = API::REST_NAMESPACE;
 
         register_rest_route($namespace, '/translate/auto', [
             'methods' => 'POST',
@@ -427,7 +427,7 @@ class AutoTranslate {
         $items = $params['items'] ?? [];
 
         if (empty($items)) {
-            return new \WP_Error('empty_items', 'No items to translate', ['status' => 400]);
+            return new \WP_Error('empty_items', 'No items to translate', ['status' => 400, 'stm_diag' => 'STM-E-AUTO-REST-BATCH-TRANSLATE-EMPTY-ITEMS']);
         }
 
         $results = [];

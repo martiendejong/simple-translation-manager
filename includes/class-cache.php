@@ -25,6 +25,13 @@ class Cache {
     const TTL = 3600;
 
     /**
+     * [STM-SYM-02] Key of the generation counter that lives inside GROUP.
+     * flush_all() bumps it instead of calling wp_cache_flush(), so a shared
+     * Redis/Memcached instance keeps every other plugin's entries.
+     */
+    const VERSION_KEY = 'stm_cache_version';
+
+    /**
      * Get translation from cache or database
      *
      * @param string $key Translation key
@@ -100,7 +107,7 @@ class Cache {
 
         // Log database errors (not empty results)
         if ($wpdb->last_error) {
-            error_log("[STM] DB error getting translation for post {$post_id} field {$field}: " . $wpdb->last_error);
+            error_log("[STM] [STM-E-CACHE-GET-POST-TRANSLATION-DB-READ] DB error getting translation for post {$post_id} field {$field}: " . $wpdb->last_error);
         }
 
         // Store in cache (even if null)
@@ -142,7 +149,7 @@ class Cache {
         ));
 
         if ($wpdb->last_error) {
-            error_log("[STM] DB error getting field value translation for {$field}: " . $wpdb->last_error);
+            error_log("[STM] [STM-E-CACHE-GET-FIELD-VALUE-TRANSLATION-DB-READ] DB error getting field value translation for {$field}: " . $wpdb->last_error);
         }
 
         // Store in cache (empty string = known miss, avoids repeated queries)
@@ -225,18 +232,18 @@ class Cache {
      * call wp_cache_flush() which would wipe a shared Redis/Memcached instance.
      */
     public static function flush_all() {
-        $version = (int) wp_cache_get('stm_cache_version', self::GROUP);
-        wp_cache_set('stm_cache_version', $version + 1, self::GROUP, 0);
+        $version = (int) wp_cache_get(self::VERSION_KEY, self::GROUP);
+        wp_cache_set(self::VERSION_KEY, $version + 1, self::GROUP, 0);
     }
 
     /**
      * Build a version-stamped cache key so flush_all() invalidates without a global flush
      */
     private static function versioned_key($raw_key) {
-        $version = wp_cache_get('stm_cache_version', self::GROUP);
+        $version = wp_cache_get(self::VERSION_KEY, self::GROUP);
         if ($version === false) {
             $version = 1;
-            wp_cache_set('stm_cache_version', $version, self::GROUP, 0);
+            wp_cache_set(self::VERSION_KEY, $version, self::GROUP, 0);
         }
         return 'v' . $version . '_' . $raw_key;
     }

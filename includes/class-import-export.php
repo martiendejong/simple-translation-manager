@@ -31,7 +31,7 @@ class ImportExport {
      * Register REST API routes
      */
     public static function register_routes() {
-        $namespace = 'stm/v1';
+        $namespace = API::REST_NAMESPACE;
 
         register_rest_route($namespace, '/export/xliff', [
             'methods' => 'GET',
@@ -530,7 +530,7 @@ class ImportExport {
         $params = $request->get_json_params() ?: $request->get_body_params();
 
         if (empty($files['file'])) {
-            return new \WP_Error('no_file', 'No file uploaded', ['status' => 400]);
+            return new \WP_Error('no_file', 'No file uploaded', ['status' => 400, 'stm_diag' => 'STM-E-IMPEX-REST-IMPORT-FILE-NO-FILE']);
         }
 
         $file = $files['file'];
@@ -543,7 +543,7 @@ class ImportExport {
         } elseif (strpos($filename, '.po') !== false) {
             $result = self::import_po($content, $lang);
         } else {
-            return new \WP_Error('unsupported_format', 'Supported formats: .xliff, .xlf, .po', ['status' => 400]);
+            return new \WP_Error('unsupported_format', 'Supported formats: .xliff, .xlf, .po', ['status' => 400, 'stm_diag' => 'STM-E-IMPEX-REST-IMPORT-FILE-UNSUPPORTED-FORMAT']);
         }
 
         return rest_ensure_response($result);

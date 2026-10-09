@@ -158,7 +158,7 @@ class Admin {
             'ajaxUrl'   => admin_url('admin-ajax.php'),
             'nonce'     => wp_create_nonce('stm_admin_nonce'),
             'restNonce' => wp_create_nonce('wp_rest'),
-            'restUrl'   => esc_url_raw(rest_url('stm/v1')),
+            'restUrl'   => esc_url_raw(rest_url(API::REST_NAMESPACE)),
         ]);
 
         // Dashboard-specific assets
@@ -901,9 +901,9 @@ class Admin {
             $success_arg = 'stm_added';
         }
 
-        wp_cache_delete('stm_active_languages');
+        wp_cache_delete(Database::CACHE_ACTIVE_LANGUAGES);
         wp_cache_delete('stm_all_languages');
-        wp_cache_delete('stm_default_language');
+        wp_cache_delete(Database::CACHE_DEFAULT_LANGUAGE);
 
         wp_safe_redirect(add_query_arg(
             $result === false ? 'stm_error' : $success_arg,
@@ -942,7 +942,7 @@ class Admin {
 
         $wpdb->delete($wpdb->prefix . 'stm_languages', ['code' => $code]);
 
-        wp_cache_delete('stm_active_languages');
+        wp_cache_delete(Database::CACHE_ACTIVE_LANGUAGES);
         wp_cache_delete('stm_all_languages');
 
         wp_safe_redirect(add_query_arg('stm_deleted', '1', wp_get_referer()));
@@ -987,7 +987,7 @@ class Admin {
             $redirect_val = 'cannot_deactivate_default';
         } else {
             $wpdb->update($table, ['is_active' => $lang->is_active ? 0 : 1], ['code' => $code]);
-            wp_cache_delete('stm_active_languages');
+            wp_cache_delete(Database::CACHE_ACTIVE_LANGUAGES);
             wp_cache_delete('stm_all_languages');
         }
 
