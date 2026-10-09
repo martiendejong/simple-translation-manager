@@ -629,3 +629,8 @@ existed yet — its insert was skipped (a real translation was already
 present) so no test data was ever written; the mu-plugin and its containing
 `mu-plugins/` directory (which didn't exist before) were removed afterward.
 Left: nothing outstanding for this task.
+
+## 2026-10-09 - task 5182
+Done: (in progress) source provenance markers + verifiable release lineage. Draft PR opened first; details land as commits.
+Verified: not yet - baseline before changes: `vendor/bin/phpunit` 191 tests / 412 assertions pass on origin/master 1068c19.
+Left: see PR body.
