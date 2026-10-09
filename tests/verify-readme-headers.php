@@ -1,4 +1,8 @@
 <?php
+// SPDX-License-Identifier: GPL-2.0-or-later
+// SPDX-FileCopyrightText: 2026 Martien de Jong
+// Source-Id: stm.test.verify-readme-headers
+
 /**
  * Standalone readme.txt header check (no WordPress install required).
  * Mirrors the header block WordPress.org's readme parser / Plugin Check

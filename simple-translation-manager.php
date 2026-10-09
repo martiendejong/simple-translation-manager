@@ -12,6 +12,10 @@
  * Requires PHP: 7.4
  */
 
+// SPDX-License-Identifier: GPL-2.0-or-later
+// SPDX-FileCopyrightText: 2026 Martien de Jong
+// Source-Id: stm.bootstrap
+
 if (!defined('ABSPATH')) {
     exit;
 }

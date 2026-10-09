@@ -1,4 +1,8 @@
 <?php
+// SPDX-License-Identifier: GPL-2.0-or-later
+// SPDX-FileCopyrightText: 2026 Martien de Jong
+// Source-Id: stm.test.documentationscreentest
+
 /**
  * PHPUnit tests: the admin Documentation screen (Admin::page_documentation())
  * links the shipped editor PDFs (docs/editors/pdf/*.pdf) using STM_PLUGIN_URL,

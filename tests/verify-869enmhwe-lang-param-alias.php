@@ -1,4 +1,8 @@
 <?php
+// SPDX-License-Identifier: GPL-2.0-or-later
+// SPDX-FileCopyrightText: 2026 Martien de Jong
+// Source-Id: stm.test.verify-869enmhwe-lang-param-alias
+
 /**
  * Automated verification for task 869enmhwe follow-up — the translate/auto
  * REST handlers silently defaulted to source_lang='en'/target_lang='nl'

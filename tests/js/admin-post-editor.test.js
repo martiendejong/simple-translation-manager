@@ -1,3 +1,7 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
+// SPDX-FileCopyrightText: 2026 Martien de Jong
+// Source-Id: stm.test.js-admin-post-editor-test
+
 /**
  * Jest unit tests for assets/admin-post-editor.js — translation tab
  * switching (with TinyMCE lazy init/destroy per tab) and the delete-

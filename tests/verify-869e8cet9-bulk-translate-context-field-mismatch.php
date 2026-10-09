@@ -1,4 +1,8 @@
 <?php
+// SPDX-License-Identifier: GPL-2.0-or-later
+// SPDX-FileCopyrightText: 2026 Martien de Jong
+// Source-Id: stm.test.verify-869e8cet9-bulk-translate-context-field-mismatch
+
 /**
  * Automated verification for task 869e8cet9 (round 2) — the bulk
  * auto-translate deploy script (deploy/visit-translate-all.php) called

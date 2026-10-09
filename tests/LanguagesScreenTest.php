@@ -1,4 +1,8 @@
 <?php
+// SPDX-License-Identifier: GPL-2.0-or-later
+// SPDX-FileCopyrightText: 2026 Martien de Jong
+// Source-Id: stm.test.languagesscreentest
+
 /**
  * PHPUnit tests: Database::get_all_languages() vs. get_languages(), and the
  * admin Languages screen (Admin::page_languages()) listing inactive

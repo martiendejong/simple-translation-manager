@@ -1,3 +1,7 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
+// SPDX-FileCopyrightText: 2026 Martien de Jong
+// Source-Id: stm.js.admin
+
 /* Simple Translation Manager — Admin JS */
 /* Handles: session persistence, inline language CRUD, nonce heartbeat refresh */
 (function ($) {

@@ -1,4 +1,8 @@
 <?php
+// SPDX-License-Identifier: GPL-2.0-or-later
+// SPDX-FileCopyrightText: 2026 Martien de Jong
+// Source-Id: stm.bin.bump-version
+
 /**
  * Bumps the plugin version everywhere it is declared, so a release is one
  * command instead of four manual, easy-to-desync edits: the VERSION file,

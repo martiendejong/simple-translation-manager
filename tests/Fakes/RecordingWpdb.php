@@ -1,4 +1,8 @@
 <?php
+// SPDX-License-Identifier: GPL-2.0-or-later
+// SPDX-FileCopyrightText: 2026 Martien de Jong
+// Source-Id: stm.test.fakes-recordingwpdb
+
 /**
  * FakeWpdb variant that records every final SQL string handed to a query
  * method, so tests can assert on the *exact* text sent to the database

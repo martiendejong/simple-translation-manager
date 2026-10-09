@@ -1,4 +1,8 @@
 <?php
+// SPDX-License-Identifier: GPL-2.0-or-later
+// SPDX-FileCopyrightText: 2026 Martien de Jong
+// Source-Id: stm.test.hreflangtest
+
 /**
  * PHPUnit tests: Hreflang::inject() — only advertise a language alternate
  * when translated content actually exists behind it.

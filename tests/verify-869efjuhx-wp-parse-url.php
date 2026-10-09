@@ -1,4 +1,8 @@
 <?php
+// SPDX-License-Identifier: GPL-2.0-or-later
+// SPDX-FileCopyrightText: 2026 Martien de Jong
+// Source-Id: stm.test.verify-869efjuhx-wp-parse-url
+
 /**
  * Standalone verification for task 869efjuhx: replace parse_url() with
  * wp_parse_url() in includes/class-language-switcher.php.

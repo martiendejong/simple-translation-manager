@@ -1,4 +1,8 @@
 <?php
+// SPDX-License-Identifier: GPL-2.0-or-later
+// SPDX-FileCopyrightText: 2026 Martien de Jong
+// Source-Id: stm.test.bootstrap
+
 /**
  * PHPUnit bootstrap — unit-tests the plugin's PHP classes against Brain
  * Monkey WordPress-function stubs and an in-memory FakeWpdb, so the suite

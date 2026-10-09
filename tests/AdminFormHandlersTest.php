@@ -1,4 +1,8 @@
 <?php
+// SPDX-License-Identifier: GPL-2.0-or-later
+// SPDX-FileCopyrightText: 2026 Martien de Jong
+// Source-Id: stm.test.adminformhandlerstest
+
 /**
  * PHPUnit tests: the Admin::* admin_post form handlers that were never
  * covered before task 869efjuhp inlined check_admin_referer() directly
