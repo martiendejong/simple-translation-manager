@@ -55,13 +55,11 @@ class Cache {
         }
 
         // Cache miss - query database
-        $table_strings = $wpdb->prefix . 'stm_strings';
-        $table_translations = $wpdb->prefix . 'stm_translations';
 
         $result = $wpdb->get_var($wpdb->prepare(
             "SELECT t.translation
-            FROM {$table_translations} t
-            INNER JOIN {$table_strings} s ON t.string_id = s.id
+            FROM {$wpdb->prefix}stm_translations t
+            INNER JOIN {$wpdb->prefix}stm_strings s ON t.string_id = s.id
             WHERE s.string_key = %s
             AND s.context = %s
             AND t.language_code = %s
@@ -97,10 +95,9 @@ class Cache {
         }
 
         // Cache miss - query database
-        $table = $wpdb->prefix . 'stm_post_translations';
 
         $result = $wpdb->get_var($wpdb->prepare(
-            "SELECT translation FROM {$table}
+            "SELECT translation FROM {$wpdb->prefix}stm_post_translations
             WHERE post_id = %d
             AND field_name = %s
             AND language_code = %s
@@ -141,10 +138,9 @@ class Cache {
             return $translation;
         }
 
-        $table = $wpdb->prefix . 'stm_field_value_translations';
 
         $result = $wpdb->get_var($wpdb->prepare(
-            "SELECT translation FROM {$table}
+            "SELECT translation FROM {$wpdb->prefix}stm_field_value_translations
             WHERE field_name = %s
             AND value_hash = %s
             AND language_code = %s

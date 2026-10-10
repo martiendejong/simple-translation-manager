@@ -222,8 +222,6 @@ class Admin {
         $default_lang_code = $default_language ? $default_language->code : '';
 
         // Get strings with translation status
-        $table_strings = $wpdb->prefix . 'stm_strings';
-        $table_translations = $wpdb->prefix . 'stm_translations';
 
         $where = ['1=1'];
         if ($context_filter) {
@@ -240,7 +238,7 @@ class Admin {
         // clause against that subquery's alias, not folded into $where_sql.
         $status_having = self::build_status_having($status_filter, $total_languages);
 
-        $translated_count_sql = "(SELECT COUNT(*) FROM {$table_translations} t
+        $translated_count_sql = "(SELECT COUNT(*) FROM {$wpdb->prefix}stm_translations t
                  WHERE t.string_id = s.id AND t.status = 'published') as translated_count";
 
         // Get total count for pagination. When a status filter is active the plain
@@ -250,14 +248,14 @@ class Admin {
             $total_items = $wpdb->get_var("
                 SELECT COUNT(*) FROM (
                     SELECT s.id, {$translated_count_sql}
-                    FROM {$table_strings} s
+                    FROM {$wpdb->prefix}stm_strings s
                     WHERE {$where_sql}
                     {$status_having}
                 ) stm_filtered
             ");
         } else {
             $total_items = $wpdb->get_var("
-                SELECT COUNT(*) FROM {$table_strings} s WHERE {$where_sql}
+                SELECT COUNT(*) FROM {$wpdb->prefix}stm_strings s WHERE {$where_sql}
             ");
         }
 
@@ -266,7 +264,7 @@ class Admin {
         // Get paginated results
         $strings = $wpdb->get_results("
             SELECT s.*, {$translated_count_sql}
-            FROM {$table_strings} s
+            FROM {$wpdb->prefix}stm_strings s
             WHERE {$where_sql}
             {$status_having}
             ORDER BY s.context ASC, s.string_key ASC
@@ -274,7 +272,7 @@ class Admin {
         ");
 
         // Get unique contexts for filter
-        $contexts = $wpdb->get_col("SELECT DISTINCT context FROM {$table_strings} ORDER BY context ASC");
+        $contexts = $wpdb->get_col("SELECT DISTINCT context FROM {$wpdb->prefix}stm_strings ORDER BY context ASC");
 
         // Batch-fetch all translations for visible strings (avoids N+1 in template)
         $translations_map = [];
@@ -282,7 +280,7 @@ class Admin {
             $string_ids = implode(',', array_map('intval', array_column($strings, 'id')));
             $all_translations = $wpdb->get_results(
                 "SELECT string_id, language_code, id, translation, status
-                 FROM {$table_translations}
+                 FROM {$wpdb->prefix}stm_translations
                  WHERE string_id IN ({$string_ids})"
             );
             foreach ($all_translations as $t) {
@@ -598,7 +596,6 @@ class Admin {
                 return;
             }
 
-            $table_pt = $wpdb->prefix . 'stm_post_translations';
 
             // Count published posts
             $total_posts = $wpdb->get_var(
@@ -609,7 +606,7 @@ class Admin {
             $missing_by_lang = [];
             foreach ($non_default_langs as $lang) {
                 $translated = $wpdb->get_var($wpdb->prepare(
-                    "SELECT COUNT(DISTINCT post_id) FROM {$table_pt}
+                    "SELECT COUNT(DISTINCT post_id) FROM {$wpdb->prefix}stm_post_translations
                      WHERE language_code = %s AND field_name = 'title'
                      AND post_id IN (SELECT ID FROM {$wpdb->posts} WHERE post_status = 'publish' AND post_type IN ('post', 'page'))",
                     $lang->code
@@ -685,7 +682,7 @@ class Admin {
 
             // Upsert translation
             $existing = $wpdb->get_var($wpdb->prepare(
-                "SELECT id FROM {$table} WHERE string_id = %d AND language_code = %s",
+                "SELECT id FROM {$wpdb->prefix}stm_translations WHERE string_id = %d AND language_code = %s",
                 $string_id,
                 $language_code
             ));
@@ -875,7 +872,7 @@ class Admin {
         $code = strtolower($code);
 
         $existing = $wpdb->get_row($wpdb->prepare(
-            "SELECT id, is_active FROM {$table} WHERE code = %s",
+            "SELECT id, is_active FROM {$wpdb->prefix}stm_languages WHERE code = %s",
             $code
         ));
 
@@ -977,7 +974,7 @@ class Admin {
         $table = $wpdb->prefix . 'stm_languages';
 
         $lang = $wpdb->get_row($wpdb->prepare(
-            "SELECT is_active, is_default FROM {$table} WHERE code = %s",
+            "SELECT is_active, is_default FROM {$wpdb->prefix}stm_languages WHERE code = %s",
             $code
         ));
 

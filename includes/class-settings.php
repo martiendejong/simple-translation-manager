@@ -41,12 +41,11 @@ class Settings {
         if (!$default) {
             // Find first language marked as default in database
             global $wpdb;
-            $table = $wpdb->prefix . 'stm_languages';
-            $default = $wpdb->get_var("SELECT code FROM {$table} WHERE is_default = 1 LIMIT 1");
+            $default = $wpdb->get_var("SELECT code FROM {$wpdb->prefix}stm_languages WHERE is_default = 1 LIMIT 1");
 
             if (!$default) {
                 // Fallback to first language
-                $default = $wpdb->get_var("SELECT code FROM {$table} ORDER BY order_index ASC LIMIT 1");
+                $default = $wpdb->get_var("SELECT code FROM {$wpdb->prefix}stm_languages ORDER BY order_index ASC LIMIT 1");
             }
 
             // Cache it

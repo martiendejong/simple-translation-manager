@@ -544,10 +544,9 @@ class Frontend {
 
         // Get term translation
         global $wpdb;
-        $table = $wpdb->prefix . 'stm_term_translations';
 
         $translation = $wpdb->get_row($wpdb->prepare(
-            "SELECT name, slug, description FROM {$table} WHERE term_id = %d AND language_code = %s",
+            "SELECT name, slug, description FROM {$wpdb->prefix}stm_term_translations WHERE term_id = %d AND language_code = %s",
             $term->term_id,
             $current_lang
         ));

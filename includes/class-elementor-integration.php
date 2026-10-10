@@ -207,7 +207,7 @@ class ElementorIntegration {
         $json = wp_json_encode( $translations );
 
         $existing = $wpdb->get_var( $wpdb->prepare(
-            "SELECT id FROM {$table} WHERE post_id = %d AND field_name = %s AND language_code = %s",
+            "SELECT id FROM {$wpdb->prefix}stm_post_translations WHERE post_id = %d AND field_name = %s AND language_code = %s",
             $post_id,
             self::FIELD_NAME,
             $lang_code

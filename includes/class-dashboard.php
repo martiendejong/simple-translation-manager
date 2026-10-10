@@ -124,8 +124,6 @@ class Dashboard {
 
         $strings_total = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->prefix}stm_strings");
 
-        $table_pt = $wpdb->prefix . 'stm_post_translations';
-        $table_tx = $wpdb->prefix . 'stm_translations';
 
         $by_language = [];
         foreach ($languages as $lang) {
@@ -137,7 +135,7 @@ class Dashboard {
             $title_translated = 0;
             if ($total_posts > 0) {
                 $title_translated = (int) $wpdb->get_var($wpdb->prepare(
-                    "SELECT COUNT(DISTINCT pt.post_id) FROM {$table_pt} pt
+                    "SELECT COUNT(DISTINCT pt.post_id) FROM {$wpdb->prefix}stm_post_translations pt
                      INNER JOIN {$wpdb->posts} p ON p.ID = pt.post_id
                      WHERE pt.language_code = %s
                        AND pt.field_name = 'title'
@@ -150,7 +148,7 @@ class Dashboard {
             $content_translated = 0;
             if ($total_posts > 0) {
                 $content_translated = (int) $wpdb->get_var($wpdb->prepare(
-                    "SELECT COUNT(DISTINCT pt.post_id) FROM {$table_pt} pt
+                    "SELECT COUNT(DISTINCT pt.post_id) FROM {$wpdb->prefix}stm_post_translations pt
                      INNER JOIN {$wpdb->posts} p ON p.ID = pt.post_id
                      WHERE pt.language_code = %s
                        AND pt.field_name = 'content'
@@ -162,7 +160,7 @@ class Dashboard {
 
             // UI string coverage
             $strings_translated = (int) $wpdb->get_var($wpdb->prepare(
-                "SELECT COUNT(*) FROM {$table_tx}
+                "SELECT COUNT(*) FROM {$wpdb->prefix}stm_translations
                  WHERE language_code = %s AND status = 'published'",
                 $lang->code
             ));
@@ -233,7 +231,6 @@ class Dashboard {
         }
 
         $pt_placeholders = implode(',', array_fill(0, count($post_types), '%s'));
-        $table_pt        = $wpdb->prefix . 'stm_post_translations';
 
         // Build date filter
         $date_sql = '';
@@ -252,14 +249,14 @@ class Dashboard {
             $args = array_merge([$lang->code], $post_types, $date_args);
 
             $sql = "SELECT p.ID, p.post_title, p.post_type, p.post_date, p.post_status,
-                           EXISTS(SELECT 1 FROM {$table_pt} pt_t
+                           EXISTS(SELECT 1 FROM {$wpdb->prefix}stm_post_translations pt_t
                                   WHERE pt_t.post_id = p.ID AND pt_t.language_code = %s AND pt_t.field_name = 'title') as has_title
                     FROM {$wpdb->posts} p
                     WHERE p.post_status = 'publish'
                       AND p.post_type IN ({$pt_placeholders})
                       {$date_sql}
                       AND NOT EXISTS (
-                          SELECT 1 FROM {$table_pt} pt
+                          SELECT 1 FROM {$wpdb->prefix}stm_post_translations pt
                           WHERE pt.post_id = p.ID
                             AND pt.language_code = %s
                             AND pt.field_name IN ('title', 'content')
@@ -315,14 +312,11 @@ class Dashboard {
         global $wpdb;
 
         $limit    = max(1, min(200, (int) $limit));
-        $table_pt = $wpdb->prefix . 'stm_post_translations';
-        $table_tx = $wpdb->prefix . 'stm_translations';
-        $table_s  = $wpdb->prefix . 'stm_strings';
 
         $post_rows = $wpdb->get_results($wpdb->prepare(
             "SELECT 'post' as kind, pt.id, pt.post_id, pt.field_name, pt.language_code, pt.updated_at,
                     p.post_title, p.post_type, NULL as string_key, NULL as user_id
-             FROM {$table_pt} pt
+             FROM {$wpdb->prefix}stm_post_translations pt
              LEFT JOIN {$wpdb->posts} p ON p.ID = pt.post_id
              ORDER BY pt.updated_at DESC
              LIMIT %d",
@@ -332,8 +326,8 @@ class Dashboard {
         $string_rows = $wpdb->get_results($wpdb->prepare(
             "SELECT 'string' as kind, t.id, NULL as post_id, NULL as field_name, t.language_code, t.updated_at,
                     NULL as post_title, NULL as post_type, s.string_key, t.translated_by as user_id
-             FROM {$table_tx} t
-             LEFT JOIN {$table_s} s ON s.id = t.string_id
+             FROM {$wpdb->prefix}stm_translations t
+             LEFT JOIN {$wpdb->prefix}stm_strings s ON s.id = t.string_id
              ORDER BY t.updated_at DESC
              LIMIT %d",
             $limit
@@ -380,7 +374,7 @@ class Dashboard {
         $table = $wpdb->prefix . 'stm_post_translations';
 
         $existing = $wpdb->get_var($wpdb->prepare(
-            "SELECT id FROM {$table} WHERE post_id = %d AND field_name = %s AND language_code = %s",
+            "SELECT id FROM {$wpdb->prefix}stm_post_translations WHERE post_id = %d AND field_name = %s AND language_code = %s",
             $post_id,
             $field_name,
             $language_code

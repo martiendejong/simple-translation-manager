@@ -268,8 +268,6 @@ class API {
         $context = $request->get_param('context');
         $lang = $request->get_param('lang');
 
-        $table_strings = $wpdb->prefix . 'stm_strings';
-        $table_translations = $wpdb->prefix . 'stm_translations';
 
         $where  = ['1=1'];
         $params = [];
@@ -286,8 +284,8 @@ class API {
                     CONCAT(t.language_code, ':', t.translation, ':', t.status)
                     SEPARATOR '||'
                 ) as translations
-            FROM {$table_strings} s
-            LEFT JOIN {$table_translations} t ON s.id = t.string_id
+            FROM {$wpdb->prefix}stm_strings s
+            LEFT JOIN {$wpdb->prefix}stm_translations t ON s.id = t.string_id
             WHERE {$where_sql}
             GROUP BY s.id
             ORDER BY s.context ASC, s.string_key ASC
@@ -560,7 +558,7 @@ class API {
         $table = $wpdb->prefix . 'stm_post_translations';
 
         $existing = $wpdb->get_var($wpdb->prepare(
-            "SELECT id FROM {$table} WHERE post_id = %d AND field_name = %s AND language_code = %s",
+            "SELECT id FROM {$wpdb->prefix}stm_post_translations WHERE post_id = %d AND field_name = %s AND language_code = %s",
             $post_id, $field, $language_code
         ));
 
@@ -773,10 +771,9 @@ class API {
         $post_id = intval($request['id']);
 
         global $wpdb;
-        $table = $wpdb->prefix . 'stm_post_translations';
 
         $rows = $wpdb->get_results($wpdb->prepare(
-            "SELECT language_code, translation FROM {$table} WHERE post_id = %d AND field_name = 'post_name'",
+            "SELECT language_code, translation FROM {$wpdb->prefix}stm_post_translations WHERE post_id = %d AND field_name = 'post_name'",
             $post_id
         ), ARRAY_A);
 
@@ -804,7 +801,7 @@ class API {
         $table = $wpdb->prefix . 'stm_post_translations';
 
         $existing = $wpdb->get_var($wpdb->prepare(
-            "SELECT id FROM {$table} WHERE post_id = %d AND field_name = 'post_name' AND language_code = %s",
+            "SELECT id FROM {$wpdb->prefix}stm_post_translations WHERE post_id = %d AND field_name = 'post_name' AND language_code = %s",
             $post_id, $language_code
         ));
 
@@ -1000,8 +997,6 @@ class API {
         $lang = $request->get_param('lang');
         $context = $request->get_param('context');
 
-        $table_strings = $wpdb->prefix . 'stm_strings';
-        $table_translations = $wpdb->prefix . 'stm_translations';
 
         $where  = ['t.status = "published"'];
         $params = [];
@@ -1019,8 +1014,8 @@ class API {
         // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- $where_sql is assembled from %s placeholders in $where[] and their values in $params above; $wpdb->prepare() below resolves every placeholder before the query runs.
         $results = $wpdb->get_results($wpdb->prepare("
             SELECT s.string_key, t.language_code, t.translation
-            FROM {$table_translations} t
-            INNER JOIN {$table_strings} s ON t.string_id = s.id
+            FROM {$wpdb->prefix}stm_translations t
+            INNER JOIN {$wpdb->prefix}stm_strings s ON t.string_id = s.id
             WHERE {$where_sql}
         ", $params));
 
@@ -1245,7 +1240,7 @@ class API {
         foreach ($translations as $field => $translation) {
             // Check if exists
             $existing = $wpdb->get_var($wpdb->prepare(
-                "SELECT id FROM {$table} WHERE post_id = %d AND field_name = %s AND language_code = %s",
+                "SELECT id FROM {$wpdb->prefix}stm_post_translations WHERE post_id = %d AND field_name = %s AND language_code = %s",
                 $post_id, $field, $lang_code
             ));
 

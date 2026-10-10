@@ -329,7 +329,7 @@ class PostEditor {
                     }
 
                     $existing = $wpdb->get_var($wpdb->prepare(
-                        "SELECT id FROM {$table} WHERE post_id = %d AND field_name = %s AND language_code = %s",
+                        "SELECT id FROM {$wpdb->prefix}stm_post_translations WHERE post_id = %d AND field_name = %s AND language_code = %s",
                         $post_id,
                         $field_name,
                         $lang_code
@@ -479,10 +479,9 @@ class PostEditor {
      */
     public static function get_post_language($post_id) {
         global $wpdb;
-        $table = $wpdb->prefix . 'stm_post_associations';
 
         $lang = $wpdb->get_var($wpdb->prepare(
-            "SELECT language_code FROM {$table} WHERE post_id = %d",
+            "SELECT language_code FROM {$wpdb->prefix}stm_post_associations WHERE post_id = %d",
             $post_id
         ));
 
@@ -521,7 +520,7 @@ class PostEditor {
         $table = $wpdb->prefix . 'stm_post_associations';
 
         $existing = $wpdb->get_var($wpdb->prepare(
-            "SELECT id FROM {$table} WHERE post_id = %d",
+            "SELECT id FROM {$wpdb->prefix}stm_post_associations WHERE post_id = %d",
             $post_id
         ));
 
@@ -544,10 +543,9 @@ class PostEditor {
      */
     public static function get_translation_group($post_id) {
         global $wpdb;
-        $table = $wpdb->prefix . 'stm_post_associations';
 
         return $wpdb->get_var($wpdb->prepare(
-            "SELECT translation_group FROM {$table} WHERE post_id = %d",
+            "SELECT translation_group FROM {$wpdb->prefix}stm_post_associations WHERE post_id = %d",
             $post_id
         ));
     }
@@ -557,10 +555,9 @@ class PostEditor {
      */
     public static function get_post_translation($post_id, $language_code) {
         global $wpdb;
-        $table = $wpdb->prefix . 'stm_post_translations';
 
         $results = $wpdb->get_results($wpdb->prepare(
-            "SELECT field_name, translation FROM {$table} WHERE post_id = %d AND language_code = %s",
+            "SELECT field_name, translation FROM {$wpdb->prefix}stm_post_translations WHERE post_id = %d AND language_code = %s",
             $post_id,
             $language_code
         ), ARRAY_A);
@@ -583,10 +580,9 @@ class PostEditor {
      */
     public static function get_post_id_by_translated_slug($language_code, $slug) {
         global $wpdb;
-        $table = $wpdb->prefix . 'stm_post_translations';
 
         return (int) $wpdb->get_var($wpdb->prepare(
-            "SELECT post_id FROM {$table} WHERE field_name = 'post_name' AND language_code = %s AND translation = %s LIMIT 1",
+            "SELECT post_id FROM {$wpdb->prefix}stm_post_translations WHERE field_name = 'post_name' AND language_code = %s AND translation = %s LIMIT 1",
             $language_code,
             $slug
         ));
@@ -597,10 +593,9 @@ class PostEditor {
      */
     public static function get_translation_group_posts($translation_group) {
         global $wpdb;
-        $table = $wpdb->prefix . 'stm_post_associations';
 
         return $wpdb->get_results($wpdb->prepare(
-            "SELECT post_id, language_code FROM {$table} WHERE translation_group = %s",
+            "SELECT post_id, language_code FROM {$wpdb->prefix}stm_post_associations WHERE translation_group = %s",
             $translation_group
         ), ARRAY_A);
     }

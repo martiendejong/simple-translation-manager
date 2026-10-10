@@ -169,9 +169,8 @@ class FieldValues {
         }
 
         // Values that only exist in the translations table (no longer in use)
-        $table = $wpdb->prefix . 'stm_field_value_translations';
         $orphans = $wpdb->get_results($wpdb->prepare(
-            "SELECT DISTINCT value_hash, source_value FROM {$table} WHERE field_name = %s",
+            "SELECT DISTINCT value_hash, source_value FROM {$wpdb->prefix}stm_field_value_translations WHERE field_name = %s",
             $field_name
         ));
         foreach ($orphans as $row) {
@@ -195,10 +194,9 @@ class FieldValues {
      */
     public static function get_translations_for_field($field_name) {
         global $wpdb;
-        $table = $wpdb->prefix . 'stm_field_value_translations';
 
         $rows = $wpdb->get_results($wpdb->prepare(
-            "SELECT value_hash, language_code, translation FROM {$table} WHERE field_name = %s",
+            "SELECT value_hash, language_code, translation FROM {$wpdb->prefix}stm_field_value_translations WHERE field_name = %s",
             sanitize_key($field_name)
         ));
 
@@ -233,7 +231,7 @@ class FieldValues {
         }
 
         $existing = $wpdb->get_var($wpdb->prepare(
-            "SELECT id FROM {$table} WHERE field_name = %s AND value_hash = %s AND language_code = %s",
+            "SELECT id FROM {$wpdb->prefix}stm_field_value_translations WHERE field_name = %s AND value_hash = %s AND language_code = %s",
             $field_name,
             $hash,
             $language_code

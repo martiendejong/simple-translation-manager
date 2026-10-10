@@ -134,10 +134,9 @@ class Hreflang {
      */
     private static function has_term_translation( int $term_id, string $lang_code ): bool {
         global $wpdb;
-        $table = $wpdb->prefix . 'stm_term_translations';
 
         $found = $wpdb->get_var( $wpdb->prepare(
-            "SELECT term_id FROM {$table} WHERE term_id = %d AND language_code = %s LIMIT 1",
+            "SELECT term_id FROM {$wpdb->prefix}stm_term_translations WHERE term_id = %d AND language_code = %s LIMIT 1",
             $term_id,
             $lang_code
         ) );
