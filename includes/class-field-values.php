@@ -143,6 +143,7 @@ class FieldValues {
         $placeholders   = implode(',', array_fill(0, count($type_list), '%s'));
         $params         = array_merge([$field_name, $restrict_types], $type_list);
 
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQLPlaceholders.ReplacementsWrongNumber -- distinct meta values with their post counts, joined with wp_posts (no WordPress function returns that); admin screen: shows the rows as they are right now, one query per page view; the interpolated variable only holds a run of %s/%d markers (implode of array_fill), one per value passed to prepare(); the IN() markers are generated at run time and the values are passed as one array, which the sniff counts as one replacement
         $rows = $wpdb->get_results($wpdb->prepare(
             "SELECT pm.meta_value AS value, COUNT(DISTINCT pm.post_id) AS post_count
              FROM {$wpdb->postmeta} pm
@@ -155,6 +156,7 @@ class FieldValues {
              ORDER BY pm.meta_value ASC",
             $params
         ));
+        // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQLPlaceholders.ReplacementsWrongNumber
 
         $values = [];
         foreach ($rows as $row) {
@@ -168,10 +170,12 @@ class FieldValues {
         }
 
         // Values that only exist in the translations table (no longer in use)
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- reads the plugin's own table wp_stm_field_value_translations (no WordPress API for custom tables); admin screen: shows the rows as they are right now, one query per page view
         $orphans = $wpdb->get_results($wpdb->prepare(
             "SELECT DISTINCT value_hash, source_value FROM {$wpdb->prefix}stm_field_value_translations WHERE field_name = %s",
             $field_name
         ));
+        // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
         foreach ($orphans as $row) {
             if (!isset($values[$row->value_hash])) {
                 $values[$row->value_hash] = [
@@ -194,10 +198,12 @@ class FieldValues {
     public static function get_translations_for_field($field_name) {
         global $wpdb;
 
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- reads the plugin's own table wp_stm_field_value_translations (no WordPress API for custom tables); admin screen: shows the rows as they are right now, one query per page view
         $rows = $wpdb->get_results($wpdb->prepare(
             "SELECT value_hash, language_code, translation FROM {$wpdb->prefix}stm_field_value_translations WHERE field_name = %s",
             sanitize_key($field_name)
         ));
+        // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
 
         $map = [];
         foreach ($rows as $row) {
@@ -220,21 +226,25 @@ class FieldValues {
         $translation = trim($translation);
 
         if ($translation === '') {
+            // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- deletes rows of the plugin's own table wp_stm_field_value_translations (no WordPress API for custom tables); Cache::invalidate_field_value() drops the cached copies right after the write
             $wpdb->delete($table, [
                 'field_name'    => $field_name,
                 'value_hash'    => $hash,
                 'language_code' => $language_code,
             ]);
+            // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
             Cache::invalidate_field_value($field_name, $source_value);
             return true;
         }
 
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- reads the plugin's own table wp_stm_field_value_translations (no WordPress API for custom tables); read-before-write: needs the current row to choose update or insert, a cached copy could create a duplicate
         $existing = $wpdb->get_var($wpdb->prepare(
             "SELECT id FROM {$wpdb->prefix}stm_field_value_translations WHERE field_name = %s AND value_hash = %s AND language_code = %s",
             $field_name,
             $hash,
             $language_code
         ));
+        // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
 
         $data = [
             'field_name'    => $field_name,
@@ -245,8 +255,10 @@ class FieldValues {
         ];
 
         if ($existing) {
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- writes the plugin's own table wp_stm_field_value_translations (no WordPress API for custom tables); Cache::invalidate_field_value() drops the cached copies right after the write
             $result = $wpdb->update($table, $data, ['id' => $existing]);
         } else {
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery -- writes the plugin's own table wp_stm_field_value_translations (no WordPress API for custom tables)
             $result = $wpdb->insert($table, $data);
         }
 

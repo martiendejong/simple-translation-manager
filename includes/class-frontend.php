@@ -545,11 +545,13 @@ class Frontend {
         // Get term translation
         global $wpdb;
 
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- reads the plugin's own table wp_stm_term_translations (no WordPress API for custom tables); single indexed lookup (term_id, language_code) per translated term on a non-default-language page; term translations are written outside this plugin, so there is no invalidation point for a cache
         $translation = $wpdb->get_row($wpdb->prepare(
             "SELECT name, slug, description FROM {$wpdb->prefix}stm_term_translations WHERE term_id = %d AND language_code = %s",
             $term->term_id,
             $current_lang
         ));
+        // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
 
         if ($translation) {
             $term->name = $translation->name;

@@ -246,6 +246,7 @@ class Admin {
         // $where_sql below is assembled above from $wpdb->prepare() fragments only.
         // phpcs:disable WordPress.DB.PreparedSQL.InterpolatedNotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- $where_sql is the AND-joined output of $wpdb->prepare() fragments built a few lines up; no request value is ever concatenated into it
         if ($status_filter !== '') {
+            // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- reads the plugin's own tables wp_stm_strings, wp_stm_translations (no WordPress API for custom tables); admin screen: shows the rows as they are right now, one query per page view
             $total_items = $wpdb->get_var($wpdb->prepare("
                 SELECT COUNT(*) FROM (
                     SELECT s.id,
@@ -256,16 +257,20 @@ class Admin {
                     HAVING (%s = 'missing' AND translated_count < %d) OR (%s = 'complete' AND translated_count >= %d)
                 ) stm_filtered
             ", $status_filter, $total_languages, $status_filter, $total_languages));
+            // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
         } else {
+            // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- reads the plugin's own table wp_stm_strings (no WordPress API for custom tables); admin screen: shows the rows as they are right now, one query per page view
             $total_items = $wpdb->get_var("
                 SELECT COUNT(*) FROM {$wpdb->prefix}stm_strings s WHERE {$where_sql}
             ");
+            // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
         }
         // phpcs:enable WordPress.DB.PreparedSQL.InterpolatedNotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter
 
         $total_pages = ceil($total_items / $per_page);
 
         // Get paginated results
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- reads the plugin's own tables wp_stm_strings, wp_stm_translations (no WordPress API for custom tables); admin screen: shows the rows as they are right now, one query per page view; $where_sql is the AND-joined output of $wpdb->prepare() fragments built just above; no request value is concatenated into it
         // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- $where_sql is the AND-joined output of $wpdb->prepare() fragments built a few lines up; no request value is ever concatenated into it
         $strings = $wpdb->get_results($wpdb->prepare("
             SELECT s.*,
@@ -277,8 +282,10 @@ class Admin {
             ORDER BY s.context ASC, s.string_key ASC
             LIMIT %d OFFSET %d
         ", $status_filter, $status_filter, $total_languages, $status_filter, $total_languages, $per_page, $offset));
+        // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 
         // Get unique contexts for filter
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- reads the plugin's own table wp_stm_strings (no WordPress API for custom tables); admin screen: shows the rows as they are right now, one query per page view
         $contexts = $wpdb->get_col("SELECT DISTINCT context FROM {$wpdb->prefix}stm_strings ORDER BY context ASC");
 
         // Batch-fetch all translations for visible strings (avoids N+1 in template)
@@ -286,6 +293,7 @@ class Admin {
         if (!empty($strings)) {
             $string_ids = array_map('intval', array_column($strings, 'id'));
             $id_placeholders = implode(',', array_fill(0, count($string_ids), '%d'));
+            // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare -- reads the plugin's own table wp_stm_translations (no WordPress API for custom tables); admin screen: shows the rows as they are right now, one query per page view; the interpolated variable only holds a run of %s/%d markers (implode of array_fill), one per value passed to prepare()
             // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare -- $id_placeholders is only a run of %d markers (implode of array_fill), one per integer id in $string_ids
             $all_translations = $wpdb->get_results($wpdb->prepare(
                 "SELECT string_id, language_code, id, translation, status
@@ -293,6 +301,7 @@ class Admin {
                  WHERE string_id IN ({$id_placeholders})",
                 $string_ids
             ));
+            // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare
             foreach ($all_translations as $t) {
                 $translations_map[$t->string_id][$t->language_code] = $t;
             }
@@ -599,19 +608,23 @@ class Admin {
 
 
             // Count published posts
+            // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- plain COUNT over core wp_posts (WP_Query would load every post object just to count); admin notice; the result is cached in a transient (set_transient further down in this function)
             $total_posts = $wpdb->get_var(
                 "SELECT COUNT(*) FROM {$wpdb->posts} WHERE post_status = 'publish' AND post_type IN ('post', 'page')"
             );
+            // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
 
             // Count posts with title translations per non-default language
             $missing_by_lang = [];
             foreach ($non_default_langs as $lang) {
+                // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- joins the plugin's own table wp_stm_post_translations with core wp_posts (no WordPress function expresses this query); admin notice; the result is cached in a transient (set_transient further down in this function)
                 $translated = $wpdb->get_var($wpdb->prepare(
                     "SELECT COUNT(DISTINCT post_id) FROM {$wpdb->prefix}stm_post_translations
                      WHERE language_code = %s AND field_name = 'title'
                      AND post_id IN (SELECT ID FROM {$wpdb->posts} WHERE post_status = 'publish' AND post_type IN ('post', 'page'))",
                     $lang->code
                 ));
+                // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
 
                 $missing = $total_posts - intval($translated);
                 if ($missing > 0) {
@@ -682,11 +695,13 @@ class Admin {
             $table = $wpdb->prefix . 'stm_translations';
 
             // Upsert translation
+            // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- reads the plugin's own table wp_stm_translations (no WordPress API for custom tables); admin handler: reads the current row before changing it
             $existing = $wpdb->get_var($wpdb->prepare(
                 "SELECT id FROM {$wpdb->prefix}stm_translations WHERE string_id = %d AND language_code = %s",
                 $string_id,
                 $language_code
             ));
+            // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
 
             $data = [
                 'string_id' => $string_id,
@@ -698,8 +713,10 @@ class Admin {
             ];
 
             if ($existing) {
+                // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- writes the plugin's own table wp_stm_translations (no WordPress API for custom tables); Cache::invalidate_string() drops the cached copies right after the write
                 $result = $wpdb->update($table, $data, ['id' => $existing]);
             } else {
+                // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery -- writes the plugin's own table wp_stm_translations (no WordPress API for custom tables)
                 $result = $wpdb->insert($table, $data);
             }
 
@@ -708,10 +725,12 @@ class Admin {
             }
 
             // Invalidate cache
+            // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- reads the plugin's own table wp_stm_strings (no WordPress API for custom tables); admin handler: reads the current row before changing it
             $string = $wpdb->get_row($wpdb->prepare(
                 "SELECT string_key, context FROM {$wpdb->prefix}stm_strings WHERE id = %d",
                 $string_id
             ));
+            // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
 
             if ($string) {
                 Cache::invalidate_string($string->string_key, $string->context);
@@ -759,6 +778,7 @@ class Admin {
                 'description' => $description,
             ];
 
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery -- writes the plugin's own table wp_stm_strings (no WordPress API for custom tables)
             $result = $wpdb->insert($table, $data);
 
             if ($result === false) {
@@ -872,10 +892,12 @@ class Admin {
 
         $code = strtolower($code);
 
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- reads the plugin's own table wp_stm_languages (no WordPress API for custom tables); admin handler: reads the current row before changing it
         $existing = $wpdb->get_row($wpdb->prepare(
             "SELECT id, is_active FROM {$wpdb->prefix}stm_languages WHERE code = %s",
             $code
         ));
+        // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
 
         if ($existing && $existing->is_active) {
             wp_safe_redirect(add_query_arg('stm_error', 'already_active', wp_get_referer()));
@@ -883,6 +905,7 @@ class Admin {
         }
 
         if ($is_default) {
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery -- writes the plugin's own table wp_stm_languages (no WordPress API for custom tables)
             $wpdb->update($table, ['is_default' => 0], ['is_default' => 1]);
         }
 
@@ -898,9 +921,11 @@ class Admin {
         if ($existing) {
             // Reactivate the existing inactive row â€” never delete/reinsert, so any
             // translations already tied to this language code are left untouched.
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery -- writes the plugin's own table wp_stm_languages (no WordPress API for custom tables)
             $result = $wpdb->update($table, $fields, ['id' => $existing->id]);
             $success_arg = 'stm_reactivated';
         } else {
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery -- writes the plugin's own table wp_stm_languages (no WordPress API for custom tables)
             $result = $wpdb->insert($table, $fields + ['code' => $code]);
             $success_arg = 'stm_added';
         }
@@ -934,16 +959,19 @@ class Admin {
         global $wpdb;
 
         // Prevent deleting the default language
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- reads the plugin's own table wp_stm_languages (no WordPress API for custom tables); admin handler: reads the current row before changing it
         $is_default = $wpdb->get_var($wpdb->prepare(
             "SELECT is_default FROM {$wpdb->prefix}stm_languages WHERE code = %s",
             $code
         ));
+        // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
 
         if ($is_default) {
             wp_safe_redirect(add_query_arg('stm_error', 'cannot_delete_default', wp_get_referer()));
             exit;
         }
 
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery -- deletes rows of the plugin's own table wp_stm_languages (no WordPress API for custom tables)
         $wpdb->delete($wpdb->prefix . 'stm_languages', ['code' => $code]);
 
         wp_cache_delete(Database::CACHE_ACTIVE_LANGUAGES);
@@ -974,10 +1002,12 @@ class Admin {
         global $wpdb;
         $table = $wpdb->prefix . 'stm_languages';
 
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- reads the plugin's own table wp_stm_languages (no WordPress API for custom tables); admin handler: reads the current row before changing it
         $lang = $wpdb->get_row($wpdb->prepare(
             "SELECT is_active, is_default FROM {$wpdb->prefix}stm_languages WHERE code = %s",
             $code
         ));
+        // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
 
         $redirect_arg = 'stm_toggled';
         $redirect_val = '1';
@@ -990,6 +1020,7 @@ class Admin {
             $redirect_arg = 'stm_error';
             $redirect_val = 'cannot_deactivate_default';
         } else {
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery -- writes the plugin's own table wp_stm_languages (no WordPress API for custom tables)
             $wpdb->update($table, ['is_active' => $lang->is_active ? 0 : 1], ['code' => $code]);
             wp_cache_delete(Database::CACHE_ACTIVE_LANGUAGES);
             wp_cache_delete('stm_all_languages');

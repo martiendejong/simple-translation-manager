@@ -115,13 +115,16 @@ class Dashboard {
 
         $total_posts = 0;
         if (!empty($post_types)) {
+            // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare -- plain COUNT over core wp_posts (WP_Query would load every post object just to count); the whole result is cached in a transient (set_transient at the end of this function); the interpolated variable only holds a run of %s/%d markers (implode of array_fill), one per value passed to prepare()
             $total_posts = (int) $wpdb->get_var($wpdb->prepare(
                 "SELECT COUNT(*) FROM {$wpdb->posts}
                  WHERE post_status = 'publish' AND post_type IN ({$placeholders})",
                 $post_types
             ));
+            // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare
         }
 
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- reads the plugin's own table wp_stm_strings (no WordPress API for custom tables); the whole result is cached in a transient (set_transient at the end of this function)
         $strings_total = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->prefix}stm_strings");
 
 
@@ -134,6 +137,7 @@ class Dashboard {
             // Title coverage for posts/pages/CPT
             $title_translated = 0;
             if ($total_posts > 0) {
+                // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- joins the plugin's own table wp_stm_post_translations with core wp_posts (no WordPress function expresses this query); the whole result is cached in a transient (set_transient at the end of this function); the interpolated variable only holds a run of %s/%d markers (implode of array_fill), one per value passed to prepare()
                 $title_translated = (int) $wpdb->get_var($wpdb->prepare(
                     "SELECT COUNT(DISTINCT pt.post_id) FROM {$wpdb->prefix}stm_post_translations pt
                      INNER JOIN {$wpdb->posts} p ON p.ID = pt.post_id
@@ -143,10 +147,12 @@ class Dashboard {
                        AND p.post_type IN ({$placeholders})",
                     array_merge([$lang->code], $post_types)
                 ));
+                // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
             }
 
             $content_translated = 0;
             if ($total_posts > 0) {
+                // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- joins the plugin's own table wp_stm_post_translations with core wp_posts (no WordPress function expresses this query); the whole result is cached in a transient (set_transient at the end of this function); the interpolated variable only holds a run of %s/%d markers (implode of array_fill), one per value passed to prepare()
                 $content_translated = (int) $wpdb->get_var($wpdb->prepare(
                     "SELECT COUNT(DISTINCT pt.post_id) FROM {$wpdb->prefix}stm_post_translations pt
                      INNER JOIN {$wpdb->posts} p ON p.ID = pt.post_id
@@ -156,14 +162,17 @@ class Dashboard {
                        AND p.post_type IN ({$placeholders})",
                     array_merge([$lang->code], $post_types)
                 ));
+                // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
             }
 
             // UI string coverage
+            // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- reads the plugin's own table wp_stm_translations (no WordPress API for custom tables); the whole result is cached in a transient (set_transient at the end of this function)
             $strings_translated = (int) $wpdb->get_var($wpdb->prepare(
                 "SELECT COUNT(*) FROM {$wpdb->prefix}stm_translations
                  WHERE language_code = %s AND status = 'published'",
                 $lang->code
             ));
+            // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
 
             $by_language[$lang->code] = [
                 'code'    => $lang->code,
@@ -268,7 +277,7 @@ class Dashboard {
             // Add lang param for both EXISTS subquery and the outer NOT EXISTS
             $args_full = array_merge($args, [$lang->code]);
 
-            // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- $sql (built above) uses array_fill()+implode() for its dynamic-length IN clause and %s/%d placeholders elsewhere; $args_full supplies the matching values and $wpdb->prepare() resolves them all right here.
+            // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- $sql (built above) uses array_fill()+implode() for its dynamic-length IN clause and %s/%d placeholders elsewhere; $args_full supplies the matching values and $wpdb->prepare() resolves them all right here.; lists published posts that still lack a translation: joins the plugin's own table wp_stm_post_translations with core wp_posts (no WordPress function expresses this query); runs only on an administrator's request (admin screen, AJAX call or WP-CLI)
             $results = $wpdb->get_results($wpdb->prepare($sql, $args_full));
 
             foreach ($results as $row) {
@@ -313,6 +322,7 @@ class Dashboard {
 
         $limit    = max(1, min(200, (int) $limit));
 
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- joins the plugin's own table wp_stm_post_translations with core wp_posts (no WordPress function expresses this query); runs only on an administrator's request (admin screen, AJAX call or WP-CLI)
         $post_rows = $wpdb->get_results($wpdb->prepare(
             "SELECT 'post' as kind, pt.id, pt.post_id, pt.field_name, pt.language_code, pt.updated_at,
                     p.post_title, p.post_type, NULL as string_key, NULL as user_id
@@ -322,7 +332,9 @@ class Dashboard {
              LIMIT %d",
             $limit
         ));
+        // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
 
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- reads the plugin's own tables wp_stm_strings, wp_stm_translations (no WordPress API for custom tables); runs only on an administrator's request (admin screen, AJAX call or WP-CLI)
         $string_rows = $wpdb->get_results($wpdb->prepare(
             "SELECT 'string' as kind, t.id, NULL as post_id, NULL as field_name, t.language_code, t.updated_at,
                     NULL as post_title, NULL as post_type, s.string_key, t.translated_by as user_id
@@ -332,6 +344,7 @@ class Dashboard {
              LIMIT %d",
             $limit
         ));
+        // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
 
         $rows = array_merge($post_rows, $string_rows);
         usort($rows, function($a, $b) {
@@ -373,12 +386,14 @@ class Dashboard {
 
         $table = $wpdb->prefix . 'stm_post_translations';
 
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- reads the plugin's own table wp_stm_post_translations (no WordPress API for custom tables); read-before-write: needs the current row to choose update or insert, a cached copy could create a duplicate
         $existing = $wpdb->get_var($wpdb->prepare(
             "SELECT id FROM {$wpdb->prefix}stm_post_translations WHERE post_id = %d AND field_name = %s AND language_code = %s",
             $post_id,
             $field_name,
             $language_code
         ));
+        // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
 
         $data = [
             'post_id'       => $post_id,
@@ -388,8 +403,10 @@ class Dashboard {
         ];
 
         if ($existing) {
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- writes the plugin's own table wp_stm_post_translations (no WordPress API for custom tables); delete_transient() drops the cached dashboard figures right after this write
             $wpdb->update($table, $data, ['id' => $existing]);
         } else {
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery -- writes the plugin's own table wp_stm_post_translations (no WordPress API for custom tables)
             $wpdb->insert($table, $data);
         }
 

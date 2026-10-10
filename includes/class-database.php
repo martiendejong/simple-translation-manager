@@ -222,12 +222,15 @@ class Database {
             $languages = apply_filters('stm_default_languages', $default_languages);
 
             foreach ($languages as $lang) {
+                // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- reads the plugin's own table wp_stm_languages (no WordPress API for custom tables); runs on activation and upgrade only: reads the row before seeding it
                 $exists = $wpdb->get_var($wpdb->prepare(
                     "SELECT id FROM {$wpdb->prefix}stm_languages WHERE code = %s",
                     $lang['code']
                 ));
+                // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
 
                 if (!$exists) {
+                    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery -- writes the plugin's own table wp_stm_languages (no WordPress API for custom tables)
                     $result = $wpdb->insert($table, $lang);
                     if ($result === false) {
                         // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- logs a failed database operation (not debug output); the message carries a stable [STM-E-...] diagnostic code so a site owner can report it
@@ -256,9 +259,11 @@ class Database {
         $languages = wp_cache_get($cache_key);
 
         if (false === $languages) {
+            // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery -- reads the plugin's own table wp_stm_languages (no WordPress API for custom tables)
             $languages = $wpdb->get_results(
                 "SELECT * FROM {$wpdb->prefix}stm_languages WHERE is_active = 1 ORDER BY order_index ASC"
             );
+            // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery
             wp_cache_set($cache_key, $languages, '', 3600);
         }
 
@@ -275,9 +280,11 @@ class Database {
     public static function get_all_languages() {
         global $wpdb;
 
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- reads the plugin's own table wp_stm_languages (no WordPress API for custom tables); deliberately uncached (see the docblock): the Languages screen must never show a stale row right after a toggle, add or delete
         return $wpdb->get_results(
             "SELECT * FROM {$wpdb->prefix}stm_languages ORDER BY order_index ASC"
         );
+        // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
     }
 
     /**
@@ -290,9 +297,11 @@ class Database {
         $language = wp_cache_get($cache_key);
 
         if (false === $language) {
+            // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery -- reads the plugin's own table wp_stm_languages (no WordPress API for custom tables)
             $language = $wpdb->get_row(
                 "SELECT * FROM {$wpdb->prefix}stm_languages WHERE is_default = 1 LIMIT 1"
             );
+            // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery
             wp_cache_set($cache_key, $language, '', 3600);
         }
 

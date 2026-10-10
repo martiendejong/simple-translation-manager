@@ -223,10 +223,12 @@ class CLI {
         // Check translations per language
 
         foreach ($languages as $lang) {
+            // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- reads the plugin's own table wp_stm_post_translations (no WordPress API for custom tables); runs only on an administrator's request (admin screen, AJAX call or WP-CLI)
             $translated = $wpdb->get_var($wpdb->prepare(
                 "SELECT COUNT(DISTINCT post_id) FROM {$wpdb->prefix}stm_post_translations WHERE language_code = %s",
                 $lang->code
             ));
+            // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
 
             $percentage = $total_posts > 0 ? round(($translated / $total_posts) * 100, 1) : 0;
 

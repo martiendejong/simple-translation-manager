@@ -55,6 +55,7 @@ function stm_uninstall() {
     ];
 
     foreach ($tables as $table) {
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.DirectDatabaseQuery.SchemaChange, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- drops the plugin's own tables on uninstall (no WordPress function drops a custom table); schema change by design: only when the plugin is deleted with 'Keep data on uninstall' off; uninstall: wp_cache_flush() runs right after; $table comes from the fixed list of the plugin's own table names above
         $wpdb->query("DROP TABLE IF EXISTS {$wpdb->prefix}{$table}");
     }
 
@@ -90,6 +91,7 @@ function stm_uninstall() {
     wp_cache_flush();
 
     // Delete any transients
+    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- removes the plugin's own transients by name prefix on uninstall (no WordPress function does that); uninstall: wp_cache_flush() runs right after
     $wpdb->query("DELETE FROM {$wpdb->options} WHERE option_name LIKE '_transient_stm_%' OR option_name LIKE '_transient_timeout_stm_%'");
 }
 
