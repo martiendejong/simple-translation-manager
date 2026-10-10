@@ -187,6 +187,8 @@ class LanguageSwitcher extends \WP_Widget {
      * }
      */
     public static function render($args = []) {
+        wp_enqueue_style('stm-frontend');
+
         $style      = $args['style']      ?? Settings::get_switcher_style();
         $show_flags = $args['show_flags'] ?? Settings::switcher_show_flags();
         $show_names = $args['show_names'] ?? Settings::switcher_show_names();
@@ -339,8 +341,12 @@ class LanguageSwitcher extends \WP_Widget {
     // Assets
     // -------------------------------------------------------------------------
 
+    /**
+     * Only registers the switcher stylesheet. render() enqueues it, so pages that do not show a
+     * language switcher do not load it.
+     */
     public static function enqueue_styles() {
-        wp_enqueue_style(
+        wp_register_style(
             'stm-frontend',
             STM_PLUGIN_URL . 'assets/frontend.css',
             [],

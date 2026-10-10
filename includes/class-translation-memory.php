@@ -176,7 +176,7 @@ class TranslationMemory {
         // DIFFERENT post — an identical-looking title/excerpt/content string
         // is still the wrong post's translation once saved under the wrong
         // post ID (869enmrpz). No-op when $post_id is unknown (0).
-        $post_scope = $post_id > 0 ? $wpdb->prepare(' AND pt.post_id = %d', $post_id) : '';
+        $scope_id = $post_id > 0 ? (int) $post_id : 0;
 
         $column = self::field_name_to_column($field_type);
 
@@ -195,12 +195,17 @@ class TranslationMemory {
                  INNER JOIN {$wpdb->posts} p ON pt.post_id = p.ID
                  WHERE pt.language_code = %s
                    AND pt.field_name = %s
-                   AND p.{$column} = %s
+                   AND CASE %s
+                         WHEN 'post_title' THEN p.post_title
+                         WHEN 'post_excerpt' THEN p.post_excerpt
+                         WHEN 'post_content' THEN p.post_content
+                         ELSE p.post_name
+                       END = %s
                    AND pt.translation != ''
-                   {$post_scope}
+                   AND (%d = 0 OR pt.post_id = %d)
                  ORDER BY pt.updated_at DESC
                  LIMIT 1",
-                $target_lang, $field_type, $text
+                $target_lang, $field_type, $column, $text, $scope_id, $scope_id
             ));
         }
 
@@ -217,10 +222,10 @@ class TranslationMemory {
              WHERE pt.language_code = %s
                AND (p.post_title = %s OR p.post_content = %s)
                AND pt.translation != ''
-               {$post_scope}
+               AND (%d = 0 OR pt.post_id = %d)
              ORDER BY pt.updated_at DESC
              LIMIT 1",
-            $target_lang, $text, $text
+            $target_lang, $text, $text, $scope_id, $scope_id
         ));
     }
 
@@ -250,7 +255,7 @@ class TranslationMemory {
         global $wpdb;
 
         // Get recent translations to compare against
-        $where_field = $field_type ? $wpdb->prepare(' AND pt.field_name = %s', $field_type) : '';
+        $field_filter = $field_type ? (string) $field_type : '';
 
         // Cross-post restriction (869enmrpz): a near-duplicate-template post
         // (same headings/paragraphs, different specifics) can score well
@@ -263,7 +268,7 @@ class TranslationMemory {
         // similar the two posts' text is. No-op when $post_id is unknown (0),
         // e.g. the /memory/suggest admin browse tool, where a human reviews
         // cross-post suggestions before applying them.
-        $post_scope = $post_id > 0 ? $wpdb->prepare(' AND pt.post_id = %d', $post_id) : '';
+        $scope_id = $post_id > 0 ? (int) $post_id : 0;
 
         $existing = $wpdb->get_results($wpdb->prepare(
             "SELECT DISTINCT pt.translation, pt.field_name, p.post_title, p.post_excerpt, p.post_content, p.post_name
@@ -271,11 +276,11 @@ class TranslationMemory {
              INNER JOIN {$wpdb->posts} p ON pt.post_id = p.ID
              WHERE pt.language_code = %s
                AND pt.translation != ''
-               {$where_field}
-               {$post_scope}
+               AND (%s = '' OR pt.field_name = %s)
+               AND (%d = 0 OR pt.post_id = %d)
              ORDER BY pt.updated_at DESC
              LIMIT 200",
-            $target_lang
+            $target_lang, $field_filter, $field_filter, $scope_id, $scope_id
         ));
 
         $matches = [];

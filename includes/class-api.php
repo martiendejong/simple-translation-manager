@@ -191,6 +191,38 @@ class API {
     }
 
     /**
+     * Whether the translations of this post may be shown on the public REST routes: the post is
+     * publicly viewable and not password protected, or the caller may edit it.
+     *
+     * @param \WP_Post|null $post
+     */
+    private static function can_read_post_translations($post) {
+        if (!$post) {
+            return false;
+        }
+        if (current_user_can('edit_post', $post->ID)) {
+            return true;
+        }
+        return empty($post->post_password) && is_post_publicly_viewable($post);
+    }
+
+    /**
+     * 1 when the caller may see translations that are not published yet (draft / pending
+     * review), 0 for everyone else. Used as a prepared-statement argument.
+     */
+    private static function sees_unpublished_translations() {
+        return Security::can_manage_translations() ? 1 : 0;
+    }
+
+    /**
+     * A request parameter as a plain string: '' when it is missing or not a scalar.
+     */
+    private static function scalar_param($request, $name) {
+        $value = $request->get_param($name);
+        return is_scalar($value) ? (string) $value : '';
+    }
+
+    /**
      * Permission check (requires manage_options capability)
      */
     public static function check_permissions() {
@@ -265,34 +297,20 @@ class API {
     public static function get_strings($request) {
         global $wpdb;
 
-        $context = $request->get_param('context');
-        $lang = $request->get_param('lang');
+        $context = self::scalar_param($request, 'context');
 
-
-        $where  = ['1=1'];
-        $params = [];
-        if ($context) {
-            $where[]  = 's.context = %s';
-            $params[] = $context;
-        }
-
-        $where_sql = implode(' AND ', $where);
-
-        $query = "
+        $results = $wpdb->get_results($wpdb->prepare("
             SELECT s.*,
                 GROUP_CONCAT(
                     CONCAT(t.language_code, ':', t.translation, ':', t.status)
                     SEPARATOR '||'
                 ) as translations
             FROM {$wpdb->prefix}stm_strings s
-            LEFT JOIN {$wpdb->prefix}stm_translations t ON s.id = t.string_id
-            WHERE {$where_sql}
+            LEFT JOIN {$wpdb->prefix}stm_translations t ON s.id = t.string_id AND (%d = 1 OR t.status = 'published')
+            WHERE (%s = '' OR s.context = %s)
             GROUP BY s.id
             ORDER BY s.context ASC, s.string_key ASC
-        ";
-
-        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- $query (built above from %s placeholders in $where[] and their values in $params) is passed through $wpdb->prepare() with $params right here; the sniff can't trace a query built across multiple statements, but no raw value ever reaches the SQL string.
-        $results = $wpdb->get_results($wpdb->prepare($query, $params));
+        ", self::sees_unpublished_translations(), $context, $context));
 
         // Parse translations
         foreach ($results as &$row) {
@@ -423,37 +441,30 @@ class API {
         global $wpdb;
 
         $string_id = intval($request->get_param('string_id'));
-        $lang      = sanitize_text_field($request->get_param('lang') ?? '');
+        $lang      = sanitize_text_field(self::scalar_param($request, 'lang'));
         $per_page  = min(1000, max(1, intval($request->get_param('per_page') ?? 500)));
         $page      = max(1, intval($request->get_param('page') ?? 1));
         $offset    = ($page - 1) * $per_page;
 
-        $where  = ['1=1'];
-        $params = [];
-        if ($string_id) {
-            $where[]  = 't.string_id = %d';
-            $params[] = $string_id;
-        }
-        if ($lang) {
-            $where[]  = 't.language_code = %s';
-            $params[] = $lang;
-        }
-
-        $where_sql = implode(' AND ', $where);
-
+        // Optional filters are part of the statement: "%d = 0" / "%s = ''" switch a filter off.
         $results = $wpdb->get_results($wpdb->prepare(
             "SELECT t.*, s.string_key, s.context
             FROM {$wpdb->prefix}stm_translations t
             INNER JOIN {$wpdb->prefix}stm_strings s ON t.string_id = s.id
-            WHERE {$where_sql}
+            WHERE (%d = 0 OR t.string_id = %d)
+              AND (%s = '' OR t.language_code = %s)
+              AND (%d = 1 OR t.status = 'published')
             ORDER BY s.context ASC, s.string_key ASC, t.language_code ASC
             LIMIT %d OFFSET %d",
-            array_merge($params, [$per_page, $offset])
+            $string_id, $string_id, $lang, $lang, self::sees_unpublished_translations(), $per_page, $offset
         ));
 
         $total = $wpdb->get_var($wpdb->prepare(
-            "SELECT COUNT(*) FROM {$wpdb->prefix}stm_translations t WHERE {$where_sql}",
-            $params
+            "SELECT COUNT(*) FROM {$wpdb->prefix}stm_translations t
+            WHERE (%d = 0 OR t.string_id = %d)
+              AND (%s = '' OR t.language_code = %s)
+              AND (%d = 1 OR t.status = 'published')",
+            $string_id, $string_id, $lang, $lang, self::sees_unpublished_translations()
         ));
 
         $response = rest_ensure_response($results);
@@ -511,6 +522,11 @@ class API {
 
         if (!get_post($post_id)) {
             return new \WP_Error('not_found', 'Post not found', ['status' => 404, 'stm_diag' => 'STM-E-API-GET-POST-TRANSLATIONS-NOT-FOUND']);
+        }
+
+        // Public route: drafts, private and password-protected posts look exactly like a missing post.
+        if (!self::can_read_post_translations(get_post($post_id))) {
+            return new \WP_Error('not_found', 'Post not found', ['status' => 404, 'stm_diag' => 'STM-E-API-GET-POST-TRANSLATIONS-NOT-PUBLIC']);
         }
 
         $rows = $wpdb->get_results($wpdb->prepare(
@@ -772,6 +788,11 @@ class API {
 
         global $wpdb;
 
+        // Public route: slugs of drafts, private and password-protected posts are not returned.
+        if (!self::can_read_post_translations(get_post($post_id))) {
+            return rest_ensure_response([]);
+        }
+
         $rows = $wpdb->get_results($wpdb->prepare(
             "SELECT language_code, translation FROM {$wpdb->prefix}stm_post_translations WHERE post_id = %d AND field_name = 'post_name'",
             $post_id
@@ -943,10 +964,10 @@ class API {
                     SEPARATOR '||'
                 ) as translations
              FROM {$wpdb->prefix}stm_strings s
-             LEFT JOIN {$wpdb->prefix}stm_translations t ON s.id = t.string_id
+             LEFT JOIN {$wpdb->prefix}stm_translations t ON s.id = t.string_id AND (%d = 1 OR t.status = 'published')
              WHERE s.id = %d
              GROUP BY s.id",
-            $id
+            self::sees_unpublished_translations(), $id
         ));
 
         if (!$string) {
@@ -994,30 +1015,17 @@ class API {
     public static function export_json($request) {
         global $wpdb;
 
-        $lang = $request->get_param('lang');
-        $context = $request->get_param('context');
+        $lang = self::scalar_param($request, 'lang');
+        $context = self::scalar_param($request, 'context');
 
-
-        $where  = ['t.status = "published"'];
-        $params = [];
-        if ($lang) {
-            $where[]  = 't.language_code = %s';
-            $params[] = $lang;
-        }
-        if ($context) {
-            $where[]  = 's.context = %s';
-            $params[] = $context;
-        }
-
-        $where_sql = implode(' AND ', $where);
-
-        // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- $where_sql is assembled from %s placeholders in $where[] and their values in $params above; $wpdb->prepare() below resolves every placeholder before the query runs.
         $results = $wpdb->get_results($wpdb->prepare("
             SELECT s.string_key, t.language_code, t.translation
             FROM {$wpdb->prefix}stm_translations t
             INNER JOIN {$wpdb->prefix}stm_strings s ON t.string_id = s.id
-            WHERE {$where_sql}
-        ", $params));
+            WHERE t.status = 'published'
+              AND (%s = '' OR t.language_code = %s)
+              AND (%s = '' OR s.context = %s)
+        ", $lang, $lang, $context, $context));
 
         $export = [];
         foreach ($results as $row) {

@@ -168,25 +168,16 @@ class ImportExport {
         global $wpdb;
 
 
-        $where = ['1=1'];
-        $params = [$lang];
+        $context = $context ? (string) $context : '';
 
-        if ($context) {
-            $where[] = 's.context = %s';
-            $params[] = $context;
-        }
-
-        $where_sql = implode(' AND ', $where);
-
-        // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- $where_sql is assembled from %s placeholders in $where[] and their values in $params above; $wpdb->prepare() below resolves every placeholder before the query runs.
         $results = $wpdb->get_results($wpdb->prepare("
             SELECT s.string_key, s.context, s.description,
                    t.translation, t.status
             FROM {$wpdb->prefix}stm_strings s
             LEFT JOIN {$wpdb->prefix}stm_translations t ON s.id = t.string_id AND t.language_code = %s
-            WHERE {$where_sql}
+            WHERE (%s = '' OR s.context = %s)
             ORDER BY s.context, s.string_key
-        ", $params));
+        ", $lang, $context, $context));
 
         $output = [];
 
