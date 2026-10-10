@@ -140,18 +140,16 @@ class TranslationMemory {
     private static function find_exact_string_match($text, $target_lang) {
         global $wpdb;
 
-        $table_strings = $wpdb->prefix . 'stm_strings';
-        $table_translations = $wpdb->prefix . 'stm_translations';
 
         // Check if the source text matches any existing string key or translation in default language
         return $wpdb->get_var($wpdb->prepare(
             "SELECT t.translation
-             FROM {$table_translations} t
-             INNER JOIN {$table_strings} s ON t.string_id = s.id
+             FROM {$wpdb->prefix}stm_translations t
+             INNER JOIN {$wpdb->prefix}stm_strings s ON t.string_id = s.id
              WHERE t.language_code = %s
                AND t.status = 'published'
                AND (s.string_key = %s OR EXISTS (
-                   SELECT 1 FROM {$table_translations} src
+                   SELECT 1 FROM {$wpdb->prefix}stm_translations src
                    WHERE src.string_id = s.id AND src.translation = %s AND src.language_code != %s
                ))
              LIMIT 1",
@@ -164,7 +162,6 @@ class TranslationMemory {
      */
     private static function find_exact_post_match($text, $target_lang, $field_type, $post_id = 0) {
         global $wpdb;
-        $table = $wpdb->prefix . 'stm_post_translations';
 
         // Find posts where the original field value matches, and a translation exists
         $default_lang = Database::get_default_language();
@@ -179,7 +176,7 @@ class TranslationMemory {
         // DIFFERENT post — an identical-looking title/excerpt/content string
         // is still the wrong post's translation once saved under the wrong
         // post ID (869enmrpz). No-op when $post_id is unknown (0).
-        $post_scope = $post_id > 0 ? $wpdb->prepare(' AND pt.post_id = %d', $post_id) : '';
+        $scope_id = $post_id > 0 ? (int) $post_id : 0;
 
         $column = self::field_name_to_column($field_type);
 
@@ -194,16 +191,21 @@ class TranslationMemory {
             // own live post_content (869enmhwe).
             return $wpdb->get_var($wpdb->prepare(
                 "SELECT pt.translation
-                 FROM {$table} pt
+                 FROM {$wpdb->prefix}stm_post_translations pt
                  INNER JOIN {$wpdb->posts} p ON pt.post_id = p.ID
                  WHERE pt.language_code = %s
                    AND pt.field_name = %s
-                   AND p.{$column} = %s
+                   AND CASE %s
+                         WHEN 'post_title' THEN p.post_title
+                         WHEN 'post_excerpt' THEN p.post_excerpt
+                         WHEN 'post_content' THEN p.post_content
+                         ELSE p.post_name
+                       END = %s
                    AND pt.translation != ''
-                   {$post_scope}
+                   AND (%d = 0 OR pt.post_id = %d)
                  ORDER BY pt.updated_at DESC
                  LIMIT 1",
-                $target_lang, $field_type, $text
+                $target_lang, $field_type, $column, $text, $scope_id, $scope_id
             ));
         }
 
@@ -215,15 +217,15 @@ class TranslationMemory {
         // is known).
         return $wpdb->get_var($wpdb->prepare(
             "SELECT pt.translation
-             FROM {$table} pt
+             FROM {$wpdb->prefix}stm_post_translations pt
              INNER JOIN {$wpdb->posts} p ON pt.post_id = p.ID
              WHERE pt.language_code = %s
                AND (p.post_title = %s OR p.post_content = %s)
                AND pt.translation != ''
-               {$post_scope}
+               AND (%d = 0 OR pt.post_id = %d)
              ORDER BY pt.updated_at DESC
              LIMIT 1",
-            $target_lang, $text, $text
+            $target_lang, $text, $text, $scope_id, $scope_id
         ));
     }
 
@@ -251,10 +253,9 @@ class TranslationMemory {
      */
     private static function find_fuzzy_matches($text, $target_lang, $field_type, $post_id = 0) {
         global $wpdb;
-        $table = $wpdb->prefix . 'stm_post_translations';
 
         // Get recent translations to compare against
-        $where_field = $field_type ? $wpdb->prepare(' AND pt.field_name = %s', $field_type) : '';
+        $field_filter = $field_type ? (string) $field_type : '';
 
         // Cross-post restriction (869enmrpz): a near-duplicate-template post
         // (same headings/paragraphs, different specifics) can score well
@@ -267,19 +268,19 @@ class TranslationMemory {
         // similar the two posts' text is. No-op when $post_id is unknown (0),
         // e.g. the /memory/suggest admin browse tool, where a human reviews
         // cross-post suggestions before applying them.
-        $post_scope = $post_id > 0 ? $wpdb->prepare(' AND pt.post_id = %d', $post_id) : '';
+        $scope_id = $post_id > 0 ? (int) $post_id : 0;
 
         $existing = $wpdb->get_results($wpdb->prepare(
             "SELECT DISTINCT pt.translation, pt.field_name, p.post_title, p.post_excerpt, p.post_content, p.post_name
-             FROM {$table} pt
+             FROM {$wpdb->prefix}stm_post_translations pt
              INNER JOIN {$wpdb->posts} p ON pt.post_id = p.ID
              WHERE pt.language_code = %s
                AND pt.translation != ''
-               {$where_field}
-               {$post_scope}
+               AND (%s = '' OR pt.field_name = %s)
+               AND (%d = 0 OR pt.post_id = %d)
              ORDER BY pt.updated_at DESC
              LIMIT 200",
-            $target_lang
+            $target_lang, $field_filter, $field_filter, $scope_id, $scope_id
         ));
 
         $matches = [];
@@ -374,24 +375,22 @@ class TranslationMemory {
     public static function get_stats() {
         global $wpdb;
 
-        $table_translations = $wpdb->prefix . 'stm_translations';
-        $table_post_translations = $wpdb->prefix . 'stm_post_translations';
 
-        $string_count = $wpdb->get_var("SELECT COUNT(*) FROM {$table_translations} WHERE status = 'published'");
-        $post_count = $wpdb->get_var("SELECT COUNT(*) FROM {$table_post_translations}");
-        $unique_strings = $wpdb->get_var("SELECT COUNT(DISTINCT translation) FROM {$table_translations} WHERE status = 'published'");
-        $unique_posts = $wpdb->get_var("SELECT COUNT(DISTINCT CONCAT(post_id, '-', field_name)) FROM {$table_post_translations}");
+        $string_count = $wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->prefix}stm_translations WHERE status = 'published'");
+        $post_count = $wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->prefix}stm_post_translations");
+        $unique_strings = $wpdb->get_var("SELECT COUNT(DISTINCT translation) FROM {$wpdb->prefix}stm_translations WHERE status = 'published'");
+        $unique_posts = $wpdb->get_var("SELECT COUNT(DISTINCT CONCAT(post_id, '-', field_name)) FROM {$wpdb->prefix}stm_post_translations");
 
         $languages = Database::get_languages();
         $per_lang = [];
         foreach ($languages as $lang) {
             $per_lang[$lang->code] = [
                 'strings' => (int) $wpdb->get_var($wpdb->prepare(
-                    "SELECT COUNT(*) FROM {$table_translations} WHERE language_code = %s AND status = 'published'",
+                    "SELECT COUNT(*) FROM {$wpdb->prefix}stm_translations WHERE language_code = %s AND status = 'published'",
                     $lang->code
                 )),
                 'posts' => (int) $wpdb->get_var($wpdb->prepare(
-                    "SELECT COUNT(DISTINCT post_id) FROM {$table_post_translations} WHERE language_code = %s",
+                    "SELECT COUNT(DISTINCT post_id) FROM {$wpdb->prefix}stm_post_translations WHERE language_code = %s",
                     $lang->code
                 )),
             ];

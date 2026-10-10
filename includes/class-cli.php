@@ -221,11 +221,10 @@ class CLI {
         \WP_CLI::line("Total posts: $total_posts\n");
 
         // Check translations per language
-        $table = $wpdb->prefix . 'stm_post_translations';
 
         foreach ($languages as $lang) {
             $translated = $wpdb->get_var($wpdb->prepare(
-                "SELECT COUNT(DISTINCT post_id) FROM {$table} WHERE language_code = %s",
+                "SELECT COUNT(DISTINCT post_id) FROM {$wpdb->prefix}stm_post_translations WHERE language_code = %s",
                 $lang->code
             ));
 

@@ -335,7 +335,7 @@ class StringScanner {
             }
 
             $string_id = $wpdb->get_var($wpdb->prepare(
-                "SELECT id FROM {$table_strings} WHERE string_key = %s AND context = %s",
+                "SELECT id FROM {$wpdb->prefix}stm_strings WHERE string_key = %s AND context = %s",
                 $key,
                 $context
             ));
@@ -359,7 +359,7 @@ class StringScanner {
             }
 
             $existing_translation = $wpdb->get_var($wpdb->prepare(
-                "SELECT id FROM {$table_translations} WHERE string_id = %d AND language_code = %s",
+                "SELECT id FROM {$wpdb->prefix}stm_translations WHERE string_id = %d AND language_code = %s",
                 $string_id,
                 $default_code
             ));

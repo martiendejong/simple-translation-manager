@@ -136,13 +136,12 @@ class FieldValues {
         $fields = self::get_registered_fields();
         $post_types = $fields[$field_name]['post_types'] ?? [];
 
-        $type_sql = '';
-        $params = [$field_name];
-        if (!empty($post_types)) {
-            $placeholders = implode(',', array_fill(0, count($post_types), '%s'));
-            $type_sql = "AND p.post_type IN ({$placeholders})";
-            $params = array_merge($params, $post_types);
-        }
+        // Restrict to the field's post types when it has any: one %s per post type. With no
+        // post types the list holds a single empty string and "%d = 0" switches the restriction off.
+        $restrict_types = empty($post_types) ? 0 : 1;
+        $type_list      = empty($post_types) ? [''] : array_values($post_types);
+        $placeholders   = implode(',', array_fill(0, count($type_list), '%s'));
+        $params         = array_merge([$field_name, $restrict_types], $type_list);
 
         $rows = $wpdb->get_results($wpdb->prepare(
             "SELECT pm.meta_value AS value, COUNT(DISTINCT pm.post_id) AS post_count
@@ -151,7 +150,7 @@ class FieldValues {
              WHERE pm.meta_key = %s
              AND pm.meta_value != ''
              AND p.post_status NOT IN ('trash', 'auto-draft', 'inherit')
-             {$type_sql}
+             AND (%d = 0 OR p.post_type IN ({$placeholders}))
              GROUP BY pm.meta_value
              ORDER BY pm.meta_value ASC",
             $params
@@ -169,9 +168,8 @@ class FieldValues {
         }
 
         // Values that only exist in the translations table (no longer in use)
-        $table = $wpdb->prefix . 'stm_field_value_translations';
         $orphans = $wpdb->get_results($wpdb->prepare(
-            "SELECT DISTINCT value_hash, source_value FROM {$table} WHERE field_name = %s",
+            "SELECT DISTINCT value_hash, source_value FROM {$wpdb->prefix}stm_field_value_translations WHERE field_name = %s",
             $field_name
         ));
         foreach ($orphans as $row) {
@@ -195,10 +193,9 @@ class FieldValues {
      */
     public static function get_translations_for_field($field_name) {
         global $wpdb;
-        $table = $wpdb->prefix . 'stm_field_value_translations';
 
         $rows = $wpdb->get_results($wpdb->prepare(
-            "SELECT value_hash, language_code, translation FROM {$table} WHERE field_name = %s",
+            "SELECT value_hash, language_code, translation FROM {$wpdb->prefix}stm_field_value_translations WHERE field_name = %s",
             sanitize_key($field_name)
         ));
 
@@ -233,7 +230,7 @@ class FieldValues {
         }
 
         $existing = $wpdb->get_var($wpdb->prepare(
-            "SELECT id FROM {$table} WHERE field_name = %s AND value_hash = %s AND language_code = %s",
+            "SELECT id FROM {$wpdb->prefix}stm_field_value_translations WHERE field_name = %s AND value_hash = %s AND language_code = %s",
             $field_name,
             $hash,
             $language_code

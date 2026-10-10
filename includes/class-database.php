@@ -49,8 +49,7 @@ class Database {
             $charset_collate = $wpdb->get_charset_collate();
 
             // Table 1: Languages
-            $table_languages = $wpdb->prefix . 'stm_languages';
-            $sql_languages = "CREATE TABLE IF NOT EXISTS {$table_languages} (
+            $sql_languages = "CREATE TABLE IF NOT EXISTS {$wpdb->prefix}stm_languages (
                 id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
                 code varchar(10) NOT NULL,
                 name varchar(100) NOT NULL,
@@ -65,8 +64,7 @@ class Database {
             ) {$charset_collate};";
 
             // Table 2: Translatable Strings (template strings)
-            $table_strings = $wpdb->prefix . 'stm_strings';
-            $sql_strings = "CREATE TABLE IF NOT EXISTS {$table_strings} (
+            $sql_strings = "CREATE TABLE IF NOT EXISTS {$wpdb->prefix}stm_strings (
                 id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
                 string_key varchar(255) NOT NULL,
                 context varchar(100) DEFAULT 'general',
@@ -79,8 +77,7 @@ class Database {
             ) {$charset_collate};";
 
             // Table 3: Translations
-            $table_translations = $wpdb->prefix . 'stm_translations';
-            $sql_translations = "CREATE TABLE IF NOT EXISTS {$table_translations} (
+            $sql_translations = "CREATE TABLE IF NOT EXISTS {$wpdb->prefix}stm_translations (
                 id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
                 string_id bigint(20) unsigned NOT NULL,
                 language_code varchar(10) NOT NULL,
@@ -99,8 +96,7 @@ class Database {
             ) {$charset_collate};";
 
             // Table 4: Post/Page Translations
-            $table_post_translations = $wpdb->prefix . 'stm_post_translations';
-            $sql_post_translations = "CREATE TABLE IF NOT EXISTS {$table_post_translations} (
+            $sql_post_translations = "CREATE TABLE IF NOT EXISTS {$wpdb->prefix}stm_post_translations (
                 id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
                 post_id bigint(20) unsigned NOT NULL,
                 field_name varchar(100) NOT NULL,
@@ -115,8 +111,7 @@ class Database {
             ) {$charset_collate};";
 
             // Table 5: Post Associations (links translated versions)
-            $table_post_associations = $wpdb->prefix . 'stm_post_associations';
-            $sql_post_associations = "CREATE TABLE IF NOT EXISTS {$table_post_associations} (
+            $sql_post_associations = "CREATE TABLE IF NOT EXISTS {$wpdb->prefix}stm_post_associations (
                 id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
                 post_id bigint(20) unsigned NOT NULL,
                 language_code varchar(10) NOT NULL,
@@ -131,8 +126,7 @@ class Database {
             ) {$charset_collate};";
 
             // Table 6: Taxonomy Term Translations
-            $table_term_translations = $wpdb->prefix . 'stm_term_translations';
-            $sql_term_translations = "CREATE TABLE IF NOT EXISTS {$table_term_translations} (
+            $sql_term_translations = "CREATE TABLE IF NOT EXISTS {$wpdb->prefix}stm_term_translations (
                 id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
                 term_id bigint(20) unsigned NOT NULL,
                 language_code varchar(10) NOT NULL,
@@ -149,8 +143,7 @@ class Database {
 
             // Table 7: Field Value Translations (standardized values shared across posts)
             // value_hash = md5(source_value) keeps the unique key within index limits
-            $table_field_values = $wpdb->prefix . 'stm_field_value_translations';
-            $sql_field_values = "CREATE TABLE IF NOT EXISTS {$table_field_values} (
+            $sql_field_values = "CREATE TABLE IF NOT EXISTS {$wpdb->prefix}stm_field_value_translations (
                 id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
                 field_name varchar(100) NOT NULL,
                 value_hash char(32) NOT NULL,
@@ -177,6 +170,7 @@ class Database {
             // [STM-DN-02] Log, do not rethrow: this also runs from plugins_loaded
             // (via maybe_upgrade()), where an uncaught exception would take the
             // whole site down instead of only degrading this plugin.
+            // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- logs a failed database operation (not debug output); the message carries a stable [STM-E-...] diagnostic code so a site owner can report it
             error_log('[STM] [STM-E-DB-CREATE-TABLES-SCHEMA] Error creating tables: ' . $e->getMessage());
         }
     }
@@ -229,18 +223,20 @@ class Database {
 
             foreach ($languages as $lang) {
                 $exists = $wpdb->get_var($wpdb->prepare(
-                    "SELECT id FROM {$table} WHERE code = %s",
+                    "SELECT id FROM {$wpdb->prefix}stm_languages WHERE code = %s",
                     $lang['code']
                 ));
 
                 if (!$exists) {
                     $result = $wpdb->insert($table, $lang);
                     if ($result === false) {
+                        // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- logs a failed database operation (not debug output); the message carries a stable [STM-E-...] diagnostic code so a site owner can report it
                         error_log('[STM] [STM-E-DB-SEED-DEFAULT-LANGUAGES-INSERT] Failed to insert language: ' . $lang['code']);
                     }
                 }
             }
         } catch (\Exception $e) {
+            // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- logs a failed database operation (not debug output); the message carries a stable [STM-E-...] diagnostic code so a site owner can report it
             error_log('[STM] [STM-E-DB-SEED-DEFAULT-LANGUAGES-EXCEPTION] Error seeding languages: ' . $e->getMessage());
         }
     }
@@ -255,14 +251,13 @@ class Database {
      */
     public static function get_languages() {
         global $wpdb;
-        $table = $wpdb->prefix . 'stm_languages';
 
         $cache_key = self::CACHE_ACTIVE_LANGUAGES;
         $languages = wp_cache_get($cache_key);
 
         if (false === $languages) {
             $languages = $wpdb->get_results(
-                "SELECT * FROM {$table} WHERE is_active = 1 ORDER BY order_index ASC"
+                "SELECT * FROM {$wpdb->prefix}stm_languages WHERE is_active = 1 ORDER BY order_index ASC"
             );
             wp_cache_set($cache_key, $languages, '', 3600);
         }
@@ -279,10 +274,9 @@ class Database {
      */
     public static function get_all_languages() {
         global $wpdb;
-        $table = $wpdb->prefix . 'stm_languages';
 
         return $wpdb->get_results(
-            "SELECT * FROM {$table} ORDER BY order_index ASC"
+            "SELECT * FROM {$wpdb->prefix}stm_languages ORDER BY order_index ASC"
         );
     }
 
@@ -291,14 +285,13 @@ class Database {
      */
     public static function get_default_language() {
         global $wpdb;
-        $table = $wpdb->prefix . 'stm_languages';
 
         $cache_key = self::CACHE_DEFAULT_LANGUAGE;
         $language = wp_cache_get($cache_key);
 
         if (false === $language) {
             $language = $wpdb->get_row(
-                "SELECT * FROM {$table} WHERE is_default = 1 LIMIT 1"
+                "SELECT * FROM {$wpdb->prefix}stm_languages WHERE is_default = 1 LIMIT 1"
             );
             wp_cache_set($cache_key, $language, '', 3600);
         }

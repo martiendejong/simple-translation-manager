@@ -187,6 +187,8 @@ class LanguageSwitcher extends \WP_Widget {
      * }
      */
     public static function render($args = []) {
+        wp_enqueue_style('stm-frontend');
+
         $style      = $args['style']      ?? Settings::get_switcher_style();
         $show_flags = $args['show_flags'] ?? Settings::switcher_show_flags();
         $show_names = $args['show_names'] ?? Settings::switcher_show_names();
@@ -299,7 +301,7 @@ class LanguageSwitcher extends \WP_Widget {
 
     private static function get_current_url() {
         $protocol = is_ssl() ? 'https://' : 'http://';
-        $uri      = wp_unslash( $_SERVER['REQUEST_URI'] ?? '' );
+        $uri      = esc_url_raw( wp_unslash( $_SERVER['REQUEST_URI'] ?? '' ) );
 
         // Strip ?lang= parameter
         $uri = preg_replace('/([?&])lang=[^&]*(&|$)/', '$1', $uri);
@@ -310,7 +312,7 @@ class LanguageSwitcher extends \WP_Widget {
             $uri = preg_replace('#^/[a-z]{2,3}(/|$)#', '/', $uri);
         }
 
-        return $protocol . wp_unslash( $_SERVER['HTTP_HOST'] ?? '' ) . $uri;
+        return $protocol . sanitize_text_field( wp_unslash( $_SERVER['HTTP_HOST'] ?? '' ) ) . $uri;
     }
 
     private static function get_language_url($lang_code, $base_url) {
@@ -339,8 +341,12 @@ class LanguageSwitcher extends \WP_Widget {
     // Assets
     // -------------------------------------------------------------------------
 
+    /**
+     * Only registers the switcher stylesheet. render() enqueues it, so pages that do not show a
+     * language switcher do not load it.
+     */
     public static function enqueue_styles() {
-        wp_enqueue_style(
+        wp_register_style(
             'stm-frontend',
             STM_PLUGIN_URL . 'assets/frontend.css',
             [],

@@ -638,17 +638,15 @@ class AdminFormHandlersTest extends TestCase {
     // control; this adds both.
     // =========================================================================
 
-    public function test_build_status_having_missing_filters_below_total_languages() {
-        $this->assertSame('HAVING translated_count < 3', Admin::build_status_having('missing', 3));
+    public function test_normalise_status_filter_keeps_the_two_known_filters() {
+        $this->assertSame('missing', Admin::normalise_status_filter('missing'));
+        $this->assertSame('complete', Admin::normalise_status_filter('complete'));
     }
 
-    public function test_build_status_having_complete_filters_at_or_above_total_languages() {
-        $this->assertSame('HAVING translated_count >= 3', Admin::build_status_having('complete', 3));
-    }
-
-    public function test_build_status_having_returns_empty_for_all_and_unknown_values() {
-        $this->assertSame('', Admin::build_status_having('', 3));
-        $this->assertSame('', Admin::build_status_having('bogus', 3));
+    public function test_normalise_status_filter_returns_empty_for_all_and_unknown_values() {
+        $this->assertSame('', Admin::normalise_status_filter(''));
+        $this->assertSame('', Admin::normalise_status_filter('bogus'));
+        $this->assertSame('', Admin::normalise_status_filter("missing' OR 1=1 --"));
     }
 
     public function test_page_translations_status_dropdown_marks_missing_selected() {

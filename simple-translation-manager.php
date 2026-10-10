@@ -6,9 +6,10 @@
  * Version: 1.3.2
  * Author: Martien de Jong
  * Author URI: https://martiendejong.nl
- * License: GPL v2 or later
+ * License: GPLv2 or later
+ * License URI: https://www.gnu.org/licenses/gpl-2.0.html
  * Text Domain: simple-translation-manager
- * Requires at least: 5.0
+ * Requires at least: 6.0
  * Requires PHP: 7.4
  */
 
@@ -231,7 +232,7 @@ function stm_prevent_lang_canonical_redirect( $redirect_url, $requested_url ) {
         return $redirect_url;
     }
 
-    $path = parse_url( $requested_url, PHP_URL_PATH );
+    $path = wp_parse_url( $requested_url, PHP_URL_PATH );
     if ( ! $path ) {
         return $redirect_url;
     }
