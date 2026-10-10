@@ -1276,6 +1276,7 @@ class API {
                 $success++;
             } else {
                 $errors[] = "Failed to save $field: " . $wpdb->last_error;
+                // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- logs a failed database operation (not debug output); the message carries a stable [STM-E-...] diagnostic code so a site owner can report it
                 error_log("[STM] [STM-E-API-SAVE-POST-TRANSLATIONS-DB-WRITE] Translation save error for post $post_id field $field: " . $wpdb->last_error);
             }
         }

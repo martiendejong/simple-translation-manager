@@ -199,11 +199,11 @@ class Admin {
 
         // Get filter values. Read-only list filtering (no state change), so a
         // nonce is not required here â€” see WordPress.Security.NonceVerification docs.
-        // phpcs:disable WordPress.Security.NonceVerification.Recommended
-        $lang_filter = wp_unslash($_GET['lang'] ?? '');
-        $context_filter = wp_unslash($_GET['context'] ?? '');
-        $status_filter = wp_unslash($_GET['status'] ?? '');
-        $search = wp_unslash($_GET['search'] ?? '');
+        // phpcs:disable WordPress.Security.NonceVerification.Recommended -- read-only list filters on an admin screen, no state change
+        $lang_filter = sanitize_text_field(wp_unslash($_GET['lang'] ?? ''));
+        $context_filter = sanitize_text_field(wp_unslash($_GET['context'] ?? ''));
+        $status_filter = sanitize_text_field(wp_unslash($_GET['status'] ?? ''));
+        $search = sanitize_text_field(wp_unslash($_GET['search'] ?? ''));
 
         // Pagination
         $per_page = 50;
@@ -371,7 +371,7 @@ class Admin {
 
         // Read-only view selector on an admin listing page — no state change,
         // so no nonce (same policy as the filter params on page_translations).
-        // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- read-only view selector on an admin listing page, no state change
         $field = sanitize_key($_GET['field'] ?? '');
 
         if ($field && isset($registered[$field])) {
@@ -400,16 +400,16 @@ class Admin {
 
         $field_name = sanitize_key($_POST['field_name'] ?? '');
         if (!$field_name) {
-            wp_redirect(add_query_arg('stm_error', 'invalid_field', wp_get_referer()));
+            wp_safe_redirect(add_query_arg('stm_error', 'invalid_field', wp_get_referer()));
             exit;
         }
 
         FieldValues::save_field($field_name, [
-            'label'      => sanitize_text_field($_POST['field_label'] ?? $field_name),
+            'label'      => sanitize_text_field(wp_unslash($_POST['field_label'] ?? $field_name)),
             'post_types' => array_map('sanitize_key', (array) ($_POST['field_post_types'] ?? [])),
         ]);
 
-        wp_redirect(add_query_arg('stm_added', '1', wp_get_referer()));
+        wp_safe_redirect(add_query_arg('stm_added', '1', wp_get_referer()));
         exit;
     }
 
@@ -425,7 +425,7 @@ class Admin {
         $field_name = sanitize_key($_POST['field_name'] ?? '');
         FieldValues::remove_field($field_name);
 
-        wp_redirect(add_query_arg('stm_deleted', '1', wp_get_referer()));
+        wp_safe_redirect(add_query_arg('stm_deleted', '1', wp_get_referer()));
         exit;
     }
 
@@ -444,8 +444,9 @@ class Admin {
 
         // source[hash] carries the exact original value; do not sanitize it
         // beyond unslashing or the md5 key would no longer match the meta value
+        // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- must stay byte-exact: it is only md5()-compared with the submitted hash below and stored through $wpdb, never printed
         $sources = wp_unslash($_POST['source'] ?? []);
-        $translations = wp_unslash($_POST['translations'] ?? []);
+        $translations = map_deep(wp_unslash($_POST['translations'] ?? []), 'sanitize_text_field');
         $saved = 0;
 
         foreach ((array) $translations as $hash => $per_language) {
@@ -466,7 +467,7 @@ class Admin {
             }
         }
 
-        wp_redirect(add_query_arg('stm_saved', $saved, wp_get_referer()));
+        wp_safe_redirect(add_query_arg('stm_saved', $saved, wp_get_referer()));
         exit;
     }
 
@@ -483,7 +484,7 @@ class Admin {
             wp_die('Unknown field', 400);
         }
 
-        $target = sanitize_text_field($_POST['target_language'] ?? '');
+        $target = sanitize_text_field(wp_unslash($_POST['target_language'] ?? ''));
         $default_language = Database::get_default_language();
         $default_code = $default_language ? $default_language->code : 'en';
 
@@ -501,6 +502,7 @@ class Admin {
         $existing = FieldValues::get_translations_for_field($field);
 
         if (function_exists('set_time_limit')) {
+            // phpcs:ignore Squiz.PHP.DiscouragedFunctions.Discouraged -- one external API call per missing value can add up to minutes on a large field; raised only for this admin request
             set_time_limit(300);
         }
 
@@ -533,7 +535,7 @@ class Admin {
         if ($failed > 0 && $last_error) {
             $args['stm_error'] = urlencode($last_error);
         }
-        wp_redirect(add_query_arg($args, wp_get_referer()));
+        wp_safe_redirect(add_query_arg($args, wp_get_referer()));
         exit;
     }
 
@@ -669,9 +671,10 @@ class Admin {
         global $wpdb;
 
         // Validate and sanitize inputs
-        $string_id = intval($_POST['string_id']);
-        $language_code = sanitize_text_field(wp_unslash($_POST['language_code']));
-        $translation = Security::sanitize_translation(wp_unslash($_POST['translation']));
+        $string_id = intval($_POST['string_id'] ?? 0);
+        $language_code = sanitize_text_field(wp_unslash($_POST['language_code'] ?? ''));
+        // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Security::sanitize_translation() is the sanitiser (wp_kses with the allowed-HTML list)
+        $translation = Security::sanitize_translation(wp_unslash($_POST['translation'] ?? ''));
 
         if (!Security::validate_language_code($language_code)) {
             wp_die('Invalid language code', 400);
@@ -735,7 +738,9 @@ class Admin {
         global $wpdb;
 
         // Validate and sanitize inputs
-        $string_key = Security::sanitize_translation_key(wp_unslash($_POST['string_key']));
+        // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Security::sanitize_translation_key() is the sanitiser (lowercase key characters only)
+        $string_key = Security::sanitize_translation_key(wp_unslash($_POST['string_key'] ?? ''));
+        // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Security::sanitize_context() is the sanitiser (lowercase context characters only)
         $context = Security::sanitize_context(wp_unslash($_POST['context'] ?? 'general'));
         $description = sanitize_textarea_field(wp_unslash($_POST['description'] ?? ''));
 
@@ -808,6 +813,7 @@ class Admin {
             exit;
         }
 
+        // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- the upload array is not printed or stored: the name goes through sanitize_file_name() and only the .json extension is used, the content is json_decode()d and every value is sanitised in API::process_import()
         $file = $_FILES['stm_import_file'];
 
         // Only allow JSON files
@@ -1004,7 +1010,7 @@ class Admin {
         check_ajax_referer('stm_admin_nonce', 'nonce');
 
         $page  = sanitize_key($_POST['page'] ?? '');
-        $prefs = $_POST['prefs'] ?? [];
+        $prefs = map_deep(wp_unslash($_POST['prefs'] ?? []), 'sanitize_text_field');
 
         if (!$page || !is_array($prefs)) {
             wp_send_json_error('Invalid request');
@@ -1061,9 +1067,9 @@ class Admin {
         $deepl_key  = sanitize_text_field(wp_unslash($_POST['deepl_key'] ?? ''));
 
         AutoTranslate::save_settings($provider, $openai_key ?: null, $deepl_key ?: null, [
-            'openai_model'           => sanitize_text_field($_POST['openai_model'] ?? ''),
-            'openai_temperature'     => (float) ($_POST['openai_temperature'] ?? 0.3),
-            'openai_prompt_template' => sanitize_textarea_field($_POST['openai_prompt_template'] ?? ''),
+            'openai_model'           => sanitize_text_field(wp_unslash($_POST['openai_model'] ?? '')),
+            'openai_temperature'     => floatval(wp_unslash($_POST['openai_temperature'] ?? 0.3)),
+            'openai_prompt_template' => sanitize_textarea_field(wp_unslash($_POST['openai_prompt_template'] ?? '')),
         ]);
 
         wp_safe_redirect(add_query_arg('stm_saved', '1', wp_get_referer()));

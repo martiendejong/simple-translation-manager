@@ -15,10 +15,13 @@
  */
 if (!defined('ABSPATH')) exit;
 
+// Result flags read back from a redirect the form handlers issue after they verified their own nonce; display only.
+// phpcs:disable WordPress.Security.NonceVerification.Recommended -- display-only flags, no state change
 $saved      = isset($_GET['stm_saved']) ? (int) $_GET['stm_saved'] : null;
 $autofilled = isset($_GET['stm_autofilled']) ? (int) $_GET['stm_autofilled'] : null;
 $autofail   = isset($_GET['stm_autofill_failed']) ? (int) $_GET['stm_autofill_failed'] : 0;
-$error      = isset($_GET['stm_error']) ? sanitize_text_field(urldecode($_GET['stm_error'])) : '';
+$error      = isset($_GET['stm_error']) ? sanitize_text_field(urldecode(wp_unslash($_GET['stm_error']))) : '';
+// phpcs:enable WordPress.Security.NonceVerification.Recommended
 
 $non_default_languages = array_values(array_filter($languages, function($language) use ($default_code) {
     return $language->code !== $default_code;

@@ -177,6 +177,7 @@ class Database {
             // [STM-DN-02] Log, do not rethrow: this also runs from plugins_loaded
             // (via maybe_upgrade()), where an uncaught exception would take the
             // whole site down instead of only degrading this plugin.
+            // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- logs a failed database operation (not debug output); the message carries a stable [STM-E-...] diagnostic code so a site owner can report it
             error_log('[STM] [STM-E-DB-CREATE-TABLES-SCHEMA] Error creating tables: ' . $e->getMessage());
         }
     }
@@ -236,11 +237,13 @@ class Database {
                 if (!$exists) {
                     $result = $wpdb->insert($table, $lang);
                     if ($result === false) {
+                        // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- logs a failed database operation (not debug output); the message carries a stable [STM-E-...] diagnostic code so a site owner can report it
                         error_log('[STM] [STM-E-DB-SEED-DEFAULT-LANGUAGES-INSERT] Failed to insert language: ' . $lang['code']);
                     }
                 }
             }
         } catch (\Exception $e) {
+            // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- logs a failed database operation (not debug output); the message carries a stable [STM-E-...] diagnostic code so a site owner can report it
             error_log('[STM] [STM-E-DB-SEED-DEFAULT-LANGUAGES-EXCEPTION] Error seeding languages: ' . $e->getMessage());
         }
     }

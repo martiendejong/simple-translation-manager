@@ -324,6 +324,7 @@ class ElementorIntegration {
     }
 
     public static function current_editor_post_id(): int {
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- read-only: which post the Elementor editor has open; an (int) cast, nothing is saved from it
         return isset( $_GET['post'] ) ? (int) $_GET['post'] : 0;
     }
 

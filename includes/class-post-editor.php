@@ -140,6 +140,7 @@ class PostEditor {
             true
         );
 
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- read-only: which post the editor screen has open; an (int) cast, nothing is saved from it
         $post_id = isset($_GET['post']) ? (int) $_GET['post'] : 0;
         $current_lang = $post_id ? self::get_post_language($post_id) : Settings::get_default_language();
 
@@ -213,6 +214,7 @@ class PostEditor {
             return;
         }
 
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- read-only: which post the editor screen has open; an (int) cast, nothing is saved from it
         $post_id = isset($_GET['post']) ? (int) $_GET['post'] : 0;
         $current_lang = $post_id ? self::get_post_language($post_id) : Settings::get_default_language();
         $languages = Database::get_all_languages();
@@ -276,7 +278,7 @@ class PostEditor {
      */
     public static function save_translations($post_id, $post) {
         // Security checks
-        if (!isset($_POST['stm_translations_nonce']) || !wp_verify_nonce(wp_unslash($_POST['stm_translations_nonce']), 'stm_save_translations')) {
+        if (!isset($_POST['stm_translations_nonce']) || !wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['stm_translations_nonce'])), 'stm_save_translations')) {
             return;
         }
 
@@ -299,10 +301,12 @@ class PostEditor {
         self::set_post_language($post_id, $post_language, $translation_group);
 
         // Save translations
+        // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- is_array() type test only; the values are sanitised below
         if (isset($_POST['stm_translations']) && is_array($_POST['stm_translations'])) {
             global $wpdb;
             $table = $wpdb->prefix . 'stm_post_translations';
 
+            // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- every field is sanitised by its type in the loop below (wp_kses_post for post_content, sanitize_title for post_name, sanitize_text_field otherwise)
             $translations = wp_unslash($_POST['stm_translations']);
 
             foreach ($translations as $lang_code => $fields) {

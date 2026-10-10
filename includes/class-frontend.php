@@ -104,7 +104,9 @@ class Frontend {
         }
 
         // Priority 2: explicit GET param (?lang=fr)
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- public language link for visitors (cannot carry a nonce); the value must pass validate_language_code() and only picks which stored translation to show
         if ( isset( $_GET['lang'] ) ) {
+            // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- same public language link as the line above
             $lang = sanitize_text_field( wp_unslash( $_GET['lang'] ) );
             if ( Security::validate_language_code( $lang ) ) {
                 self::remember_language_choice( $lang );

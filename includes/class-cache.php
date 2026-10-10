@@ -112,6 +112,7 @@ class Cache {
 
         // Log database errors (not empty results)
         if ($wpdb->last_error) {
+            // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- logs a failed database operation (not debug output); the message carries a stable [STM-E-...] diagnostic code so a site owner can report it
             error_log("[STM] [STM-E-CACHE-GET-POST-TRANSLATION-DB-READ] DB error getting translation for post {$post_id} field {$field}: " . $wpdb->last_error);
         }
 
@@ -154,6 +155,7 @@ class Cache {
         ));
 
         if ($wpdb->last_error) {
+            // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- logs a failed database operation (not debug output); the message carries a stable [STM-E-...] diagnostic code so a site owner can report it
             error_log("[STM] [STM-E-CACHE-GET-FIELD-VALUE-TRANSLATION-DB-READ] DB error getting field value translation for {$field}: " . $wpdb->last_error);
         }
 

@@ -611,6 +611,7 @@ class ImportExport {
             wp_die('No file uploaded', 400);
         }
 
+        // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- the upload array is not printed or stored: the name goes through sanitize_file_name() to pick the format, the content is parsed by import_xliff()/import_po() which sanitise every value
         $file = $_FILES['import_file'];
         $content = file_get_contents($file['tmp_name']);
         $filename = strtolower(sanitize_file_name($file['name']));
