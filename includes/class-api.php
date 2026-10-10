@@ -839,6 +839,9 @@ class API {
             $wpdb->insert($table, $data);
         }
 
+        // A cached post_name translation would otherwise keep serving the old slug.
+        Cache::invalidate_post($post_id, 'post_name');
+
         return rest_ensure_response(['success' => true, 'slug' => $slug]);
     }
 

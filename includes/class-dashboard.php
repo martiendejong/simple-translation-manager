@@ -42,7 +42,7 @@ class Dashboard {
         }
 
         // Read-only tab selection (no state change), so a nonce is not required here.
-        $active_tab = sanitize_key(wp_unslash($_GET['tab'] ?? 'overview')); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+        $active_tab = sanitize_key(wp_unslash($_GET['tab'] ?? 'overview')); // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- read-only tab selection, no state change
         $allowed_tabs = ['overview', 'missing', 'recent'];
         if (!in_array($active_tab, $allowed_tabs, true)) {
             $active_tab = 'overview';
@@ -62,7 +62,7 @@ class Dashboard {
             $data['coverage'] = self::get_coverage_stats();
         } elseif ($active_tab === 'missing') {
             // Read-only list filtering (no state change), so a nonce is not required here.
-            // phpcs:disable WordPress.Security.NonceVerification.Recommended
+            // phpcs:disable WordPress.Security.NonceVerification.Recommended -- read-only list filters, no state change
             $filters = [
                 'language'  => sanitize_text_field(wp_unslash($_GET['flang'] ?? '')),
                 'post_type' => sanitize_text_field(wp_unslash($_GET['fptype'] ?? '')),

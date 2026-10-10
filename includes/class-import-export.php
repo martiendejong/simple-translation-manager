@@ -564,7 +564,7 @@ class ImportExport {
         // Generated XLIFF/XML file streamed verbatim as a download (Content-Type is not text/html);
         // esc_html() would corrupt the XML markup. export_xliff() builds the document via DOM/XML APIs,
         // not raw concatenation.
-        // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+        // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- file download, not HTML: escaping would corrupt the XLIFF markup, which export_xliff() builds with the DOM/XML API
         echo $content;
         exit;
     }
@@ -584,7 +584,7 @@ class ImportExport {
         // Generated PO file streamed verbatim as a download (Content-Type is not text/html);
         // esc_html() would corrupt the PO syntax. export_po() already escapes each field via
         // its own escape_po_string().
-        // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+        // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- file download, not HTML: escaping would corrupt the PO syntax, export_po() escapes every field itself with escape_po_string()
         echo $content;
         exit;
     }

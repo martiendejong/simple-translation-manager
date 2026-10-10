@@ -49,14 +49,14 @@ class LanguageSwitcher extends \WP_Widget {
         // before_widget/after_widget are built by the active theme's register_sidebar() call, not
         // user input; WP_Widget's own contract is that widgets echo them verbatim (every core widget
         // does the same).
-        // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+        // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- before_widget is the theme's own register_sidebar() markup; WP_Widget's contract is to echo it verbatim
         echo $args['before_widget'];
 
         if (!empty($instance['title'])) {
             // before_title/after_title are theme-supplied wrapper markup (same as before_widget
             // above); the title itself is wp_kses_post()'d since the widget_title filter is commonly
             // used by themes/plugins to add inline markup (icons, spans) to the heading.
-            // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+            // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- before_title/after_title are the theme's own register_sidebar() markup; the title itself goes through wp_kses_post()
             echo $args['before_title'] . wp_kses_post(apply_filters('widget_title', $instance['title'])) . $args['after_title'];
         }
 
