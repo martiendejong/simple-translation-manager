@@ -285,8 +285,9 @@ class Admin {
         // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 
         // Get unique contexts for filter
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- reads the plugin's own table wp_stm_strings (no WordPress API for custom tables); admin screen: shows the rows as they are right now, one query per page view
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- reads the plugin's own table wp_stm_strings (no WordPress API for custom tables); admin screen: shows the rows as they are right now, one query per page view
         $contexts = $wpdb->get_col("SELECT DISTINCT context FROM {$wpdb->prefix}stm_strings ORDER BY context ASC");
+        // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
 
         // Batch-fetch all translations for visible strings (avoids N+1 in template)
         $translations_map = [];
@@ -713,11 +714,13 @@ class Admin {
             ];
 
             if ($existing) {
-                // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- writes the plugin's own table wp_stm_translations (no WordPress API for custom tables); Cache::invalidate_string() drops the cached copies right after the write
+                // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- writes the plugin's own table wp_stm_translations (no WordPress API for custom tables); Cache::invalidate_string() drops the cached copies right after the write
                 $result = $wpdb->update($table, $data, ['id' => $existing]);
+                // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
             } else {
-                // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery -- writes the plugin's own table wp_stm_translations (no WordPress API for custom tables)
+                // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery -- writes the plugin's own table wp_stm_translations (no WordPress API for custom tables)
                 $result = $wpdb->insert($table, $data);
+                // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery
             }
 
             if ($result === false) {
@@ -778,8 +781,9 @@ class Admin {
                 'description' => $description,
             ];
 
-            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery -- writes the plugin's own table wp_stm_strings (no WordPress API for custom tables)
+            // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery -- writes the plugin's own table wp_stm_strings (no WordPress API for custom tables)
             $result = $wpdb->insert($table, $data);
+            // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery
 
             if ($result === false) {
                 throw new \Exception('Database operation failed');
@@ -905,8 +909,9 @@ class Admin {
         }
 
         if ($is_default) {
-            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery -- writes the plugin's own table wp_stm_languages (no WordPress API for custom tables)
+            // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery -- writes the plugin's own table wp_stm_languages (no WordPress API for custom tables)
             $wpdb->update($table, ['is_default' => 0], ['is_default' => 1]);
+            // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery
         }
 
         $fields = [
@@ -921,12 +926,14 @@ class Admin {
         if ($existing) {
             // Reactivate the existing inactive row â€” never delete/reinsert, so any
             // translations already tied to this language code are left untouched.
-            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery -- writes the plugin's own table wp_stm_languages (no WordPress API for custom tables)
+            // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery -- writes the plugin's own table wp_stm_languages (no WordPress API for custom tables)
             $result = $wpdb->update($table, $fields, ['id' => $existing->id]);
+            // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery
             $success_arg = 'stm_reactivated';
         } else {
-            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery -- writes the plugin's own table wp_stm_languages (no WordPress API for custom tables)
+            // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery -- writes the plugin's own table wp_stm_languages (no WordPress API for custom tables)
             $result = $wpdb->insert($table, $fields + ['code' => $code]);
+            // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery
             $success_arg = 'stm_added';
         }
 
@@ -971,8 +978,9 @@ class Admin {
             exit;
         }
 
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery -- deletes rows of the plugin's own table wp_stm_languages (no WordPress API for custom tables)
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery -- deletes rows of the plugin's own table wp_stm_languages (no WordPress API for custom tables)
         $wpdb->delete($wpdb->prefix . 'stm_languages', ['code' => $code]);
+        // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery
 
         wp_cache_delete(Database::CACHE_ACTIVE_LANGUAGES);
         wp_cache_delete('stm_all_languages');
@@ -1020,8 +1028,9 @@ class Admin {
             $redirect_arg = 'stm_error';
             $redirect_val = 'cannot_deactivate_default';
         } else {
-            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery -- writes the plugin's own table wp_stm_languages (no WordPress API for custom tables)
+            // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery -- writes the plugin's own table wp_stm_languages (no WordPress API for custom tables)
             $wpdb->update($table, ['is_active' => $lang->is_active ? 0 : 1], ['code' => $code]);
+            // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery
             wp_cache_delete(Database::CACHE_ACTIVE_LANGUAGES);
             wp_cache_delete('stm_all_languages');
         }
