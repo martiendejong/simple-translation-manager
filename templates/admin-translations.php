@@ -17,7 +17,8 @@ if (!defined('ABSPATH')) exit;
     // handlers issue after they have already verified their own nonce
     // (see Admin::save_translation()/scan_strings()); displaying them here
     // is read-only and causes no state change, so no nonce is required.
-    // phpcs:disable WordPress.Security.NonceVerification.Recommended
+    // phpcs:disable WordPress.Security.NonceVerification.Recommended -- display-only flags, no state change
+    $stm_scan_error = isset($_GET['stm_error']) ? sanitize_key(wp_unslash($_GET['stm_error'])) : '';
     ?>
     <?php if (isset($_GET['updated'])): ?>
         <div class="notice notice-success is-dismissible">
@@ -34,7 +35,7 @@ if (!defined('ABSPATH')) exit;
         </div>
     <?php endif; ?>
 
-    <?php if (($_GET['stm_error'] ?? '') === 'scan_failed'): ?>
+    <?php if ($stm_scan_error === 'scan_failed'): ?>
         <div class="notice notice-error is-dismissible">
             <p>Scanning for strings failed. Check the server error log for details.</p>
         </div>

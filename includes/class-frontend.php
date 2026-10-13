@@ -104,7 +104,9 @@ class Frontend {
         }
 
         // Priority 2: explicit GET param (?lang=fr)
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- public language link for visitors (cannot carry a nonce); the value must pass validate_language_code() and only picks which stored translation to show
         if ( isset( $_GET['lang'] ) ) {
+            // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- same public language link as the line above
             $lang = sanitize_text_field( wp_unslash( $_GET['lang'] ) );
             if ( Security::validate_language_code( $lang ) ) {
                 self::remember_language_choice( $lang );
@@ -542,13 +544,14 @@ class Frontend {
 
         // Get term translation
         global $wpdb;
-        $table = $wpdb->prefix . 'stm_term_translations';
 
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- reads the plugin's own table wp_stm_term_translations (no WordPress API for custom tables); single indexed lookup (term_id, language_code) per translated term on a non-default-language page; term translations are written outside this plugin, so there is no invalidation point for a cache
         $translation = $wpdb->get_row($wpdb->prepare(
-            "SELECT name, slug, description FROM {$table} WHERE term_id = %d AND language_code = %s",
+            "SELECT name, slug, description FROM {$wpdb->prefix}stm_term_translations WHERE term_id = %d AND language_code = %s",
             $term->term_id,
             $current_lang
         ));
+        // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
 
         if ($translation) {
             $term->name = $translation->name;

@@ -334,18 +334,22 @@ class StringScanner {
                 continue;
             }
 
+            // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- reads the plugin's own table wp_stm_strings (no WordPress API for custom tables); string scan started by an administrator or on activation: reads the row before inserting it
             $string_id = $wpdb->get_var($wpdb->prepare(
-                "SELECT id FROM {$table_strings} WHERE string_key = %s AND context = %s",
+                "SELECT id FROM {$wpdb->prefix}stm_strings WHERE string_key = %s AND context = %s",
                 $key,
                 $context
             ));
+            // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
 
             if (!$string_id) {
+                // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery -- writes the plugin's own table wp_stm_strings (no WordPress API for custom tables)
                 $inserted = $wpdb->insert($table_strings, [
                     'string_key' => $key,
                     'context' => $context,
                     'description' => '',
                 ]);
+                // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery
 
                 if ($inserted === false) {
                     $skipped++;
@@ -358,15 +362,18 @@ class StringScanner {
                 $skipped++;
             }
 
+            // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- reads the plugin's own table wp_stm_translations (no WordPress API for custom tables); string scan started by an administrator or on activation: reads the row before inserting it
             $existing_translation = $wpdb->get_var($wpdb->prepare(
-                "SELECT id FROM {$table_translations} WHERE string_id = %d AND language_code = %s",
+                "SELECT id FROM {$wpdb->prefix}stm_translations WHERE string_id = %d AND language_code = %s",
                 $string_id,
                 $default_code
             ));
+            // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
 
             if (!$existing_translation) {
                 $text = ($entry['fallback'] ?? '') !== '' ? $entry['fallback'] : $key;
 
+                // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery -- writes the plugin's own table wp_stm_translations (no WordPress API for custom tables)
                 $wpdb->insert($table_translations, [
                     'string_id' => $string_id,
                     'language_code' => $default_code,
@@ -375,6 +382,7 @@ class StringScanner {
                     'translated_by' => null,
                     'translated_at' => function_exists('current_time') ? current_time('mysql') : gmdate('Y-m-d H:i:s'),
                 ]);
+                // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery
             }
         }
 

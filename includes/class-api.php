@@ -191,6 +191,38 @@ class API {
     }
 
     /**
+     * Whether the translations of this post may be shown on the public REST routes: the post is
+     * publicly viewable and not password protected, or the caller may edit it.
+     *
+     * @param \WP_Post|null $post
+     */
+    private static function can_read_post_translations($post) {
+        if (!$post) {
+            return false;
+        }
+        if (current_user_can('edit_post', $post->ID)) {
+            return true;
+        }
+        return empty($post->post_password) && is_post_publicly_viewable($post);
+    }
+
+    /**
+     * 1 when the caller may see translations that are not published yet (draft / pending
+     * review), 0 for everyone else. Used as a prepared-statement argument.
+     */
+    private static function sees_unpublished_translations() {
+        return Security::can_manage_translations() ? 1 : 0;
+    }
+
+    /**
+     * A request parameter as a plain string: '' when it is missing or not a scalar.
+     */
+    private static function scalar_param($request, $name) {
+        $value = $request->get_param($name);
+        return is_scalar($value) ? (string) $value : '';
+    }
+
+    /**
      * Permission check (requires manage_options capability)
      */
     public static function check_permissions() {
@@ -242,6 +274,7 @@ class API {
                 'order_index' => intval($request['order_index'] ?? 999),
             ];
 
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery -- writes the plugin's own table wp_stm_languages (no WordPress API for custom tables)
             $result = $wpdb->insert($wpdb->prefix . 'stm_languages', $data);
 
             if ($result === false) {
@@ -265,36 +298,22 @@ class API {
     public static function get_strings($request) {
         global $wpdb;
 
-        $context = $request->get_param('context');
-        $lang = $request->get_param('lang');
+        $context = self::scalar_param($request, 'context');
 
-        $table_strings = $wpdb->prefix . 'stm_strings';
-        $table_translations = $wpdb->prefix . 'stm_translations';
-
-        $where  = ['1=1'];
-        $params = [];
-        if ($context) {
-            $where[]  = 's.context = %s';
-            $params[] = $context;
-        }
-
-        $where_sql = implode(' AND ', $where);
-
-        $query = "
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- reads the plugin's own tables wp_stm_strings, wp_stm_translations (no WordPress API for custom tables); REST read: always returns the latest saved rows; HTTP caches and CDNs cache the response
+        $results = $wpdb->get_results($wpdb->prepare("
             SELECT s.*,
                 GROUP_CONCAT(
                     CONCAT(t.language_code, ':', t.translation, ':', t.status)
                     SEPARATOR '||'
                 ) as translations
-            FROM {$table_strings} s
-            LEFT JOIN {$table_translations} t ON s.id = t.string_id
-            WHERE {$where_sql}
+            FROM {$wpdb->prefix}stm_strings s
+            LEFT JOIN {$wpdb->prefix}stm_translations t ON s.id = t.string_id AND (%d = 1 OR t.status = 'published')
+            WHERE (%s = '' OR s.context = %s)
             GROUP BY s.id
             ORDER BY s.context ASC, s.string_key ASC
-        ";
-
-        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- $query (built above from %s placeholders in $where[] and their values in $params) is passed through $wpdb->prepare() with $params right here; the sniff can't trace a query built across multiple statements, but no raw value ever reaches the SQL string.
-        $results = $wpdb->get_results($wpdb->prepare($query, $params));
+        ", self::sees_unpublished_translations(), $context, $context));
+        // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
 
         // Parse translations
         foreach ($results as &$row) {
@@ -329,6 +348,7 @@ class API {
                 'description' => sanitize_textarea_field($request['description'] ?? ''),
             ];
 
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery -- writes the plugin's own table wp_stm_strings (no WordPress API for custom tables)
             $result = $wpdb->insert($wpdb->prefix . 'stm_strings', $data);
 
             if ($result === false) {
@@ -374,14 +394,17 @@ class API {
             return new \WP_Error('no_data', 'No fields to update', ['status' => 400, 'stm_diag' => 'STM-E-API-UPDATE-STRING-NO-DATA']);
         }
 
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- reads the plugin's own table wp_stm_strings (no WordPress API for custom tables); REST write handler: reads the current row before changing it
         $exists = $wpdb->get_var($wpdb->prepare(
             "SELECT id FROM {$wpdb->prefix}stm_strings WHERE id = %d",
             $id
         ));
+        // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
         if (!$exists) {
             return new \WP_Error('not_found', 'String not found', ['status' => 404, 'stm_diag' => 'STM-E-API-UPDATE-STRING-NOT-FOUND']);
         }
 
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- writes the plugin's own table wp_stm_strings (no WordPress API for custom tables); only the description column changes; no cached value is built from it
         $result = $wpdb->update($wpdb->prefix . 'stm_strings', $update, ['id' => $id]);
 
         if ($result === false) {
@@ -399,16 +422,20 @@ class API {
 
         $id = intval($request['id']);
 
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- reads the plugin's own table wp_stm_strings (no WordPress API for custom tables); REST write handler: reads the current row before changing it
         $string = $wpdb->get_row($wpdb->prepare(
             "SELECT string_key, context FROM {$wpdb->prefix}stm_strings WHERE id = %d",
             $id
         ));
+        // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
 
         if (!$string) {
             return new \WP_Error('not_found', 'String not found', ['status' => 404, 'stm_diag' => 'STM-E-API-DELETE-STRING-NOT-FOUND']);
         }
 
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- deletes rows of the plugin's own table wp_stm_translations (no WordPress API for custom tables); Cache::invalidate_string() drops the cached copies right after the write
         $wpdb->delete($wpdb->prefix . 'stm_translations', ['string_id' => $id]);
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- deletes rows of the plugin's own table wp_stm_strings (no WordPress API for custom tables); Cache::invalidate_string() drops the cached copies right after the write
         $wpdb->delete($wpdb->prefix . 'stm_strings', ['id' => $id]);
 
         Cache::invalidate_string($string->string_key, $string->context);
@@ -425,38 +452,35 @@ class API {
         global $wpdb;
 
         $string_id = intval($request->get_param('string_id'));
-        $lang      = sanitize_text_field($request->get_param('lang') ?? '');
+        $lang      = sanitize_text_field(self::scalar_param($request, 'lang'));
         $per_page  = min(1000, max(1, intval($request->get_param('per_page') ?? 500)));
         $page      = max(1, intval($request->get_param('page') ?? 1));
         $offset    = ($page - 1) * $per_page;
 
-        $where  = ['1=1'];
-        $params = [];
-        if ($string_id) {
-            $where[]  = 't.string_id = %d';
-            $params[] = $string_id;
-        }
-        if ($lang) {
-            $where[]  = 't.language_code = %s';
-            $params[] = $lang;
-        }
-
-        $where_sql = implode(' AND ', $where);
-
+        // Optional filters are part of the statement: "%d = 0" / "%s = ''" switch a filter off.
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- reads the plugin's own tables wp_stm_strings, wp_stm_translations (no WordPress API for custom tables); REST read: always returns the latest saved rows; HTTP caches and CDNs cache the response
         $results = $wpdb->get_results($wpdb->prepare(
             "SELECT t.*, s.string_key, s.context
             FROM {$wpdb->prefix}stm_translations t
             INNER JOIN {$wpdb->prefix}stm_strings s ON t.string_id = s.id
-            WHERE {$where_sql}
+            WHERE (%d = 0 OR t.string_id = %d)
+              AND (%s = '' OR t.language_code = %s)
+              AND (%d = 1 OR t.status = 'published')
             ORDER BY s.context ASC, s.string_key ASC, t.language_code ASC
             LIMIT %d OFFSET %d",
-            array_merge($params, [$per_page, $offset])
+            $string_id, $string_id, $lang, $lang, self::sees_unpublished_translations(), $per_page, $offset
         ));
+        // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
 
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- reads the plugin's own table wp_stm_translations (no WordPress API for custom tables); REST read: always returns the latest saved rows; HTTP caches and CDNs cache the response
         $total = $wpdb->get_var($wpdb->prepare(
-            "SELECT COUNT(*) FROM {$wpdb->prefix}stm_translations t WHERE {$where_sql}",
-            $params
+            "SELECT COUNT(*) FROM {$wpdb->prefix}stm_translations t
+            WHERE (%d = 0 OR t.string_id = %d)
+              AND (%s = '' OR t.language_code = %s)
+              AND (%d = 1 OR t.status = 'published')",
+            $string_id, $string_id, $lang, $lang, self::sees_unpublished_translations()
         ));
+        // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
 
         $response = rest_ensure_response($results);
         $response->header('X-WP-Total', $total);
@@ -473,6 +497,7 @@ class API {
 
         $id = intval($request['id']);
 
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- reads the plugin's own tables wp_stm_strings, wp_stm_translations (no WordPress API for custom tables); REST write handler: reads the current row before changing it
         $row = $wpdb->get_row($wpdb->prepare(
             "SELECT t.*, s.string_key, s.context
              FROM {$wpdb->prefix}stm_translations t
@@ -480,6 +505,7 @@ class API {
              WHERE t.id = %d",
             $id
         ));
+        // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
 
         if (!$row) {
             return new \WP_Error('not_found', 'Translation not found', ['status' => 404, 'stm_diag' => 'STM-E-API-UPDATE-TRANSLATION-NOT-FOUND']);
@@ -492,6 +518,7 @@ class API {
             'translated_at' => current_time('mysql'),
         ];
 
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- writes the plugin's own table wp_stm_translations (no WordPress API for custom tables); Cache::invalidate_string() drops the cached copies right after the write
         $result = $wpdb->update($wpdb->prefix . 'stm_translations', $update, ['id' => $id]);
 
         if ($result === false) {
@@ -515,6 +542,12 @@ class API {
             return new \WP_Error('not_found', 'Post not found', ['status' => 404, 'stm_diag' => 'STM-E-API-GET-POST-TRANSLATIONS-NOT-FOUND']);
         }
 
+        // Public route: drafts, private and password-protected posts look exactly like a missing post.
+        if (!self::can_read_post_translations(get_post($post_id))) {
+            return new \WP_Error('not_found', 'Post not found', ['status' => 404, 'stm_diag' => 'STM-E-API-GET-POST-TRANSLATIONS-NOT-PUBLIC']);
+        }
+
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- reads the plugin's own table wp_stm_post_translations (no WordPress API for custom tables); REST read: always returns the latest saved rows; HTTP caches and CDNs cache the response
         $rows = $wpdb->get_results($wpdb->prepare(
             "SELECT language_code, field_name, translation
              FROM {$wpdb->prefix}stm_post_translations
@@ -522,6 +555,7 @@ class API {
              ORDER BY language_code ASC, field_name ASC",
             $post_id
         ));
+        // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
 
         $result = [];
         foreach ($rows as $row) {
@@ -559,24 +593,30 @@ class API {
 
         $table = $wpdb->prefix . 'stm_post_translations';
 
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- reads the plugin's own table wp_stm_post_translations (no WordPress API for custom tables); REST write handler: reads the current row before changing it
         $existing = $wpdb->get_var($wpdb->prepare(
-            "SELECT id FROM {$table} WHERE post_id = %d AND field_name = %s AND language_code = %s",
+            "SELECT id FROM {$wpdb->prefix}stm_post_translations WHERE post_id = %d AND field_name = %s AND language_code = %s",
             $post_id, $field, $language_code
         ));
+        // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
 
         if ($existing) {
+            // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- writes the plugin's own table wp_stm_post_translations (no WordPress API for custom tables); Cache::invalidate_post() drops the cached copies right after the write
             $wpdb->update(
                 $table,
                 ['translation' => $translation, 'updated_at' => current_time('mysql')],
                 ['id' => $existing]
             );
+            // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
         } else {
+            // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery -- writes the plugin's own table wp_stm_post_translations (no WordPress API for custom tables)
             $wpdb->insert($table, [
                 'post_id'       => $post_id,
                 'field_name'    => $field,
                 'language_code' => $language_code,
                 'translation'   => $translation,
             ]);
+            // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery
         }
 
         Cache::invalidate_post($post_id, $field);
@@ -605,10 +645,12 @@ class API {
 
         $table = $wpdb->prefix . 'stm_post_translations';
 
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- deletes rows of the plugin's own table wp_stm_post_translations (no WordPress API for custom tables); Cache::invalidate_post() drops the cached copies right after the write
         $deleted = $wpdb->delete($table, [
             'post_id'       => $post_id,
             'language_code' => $language_code,
         ]);
+        // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
 
         if ($deleted === false) {
             return new \WP_Error('db_error', 'Failed to delete translation', ['status' => 500, 'stm_diag' => 'STM-E-API-DELETE-POST-TRANSLATION-DB-ERROR']);
@@ -644,6 +686,7 @@ class API {
                 'translated_at' => current_time('mysql'),
             ];
 
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery -- writes the plugin's own table wp_stm_translations (no WordPress API for custom tables)
             $result = $wpdb->insert($wpdb->prefix . 'stm_translations', $data);
 
             if ($result === false) {
@@ -651,10 +694,12 @@ class API {
             }
 
             // Invalidate cache
+            // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- reads the plugin's own table wp_stm_strings (no WordPress API for custom tables); REST write handler: reads the current row before changing it
             $string = $wpdb->get_row($wpdb->prepare(
                 "SELECT string_key, context FROM {$wpdb->prefix}stm_strings WHERE id = %d",
                 $string_id
             ));
+            // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
             if ($string) {
                 Cache::invalidate_string($string->string_key, $string->context);
             }
@@ -701,18 +746,22 @@ class API {
                 }
 
                 // Find or create string
+                // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- reads the plugin's own table wp_stm_strings (no WordPress API for custom tables); REST write handler: reads the current row before changing it
                 $string = $wpdb->get_row($wpdb->prepare(
                     "SELECT id FROM {$wpdb->prefix}stm_strings
                     WHERE string_key = %s AND context = %s",
                     $string_key,
                     $context
                 ));
+                // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
 
                 if (!$string) {
+                    // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery -- writes the plugin's own table wp_stm_strings (no WordPress API for custom tables)
                     $result = $wpdb->insert($wpdb->prefix . 'stm_strings', [
                         'string_key' => $string_key,
                         'context' => $context,
                     ]);
+                    // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery
                     if ($result === false) {
                         throw new \Exception('Failed to create string');
                     }
@@ -723,12 +772,14 @@ class API {
                 }
 
                 // Upsert translation
+                // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- reads the plugin's own table wp_stm_translations (no WordPress API for custom tables); REST write handler: reads the current row before changing it
                 $existing = $wpdb->get_var($wpdb->prepare(
                     "SELECT id FROM {$wpdb->prefix}stm_translations
                     WHERE string_id = %d AND language_code = %s",
                     $string_id,
                     $language_code
                 ));
+                // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
 
                 $data = [
                     'string_id' => $string_id,
@@ -740,11 +791,13 @@ class API {
                 ];
 
                 if ($existing) {
+                    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- writes the plugin's own table wp_stm_translations (no WordPress API for custom tables); Cache::invalidate_string() drops the cached copies right after the write
                     $result = $wpdb->update($wpdb->prefix . 'stm_translations', $data, ['id' => $existing]);
                     if ($result !== false) {
                         $updated++;
                     }
                 } else {
+                    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery -- writes the plugin's own table wp_stm_translations (no WordPress API for custom tables)
                     $result = $wpdb->insert($wpdb->prefix . 'stm_translations', $data);
                     if ($result !== false) {
                         $created++;
@@ -773,12 +826,18 @@ class API {
         $post_id = intval($request['id']);
 
         global $wpdb;
-        $table = $wpdb->prefix . 'stm_post_translations';
 
+        // Public route: slugs of drafts, private and password-protected posts are not returned.
+        if (!self::can_read_post_translations(get_post($post_id))) {
+            return rest_ensure_response([]);
+        }
+
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- reads the plugin's own table wp_stm_post_translations (no WordPress API for custom tables); REST read: always returns the latest saved rows; HTTP caches and CDNs cache the response
         $rows = $wpdb->get_results($wpdb->prepare(
-            "SELECT language_code, translation FROM {$table} WHERE post_id = %d AND field_name = 'post_name'",
+            "SELECT language_code, translation FROM {$wpdb->prefix}stm_post_translations WHERE post_id = %d AND field_name = 'post_name'",
             $post_id
         ), ARRAY_A);
+        // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
 
         $slugs = [];
         foreach ($rows as $row) {
@@ -803,10 +862,12 @@ class API {
         global $wpdb;
         $table = $wpdb->prefix . 'stm_post_translations';
 
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- reads the plugin's own table wp_stm_post_translations (no WordPress API for custom tables); REST write handler: reads the current row before changing it
         $existing = $wpdb->get_var($wpdb->prepare(
-            "SELECT id FROM {$table} WHERE post_id = %d AND field_name = 'post_name' AND language_code = %s",
+            "SELECT id FROM {$wpdb->prefix}stm_post_translations WHERE post_id = %d AND field_name = 'post_name' AND language_code = %s",
             $post_id, $language_code
         ));
+        // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
 
         $data = [
             'post_id'       => $post_id,
@@ -816,10 +877,15 @@ class API {
         ];
 
         if ($existing) {
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- writes the plugin's own table wp_stm_post_translations (no WordPress API for custom tables); Cache::invalidate_post() runs right after this write
             $wpdb->update($table, $data, ['id' => $existing]);
         } else {
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery -- writes the plugin's own table wp_stm_post_translations (no WordPress API for custom tables)
             $wpdb->insert($table, $data);
         }
+
+        // A cached post_name translation would otherwise keep serving the old slug.
+        Cache::invalidate_post($post_id, 'post_name');
 
         return rest_ensure_response(['success' => true, 'slug' => $slug]);
     }
@@ -832,10 +898,12 @@ class API {
 
         $id = intval($request['id']);
 
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- reads the plugin's own table wp_stm_languages (no WordPress API for custom tables); REST write handler: reads the current row before changing it
         $lang = $wpdb->get_row($wpdb->prepare(
             "SELECT * FROM {$wpdb->prefix}stm_languages WHERE id = %d",
             $id
         ));
+        // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
 
         if (!$lang) {
             return new \WP_Error('not_found', 'Language not found', ['status' => 404, 'stm_diag' => 'STM-E-API-UPDATE-LANGUAGE-NOT-FOUND']);
@@ -853,6 +921,7 @@ class API {
             return new \WP_Error('no_data', 'Nothing to update', ['status' => 400, 'stm_diag' => 'STM-E-API-UPDATE-LANGUAGE-NO-DATA']);
         }
 
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery -- writes the plugin's own table wp_stm_languages (no WordPress API for custom tables)
         $result = $wpdb->update($wpdb->prefix . 'stm_languages', $update, ['id' => $id]);
 
         if ($result === false) {
@@ -889,11 +958,13 @@ class API {
             return new \WP_Error('forbidden', 'Insufficient permissions', ['status' => 403, 'stm_diag' => 'STM-E-API-DELETE-POST-LANGUAGE-TRANSLATIONS-FORBIDDEN']);
         }
 
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- deletes rows of the plugin's own table wp_stm_post_translations (no WordPress API for custom tables); Cache::invalidate_post() drops the cached copies right after the write
         $deleted = $wpdb->delete(
             $wpdb->prefix . 'stm_post_translations',
             ['post_id' => $post_id, 'language_code' => $lang],
             ['%d', '%s']
         );
+        // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
 
         Cache::invalidate_post($post_id);
 
@@ -908,10 +979,12 @@ class API {
 
         $id = intval($request['id']);
 
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- reads the plugin's own table wp_stm_languages (no WordPress API for custom tables); REST write handler: reads the current row before changing it
         $lang = $wpdb->get_row($wpdb->prepare(
             "SELECT * FROM {$wpdb->prefix}stm_languages WHERE id = %d",
             $id
         ));
+        // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
 
         if (!$lang) {
             return new \WP_Error('not_found', 'Language not found', ['status' => 404, 'stm_diag' => 'STM-E-API-DELETE-LANGUAGE-NOT-FOUND']);
@@ -921,8 +994,11 @@ class API {
             return new \WP_Error('cannot_delete_default', 'Cannot delete the default language', ['status' => 400, 'stm_diag' => 'STM-E-API-DELETE-LANGUAGE-CANNOT-DELETE-DEFAULT']);
         }
 
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery -- deletes rows of the plugin's own table wp_stm_post_translations (no WordPress API for custom tables)
         $wpdb->delete($wpdb->prefix . 'stm_post_translations', ['language_code' => $lang->code], ['%s']);
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery -- deletes rows of the plugin's own table wp_stm_translations (no WordPress API for custom tables)
         $wpdb->delete($wpdb->prefix . 'stm_translations',      ['language_code' => $lang->code], ['%s']);
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery -- deletes rows of the plugin's own table wp_stm_languages (no WordPress API for custom tables)
         $wpdb->delete($wpdb->prefix . 'stm_languages',         ['id' => $id],                    ['%d']);
 
         wp_cache_delete(Database::CACHE_ACTIVE_LANGUAGES);
@@ -939,6 +1015,7 @@ class API {
 
         $id = intval($request['id']);
 
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- reads the plugin's own tables wp_stm_strings, wp_stm_translations (no WordPress API for custom tables); REST read: always returns the latest saved rows; HTTP caches and CDNs cache the response
         $string = $wpdb->get_row($wpdb->prepare(
             "SELECT s.*,
                 GROUP_CONCAT(
@@ -946,11 +1023,12 @@ class API {
                     SEPARATOR '||'
                 ) as translations
              FROM {$wpdb->prefix}stm_strings s
-             LEFT JOIN {$wpdb->prefix}stm_translations t ON s.id = t.string_id
+             LEFT JOIN {$wpdb->prefix}stm_translations t ON s.id = t.string_id AND (%d = 1 OR t.status = 'published')
              WHERE s.id = %d
              GROUP BY s.id",
-            $id
+            self::sees_unpublished_translations(), $id
         ));
+        // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
 
         if (!$string) {
             return new \WP_Error('not_found', 'String not found', ['status' => 404, 'stm_diag' => 'STM-E-API-GET-STRING-NOT-FOUND']);
@@ -997,32 +1075,19 @@ class API {
     public static function export_json($request) {
         global $wpdb;
 
-        $lang = $request->get_param('lang');
-        $context = $request->get_param('context');
+        $lang = self::scalar_param($request, 'lang');
+        $context = self::scalar_param($request, 'context');
 
-        $table_strings = $wpdb->prefix . 'stm_strings';
-        $table_translations = $wpdb->prefix . 'stm_translations';
-
-        $where  = ['t.status = "published"'];
-        $params = [];
-        if ($lang) {
-            $where[]  = 't.language_code = %s';
-            $params[] = $lang;
-        }
-        if ($context) {
-            $where[]  = 's.context = %s';
-            $params[] = $context;
-        }
-
-        $where_sql = implode(' AND ', $where);
-
-        // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- $where_sql is assembled from %s placeholders in $where[] and their values in $params above; $wpdb->prepare() below resolves every placeholder before the query runs.
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- reads the plugin's own tables wp_stm_strings, wp_stm_translations (no WordPress API for custom tables); REST read: always returns the latest saved rows; HTTP caches and CDNs cache the response
         $results = $wpdb->get_results($wpdb->prepare("
             SELECT s.string_key, t.language_code, t.translation
-            FROM {$table_translations} t
-            INNER JOIN {$table_strings} s ON t.string_id = s.id
-            WHERE {$where_sql}
-        ", $params));
+            FROM {$wpdb->prefix}stm_translations t
+            INNER JOIN {$wpdb->prefix}stm_strings s ON t.string_id = s.id
+            WHERE t.status = 'published'
+              AND (%s = '' OR t.language_code = %s)
+              AND (%s = '' OR s.context = %s)
+        ", $lang, $lang, $context, $context));
+        // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
 
         $export = [];
         foreach ($results as $row) {
@@ -1108,15 +1173,19 @@ class API {
 
                 if ($dry_run) {
                     // In dry-run mode just classify create vs. update without writing
+                    // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- reads the plugin's own table wp_stm_strings (no WordPress API for custom tables); REST write handler: reads the current row before changing it
                     $string_id = $wpdb->get_var($wpdb->prepare(
                         "SELECT id FROM {$wpdb->prefix}stm_strings WHERE string_key = %s",
                         $string_key
                     ));
+                    // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
                     if ($string_id) {
+                        // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- reads the plugin's own table wp_stm_translations (no WordPress API for custom tables); REST write handler: reads the current row before changing it
                         $has_translation = $wpdb->get_var($wpdb->prepare(
                             "SELECT id FROM {$wpdb->prefix}stm_translations WHERE string_id = %d AND language_code = %s",
                             $string_id, $lang_code
                         ));
+                        // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
                         $has_translation ? $updated++ : $created++;
                     } else {
                         $created++;
@@ -1125,24 +1194,30 @@ class API {
                 }
 
                 // Find or create the string record
+                // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- reads the plugin's own table wp_stm_strings (no WordPress API for custom tables); REST write handler: reads the current row before changing it
                 $string_id = $wpdb->get_var($wpdb->prepare(
                     "SELECT id FROM {$wpdb->prefix}stm_strings WHERE string_key = %s",
                     $string_key
                 ));
+                // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
 
                 if (!$string_id) {
+                    // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery -- writes the plugin's own table wp_stm_strings (no WordPress API for custom tables)
                     $wpdb->insert($wpdb->prefix . 'stm_strings', [
                         'string_key' => $string_key,
                         'context'    => 'general',
                     ]);
+                    // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery
                     $string_id = $wpdb->insert_id;
                 }
 
                 // Upsert translation
+                // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- reads the plugin's own table wp_stm_translations (no WordPress API for custom tables); REST write handler: reads the current row before changing it
                 $existing = $wpdb->get_var($wpdb->prepare(
                     "SELECT id FROM {$wpdb->prefix}stm_translations WHERE string_id = %d AND language_code = %s",
                     $string_id, $lang_code
                 ));
+                // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
 
                 $t_data = [
                     'string_id'     => $string_id,
@@ -1154,9 +1229,11 @@ class API {
                 ];
 
                 if ($existing) {
+                    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- writes the plugin's own table wp_stm_translations (no WordPress API for custom tables); Cache::invalidate_string() drops the cached copies right after the write
                     $wpdb->update($wpdb->prefix . 'stm_translations', $t_data, ['id' => $existing]);
                     $updated++;
                 } else {
+                    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery -- writes the plugin's own table wp_stm_translations (no WordPress API for custom tables)
                     $wpdb->insert($wpdb->prefix . 'stm_translations', $t_data);
                     $created++;
                 }
@@ -1244,13 +1321,16 @@ class API {
 
         foreach ($translations as $field => $translation) {
             // Check if exists
+            // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- reads the plugin's own table wp_stm_post_translations (no WordPress API for custom tables); REST write handler: reads the current row before changing it
             $existing = $wpdb->get_var($wpdb->prepare(
-                "SELECT id FROM {$table} WHERE post_id = %d AND field_name = %s AND language_code = %s",
+                "SELECT id FROM {$wpdb->prefix}stm_post_translations WHERE post_id = %d AND field_name = %s AND language_code = %s",
                 $post_id, $field, $lang_code
             ));
+            // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
 
             if ($existing) {
                 // Update
+                // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- writes the plugin's own table wp_stm_post_translations (no WordPress API for custom tables); Cache::invalidate_post() drops the cached copies right after the write
                 $result = $wpdb->update(
                     $table,
                     ['translation' => $translation, 'updated_at' => current_time('mysql')],
@@ -1258,8 +1338,10 @@ class API {
                     ['%s', '%s'],
                     ['%d']
                 );
+                // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
             } else {
                 // Insert
+                // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery -- writes the plugin's own table wp_stm_post_translations (no WordPress API for custom tables)
                 $result = $wpdb->insert(
                     $table,
                     [
@@ -1270,12 +1352,14 @@ class API {
                     ],
                     ['%d', '%s', '%s', '%s']
                 );
+                // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery
             }
 
             if ($result !== false) {
                 $success++;
             } else {
                 $errors[] = "Failed to save $field: " . $wpdb->last_error;
+                // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- logs a failed database operation (not debug output); the message carries a stable [STM-E-...] diagnostic code so a site owner can report it
                 error_log("[STM] [STM-E-API-SAVE-POST-TRANSLATIONS-DB-WRITE] Translation save error for post $post_id field $field: " . $wpdb->last_error);
             }
         }

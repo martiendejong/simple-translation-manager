@@ -8,11 +8,14 @@
  */
 if (!defined('ABSPATH')) exit;
 
+// Result flags read back from a redirect the form handlers issue after they verified their own nonce; display only.
+// phpcs:disable WordPress.Security.NonceVerification.Recommended -- display-only flags, no state change
 $added       = isset($_GET['stm_added']);
 $reactivated = isset($_GET['stm_reactivated']);
 $deleted     = isset($_GET['stm_deleted']);
 $toggled     = isset($_GET['stm_toggled']);
-$error       = isset($_GET['stm_error']) ? sanitize_text_field($_GET['stm_error']) : '';
+$error       = isset($_GET['stm_error']) ? sanitize_text_field(wp_unslash($_GET['stm_error'])) : '';
+// phpcs:enable WordPress.Security.NonceVerification.Recommended
 $error_messages = [
     'invalid_fields'              => 'Invalid language code or name.',
     'db_error'                    => 'Database error — language may already exist.',
@@ -73,7 +76,7 @@ $error_messages = [
                                 data-lang-id="<?php echo esc_attr($lang->id); ?>"
                                 data-is-active="<?php echo (int) $lang->is_active; ?>"
                                 <?php echo $lang->is_default
-                                    ? 'disabled title="' . esc_attr__('Default language is always active', 'stm') . '"'
+                                    ? 'disabled title="' . esc_attr__('Default language is always active', 'simple-translation-manager') . '"'
                                     : ''; ?>>
                             <?php echo esc_html($lang->is_active ? 'Active' : 'Inactive'); ?>
                         </button>
@@ -85,7 +88,7 @@ $error_messages = [
                                 data-lang-id="<?php echo esc_attr($lang->id); ?>"
                                 data-direction="up"
                                 data-order="<?php echo esc_attr($lang->order_index); ?>"
-                                title="<?php echo esc_attr__('Move up', 'stm'); ?>">
+                                title="<?php echo esc_attr__('Move up', 'simple-translation-manager'); ?>">
                             ↑
                         </button>
 
@@ -94,7 +97,7 @@ $error_messages = [
                                 data-lang-id="<?php echo esc_attr($lang->id); ?>"
                                 data-direction="down"
                                 data-order="<?php echo esc_attr($lang->order_index); ?>"
-                                title="<?php echo esc_attr__('Move down', 'stm'); ?>">
+                                title="<?php echo esc_attr__('Move down', 'simple-translation-manager'); ?>">
                             ↓
                         </button>
 
@@ -105,7 +108,7 @@ $error_messages = [
                         <button type="button"
                                 class="button button-small stm-lang-edit"
                                 data-lang-id="<?php echo esc_attr($lang->id); ?>">
-                            <?php echo esc_html__('Edit', 'stm'); ?>
+                            <?php echo esc_html__('Edit', 'simple-translation-manager'); ?>
                         </button>
                         <?php if (!$lang->is_default): ?>
                             <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>"

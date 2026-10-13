@@ -41,12 +41,13 @@ class Settings {
         if (!$default) {
             // Find first language marked as default in database
             global $wpdb;
-            $table = $wpdb->prefix . 'stm_languages';
-            $default = $wpdb->get_var("SELECT code FROM {$table} WHERE is_default = 1 LIMIT 1");
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- reads the plugin's own table wp_stm_languages (no WordPress API for custom tables); runs only while the option stm_default_language is unset; the result is stored with update_option() right after, which is the cache
+            $default = $wpdb->get_var("SELECT code FROM {$wpdb->prefix}stm_languages WHERE is_default = 1 LIMIT 1");
 
             if (!$default) {
                 // Fallback to first language
-                $default = $wpdb->get_var("SELECT code FROM {$table} ORDER BY order_index ASC LIMIT 1");
+                // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- reads the plugin's own table wp_stm_languages (no WordPress API for custom tables); runs only while the option stm_default_language is unset; the result is stored with update_option() right after, which is the cache
+                $default = $wpdb->get_var("SELECT code FROM {$wpdb->prefix}stm_languages ORDER BY order_index ASC LIMIT 1");
             }
 
             // Cache it

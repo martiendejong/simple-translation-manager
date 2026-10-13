@@ -21,8 +21,8 @@ if (!defined('WP_UNINSTALL_PLUGIN')) {
  * Uninstall Simple Translation Manager
  *
  * Removes all plugin data from database:
- * - Drops 4 custom tables
- * - Deletes all plugin options
+ * - Drops the 7 custom tables
+ * - Deletes all plugin options and the per-user admin preferences
  * - Clears object cache
  *
  * Note: This is irreversible. All translations will be permanently deleted.
@@ -38,35 +38,62 @@ function stm_uninstall() {
         return;
     }
 
-    // Security: Require admin privileges
-    if (!current_user_can('activate_plugins')) {
+    // Security: WordPress only includes this file from uninstall_plugin(), after delete_plugins() checked
+    // the capability. A second check must still let WP-CLI through: `wp plugin uninstall` runs without a
+    // logged-in user, and a bare current_user_can() there silently skipped the whole clean-up.
+    if (!( defined('WP_CLI') && WP_CLI ) && !current_user_can('delete_plugins')) {
         return;
     }
 
-    // Drop all plugin tables
+    // Drop all plugin tables (the same seven that Database::create_tables() creates)
     $tables = [
-        $wpdb->prefix . 'stm_languages',
-        $wpdb->prefix . 'stm_strings',
-        $wpdb->prefix . 'stm_translations',
-        $wpdb->prefix . 'stm_post_translations',
+        'stm_languages',
+        'stm_strings',
+        'stm_translations',
+        'stm_post_translations',
+        'stm_post_associations',
+        'stm_term_translations',
+        'stm_field_value_translations',
     ];
 
     foreach ($tables as $table) {
-        $wpdb->query("DROP TABLE IF EXISTS {$table}");
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.DirectDatabaseQuery.SchemaChange, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- drops the plugin's own tables on uninstall (no WordPress function drops a custom table); schema change by design: only when the plugin is deleted with 'Keep data on uninstall' off; uninstall: wp_cache_flush() runs right after; $table comes from the fixed list of the plugin's own table names above
+        $wpdb->query("DROP TABLE IF EXISTS {$wpdb->prefix}{$table}");
     }
 
-    // Delete all plugin options
-    delete_option('stm_version');
-    delete_option('stm_default_language');
-    delete_option('stm_enable_url_routing');
-    delete_option('stm_cache_duration');
-    delete_option('stm_keep_data_on_uninstall');
-    delete_option('stm_debug_mode');
+    // Delete all plugin options, including the auto-translate API keys
+    $options = [
+        'stm_version',
+        'stm_db_version',
+        'stm_default_language',
+        'stm_enable_url_routing',
+        'stm_cache_duration',
+        'stm_keep_data_on_uninstall',
+        'stm_debug_mode',
+        'stm_switcher_style',
+        'stm_switcher_show_flags',
+        'stm_switcher_show_names',
+        'stm_switcher_position',
+        'stm_value_translatable_fields',
+        'stm_auto_translate_provider',
+        'stm_openai_api_key',
+        'stm_openai_model',
+        'stm_openai_temperature',
+        'stm_openai_prompt_template',
+        'stm_deepl_api_key',
+    ];
+    foreach ($options as $option) {
+        delete_option($option);
+    }
+
+    // Per-user admin screen preferences
+    delete_metadata('user', 0, 'stm_admin_prefs', '', true);
 
     // Clear object cache
     wp_cache_flush();
 
     // Delete any transients
+    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- removes the plugin's own transients by name prefix on uninstall (no WordPress function does that); uninstall: wp_cache_flush() runs right after
     $wpdb->query("DELETE FROM {$wpdb->options} WHERE option_name LIKE '_transient_stm_%' OR option_name LIKE '_transient_timeout_stm_%'");
 }
 
