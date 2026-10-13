@@ -642,3 +642,9 @@ Left: Martien confirms the ProsperGenics wording; signed tag and the authoritati
 
 ## 2026-10-10 - task 5144 (in progress)
 Plan: reproducible release ZIP, official Plugin Check (static + runtime) scanner in a throwaway WordPress, STM fixes until the final scan of the same ZIP hash is clean, install/update/REST-permission tests. Draft PR opened first so a crashed session stays discoverable.
+
+
+## 2026-10-13 - task 5144
+Done: PR #45: runtime-only release ZIP, official Plugin Check scanner (tools/wp-plugin-check), STM fixed to a clean final scan of ZIP 08564871, Jengo Work importer (phase B), bin/release-check.php (one command for PR/release checks), bin/php-floor.php, docs/wporg/SUBMISSION-GATE.md.
+Verified: official Plugin Check on ZIP 08564871, run twice (same hash): 0 errors, 0 warnings, runtime checks proven by the canary; install/update/runtime/REST test 280/280; phpunit 330 pass, jest 18/18; php-floor finds nothing newer than PHP 7.4 in the 35 shipped PHP files.
+Left: Martien approves the submission and settles the human items in docs/wporg/SUBMISSION-GATE.md (WordPress.org username, directory assets, signed v1.3.2 tag, PRs #39/#43); the Jengo dashboard action is task 5497.
