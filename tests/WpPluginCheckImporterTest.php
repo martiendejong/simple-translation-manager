@@ -19,6 +19,8 @@ namespace STM\Tests;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 use STM\Tests\Fakes\FakeJengoWorkBoard;
+use STM\Tests\Fakes\ZipBuilder;
+use WpPluginCheck\CheckCommand;
 use WpPluginCheck\Fingerprint;
 use WpPluginCheck\ImportCommand;
 use WpPluginCheck\Importer;
@@ -562,6 +564,113 @@ class WpPluginCheckImporterTest extends TestCase {
         $this->expectExceptionMessage( 'No Jengo Work key' );
         putenv( 'JENGOWORK_API_KEY' );
         Importer::readKey( null );
+    }
+
+    // --- the one entry point: check -------------------------------------------------------------------------------------
+
+    private function sampleZip(): string {
+        $path = ZipBuilder::file( [
+            'sample-plugin/'                  => '',
+            'sample-plugin/sample-plugin.php' => "<?php\n/**\n * Plugin Name: Sample Plugin\n * Version: 1.0.0\n */\n",
+            'sample-plugin/readme.txt'        => "=== Sample Plugin ===\nStable tag: 1.0.0\n",
+        ] );
+        $this->cleanup[] = $path;
+        return $path;
+    }
+
+    /**
+     * A stand-in for the real scanner that writes report.json where the real one does.
+     *
+     * @param list<array<string,mixed>> $reports one report per call, in order
+     */
+    private function fakeScan( array $reports ): callable {
+        return static function ( string $zip, array $options ) use ( &$reports ): array {
+            $report = array_shift( $reports );
+            mkdir( $options['out_dir'], 0777, true );
+            file_put_contents( $options['out_dir'] . '/report.json', json_encode( $report ) );
+            return $report;
+        };
+    }
+
+    /** @return array{0:int,1:array<string,mixed>} */
+    private function runCheck( array $options, array $reports ): array {
+        ob_start();
+        $code = CheckCommand::run( [ $this->sampleZip() ], $options, dirname( __DIR__ ) . '/tools/wp-plugin-check', $this->fakeScan( $reports ), $this->board );
+        return [ $code, json_decode( (string) ob_get_clean(), true ) ?? [] ];
+    }
+
+    private function reportsDir(): string {
+        $dir = sys_get_temp_dir() . '/stm-check-reports-' . bin2hex( random_bytes( 4 ) );
+        $this->cleanup[] = $dir;
+        return $dir;
+    }
+
+    public function test_check_keeps_every_scan_in_the_report_store_and_reports_the_delta_to_the_previous_complete_scan() {
+        $dir  = $this->reportsDir();
+        $key  = $this->tempFile( "k\n", '.key' );
+        $base = [ 'reports-dir' => $dir, 'board' => '47', 'key-file' => $key ];
+
+        [ $code, $first ] = $this->runCheck( $base, [ $this->threeCauses( 'scan-1' ) ] );
+        $this->assertSame( 1, $code, 'findings: exit 1' );
+        $this->assertNull( $first['delta'], 'nothing to compare with yet' );
+        $this->assertSame( 'dry-run', $first['import']['mode'] );
+        $this->assertSame( [], $this->board->tasks, 'without --apply nothing is created' );
+
+        $fewer = $this->report( [ $this->finding( 'Rule.A', 'a.php', 5 ), $this->finding( 'Rule.A', 'a.php', 10 ) ], $this->sources(), 'scan-2' );
+        [ , $second ] = $this->runCheck( $base + [ 'apply' => true ], [ $fewer ] );
+
+        $this->assertSame( 'scan-1', $second['delta']['since_scan'] );
+        $this->assertSame( 0, $second['delta']['new'] );
+        $this->assertSame( 2, $second['delta']['fixed'], 'Rule.B and Rule.C are gone' );
+        $this->assertSame( 2, $second['delta']['unchanged'] );
+        $this->assertSame( 2, $second['status']['reports_found'] );
+        $this->assertCount( 1, $second['import']['created'], 'the first run was a dry run, so the board is still empty and Rule.A gets its task now' );
+    }
+
+    public function test_check_twice_with_the_same_result_adds_no_task() {
+        $dir  = $this->reportsDir();
+        $key  = $this->tempFile( "k\n", '.key' );
+        $opts = [ 'reports-dir' => $dir, 'board' => '47', 'key-file' => $key, 'apply' => true ];
+
+        $this->runCheck( $opts, [ $this->threeCauses( 'scan-1' ) ] );
+        $tasks = count( $this->board->tasks );
+        $this->board->clearRequests();
+        [ , $again ] = $this->runCheck( $opts, [ $this->threeCauses( 'scan-2' ) ] );
+
+        $this->assertSame( 3, $tasks );
+        $this->assertSame( $tasks, count( $this->board->tasks ) );
+        $this->assertSame( [], $again['import']['created'] );
+        $this->assertSame( [], $this->board->writes() );
+        $this->assertSame( 0, $again['delta']['new'] );
+        $this->assertSame( 0, $again['delta']['fixed'] );
+        $this->assertSame( 4, $again['delta']['unchanged'], 'all four findings are unchanged' );
+        $this->assertSame( 3, $again['status']['open_tasks'] );
+    }
+
+    public function test_check_with_a_failed_scan_exits_2_closes_nothing_and_keeps_the_last_complete_scan() {
+        $dir  = $this->reportsDir();
+        $key  = $this->tempFile( "k\n", '.key' );
+        $opts = [ 'reports-dir' => $dir, 'board' => '47', 'key-file' => $key, 'apply' => true ];
+        $this->runCheck( $opts, [ $this->threeCauses( 'scan-1' ) ] );
+        $this->board->clearRequests();
+
+        $failed = $this->report( [], $this->sources(), 'scan-2', 'failed' );
+        $failed['subject'] = null;
+        $failed['result']  = null;
+        [ $code, $out ] = $this->runCheck( $opts, [ $failed ] );
+
+        $this->assertSame( 2, $code );
+        $this->assertFalse( $out['import']['accepted'] );
+        $this->assertSame( [], $this->board->requests, 'a failed scan makes no request to the board' );
+        $this->assertSame( 'failed', $out['status']['last_attempt']['status'] );
+        $this->assertSame( 'scan-1', $out['status']['last_complete']['scan_id'] );
+        foreach ( $this->board->tasks as $task ) {
+            $this->assertSame( 'backlog', $task['status']['status'] );
+        }
+    }
+
+    public function test_check_needs_a_reports_dir() {
+        $this->assertSame( 64, CheckCommand::run( [ $this->sampleZip() ], [], dirname( __DIR__ ) . '/tools/wp-plugin-check', $this->fakeScan( [] ) ) );
     }
 
     // --- report store and status screen ---------------------------------------------------------------------------------

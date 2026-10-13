@@ -95,7 +95,7 @@ class PostEditor {
     }
 
     /**
-     * Some external integrations (e.g. Bugatti Insights' sync API) write
+     * Some external integrations (for example a site's own sync code) write
      * translation rows directly via STM\API::save_post_translations() using
      * short field names ('title', 'content') instead of the post_title/
      * post_content keys this metabox's own save handler uses. The rows are

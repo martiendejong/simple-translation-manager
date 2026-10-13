@@ -162,6 +162,18 @@ $lc_seed = static function () use ($wpdb, $lc_prefix, $lc_insert, $lc_table_exis
         wp_delete_term($old_term->term_id, 'category');
     }
 
+    // The same site is seeded several times (update scenarios, keep data, remove data) and the functional phase
+    // edits and adds rows: drop everything this script ever created, so every scenario starts from the same rows.
+    $old_strings = array_map('intval', $wpdb->get_col("SELECT id FROM {$lc_prefix}stm_strings WHERE context = 'lifecycle'"));
+    if ($old_strings) {
+        $in = implode(',', $old_strings);
+        $wpdb->query("DELETE FROM {$lc_prefix}stm_translations WHERE string_id IN ({$in})");
+        $wpdb->query("DELETE FROM {$lc_prefix}stm_strings WHERE id IN ({$in})");
+    }
+    if ($lc_table_exists('field_value_translations')) {
+        $wpdb->query("DELETE FROM {$lc_prefix}stm_field_value_translations WHERE field_name = 'lc_color'");
+    }
+
     if (!$wpdb->get_var("SELECT id FROM {$lc_prefix}stm_languages WHERE code = 'fr'")) {
         $lc_insert('languages', ['code' => 'fr', 'name' => 'French', 'native_name' => 'Francais', 'is_default' => 0, 'is_active' => 1, 'flag_emoji' => '', 'order_index' => 3]);
     }

@@ -26,6 +26,8 @@ final class Cli
                     return self::scan($positional, $options, $toolDir);
                 case 'compare':
                     return self::compare($positional, $options);
+                case 'check':
+                    return CheckCommand::run($positional, $options, $toolDir);
                 case 'lifecycle':
                     return self::lifecycle($positional, $options, $toolDir);
                 case 'import':
@@ -33,7 +35,7 @@ final class Cli
                 case 'status':
                     return StatusCommand::run($positional, $options);
                 default:
-                    fwrite(STDERR, "Usage: php scan.php <scan|compare|import|status> ... (see the header of scan.php and README.md)\n");
+                    fwrite(STDERR, "Usage: php scan.php <scan|check|compare|lifecycle|import|status> ... (see the header of scan.php and README.md)\n");
                     return 64;
             }
         } catch (Throwable $e) {
@@ -65,6 +67,17 @@ final class Cli
         return [$positional, $options];
     }
 
+    /** @param array<string,string|bool> $options */
+    public static function newScanner(array $options, string $toolDir): Scanner
+    {
+        return new Scanner(
+            $toolDir,
+            is_string($options['work-dir'] ?? null) ? $options['work-dir'] : sys_get_temp_dir() . '/wp-plugin-check',
+            is_string($options['php'] ?? null) ? $options['php'] : null,
+            is_string($options['mariadb-bin'] ?? null) ? $options['mariadb-bin'] : null
+        );
+    }
+
     /**
      * @param list<string>               $positional
      * @param array<string,string|bool>  $options
@@ -76,13 +89,7 @@ final class Cli
             fwrite(STDERR, "Usage: php scan.php scan <plugin.zip> --out-dir=DIR [--commit=SHA] [--php=BIN] [--mariadb-bin=DIR] [--work-dir=DIR] [--checks=a,b] [--keep-sandbox]\n");
             return 64;
         }
-        $workDir = is_string($options['work-dir'] ?? null) ? $options['work-dir'] : sys_get_temp_dir() . '/wp-plugin-check';
-        $scanner = new Scanner(
-            $toolDir,
-            $workDir,
-            is_string($options['php'] ?? null) ? $options['php'] : null,
-            is_string($options['mariadb-bin'] ?? null) ? $options['mariadb-bin'] : null
-        );
+        $scanner = self::newScanner($options, $toolDir);
 
         $report = $scanner->scan($zip, [
             'out_dir'      => $options['out-dir'],
