@@ -1,0 +1,11 @@
+{
+    "schema": "wp-provenance-manifest/1",
+    "generated_at": "2026-01-01T00:00:00Z",
+    "plugin": { "slug": "broken-fixture", "version": "0.8.0", "commit": null },
+    "markers": [
+        { "kind": "source-id", "id": "brk.ok", "file": "includes/class-ok.php", "line": 0, "symbol": "(file)", "context": "" },
+        { "kind": "diag-code", "id": "BRK-E-OK-ONE", "file": "includes/class-ok.php", "line": 11, "symbol": "BRK_Ok::run", "context": "" },
+        { "kind": "diag-code", "id": "BRK-E-GONE-TWO", "file": "includes/class-ok.php", "line": 12, "symbol": "BRK_Ok::run", "context": "" },
+        { "kind": "design-note", "id": "BRK-DN-05", "file": "includes/class-no-header.php", "line": 5, "symbol": "BRK_No_Header::run", "context": "This note used to live here." }
+    ]
+}

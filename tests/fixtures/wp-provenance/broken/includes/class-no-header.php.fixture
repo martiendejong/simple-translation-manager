@@ -1,0 +1,8 @@
+<?php
+
+class BRK_No_Header {
+
+	public static function run() {
+		return true;
+	}
+}

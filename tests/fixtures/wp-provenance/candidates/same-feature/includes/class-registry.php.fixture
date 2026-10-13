@@ -1,0 +1,56 @@
+<?php
+// SPDX-License-Identifier: GPL-2.0-or-later
+// SPDX-FileCopyrightText: 2026 Third Fixture Author
+// Source-Id: lrl.registry
+
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
+}
+
+/**
+ * The same job as any lantern registry: keep records, find one, add one, drop one.
+ * Records live in a dedicated table so they can be queried by colour.
+ */
+class LRL_Registry {
+
+	public static function table() {
+		global $wpdb;
+		return $wpdb->prefix . 'lrl_lanterns';
+	}
+
+	public static function all() {
+		global $wpdb;
+		$rows = $wpdb->get_results( 'SELECT slug, title, colour FROM ' . self::table() . ' ORDER BY title', ARRAY_A );
+		$out  = array();
+		foreach ( (array) $rows as $row ) {
+			$out[ $row['slug'] ] = $row;
+		}
+		return $out;
+	}
+
+	public static function find( $slug ) {
+		global $wpdb;
+		$row = $wpdb->get_row( $wpdb->prepare( 'SELECT slug, title, colour FROM ' . self::table() . ' WHERE slug = %s', $slug ), ARRAY_A );
+		return $row ? $row : null;
+	}
+
+	public static function register( $slug, array $record ) {
+		global $wpdb;
+		if ( self::find( $slug ) ) {
+			return false;
+		}
+		return false !== $wpdb->insert(
+			self::table(),
+			array(
+				'slug'   => $slug,
+				'title'  => isset( $record['title'] ) ? $record['title'] : '',
+				'colour' => isset( $record['colour'] ) ? $record['colour'] : '',
+			)
+		);
+	}
+
+	public static function remove( $slug ) {
+		global $wpdb;
+		return (bool) $wpdb->delete( self::table(), array( 'slug' => $slug ) );
+	}
+}

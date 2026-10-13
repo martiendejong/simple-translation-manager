@@ -1,0 +1,11 @@
+<?php
+// SPDX-License-Identifier: GPL-2.0-or-later
+// SPDX-FileCopyrightText: 2026 Fifth Fixture Author
+// Source-Id: skp.sync
+
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
+}
+
+class SKP_Sync {
+}

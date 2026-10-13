@@ -1,0 +1,32 @@
+<?php
+/**
+ * Plugin Name: Skeleton Plugin
+ * Description: Invented plugin made only of the standard WordPress plugin skeleton plus one tiny function of its own. Used only by tests.
+ * Version: 1.0.0
+ * Author: Fifth Fixture Author
+ * License: GPL-2.0-or-later
+ * Text Domain: skeleton-plugin
+ */
+
+// SPDX-License-Identifier: GPL-2.0-or-later
+// SPDX-FileCopyrightText: 2026 Fifth Fixture Author
+// Source-Id: skp.bootstrap
+
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
+}
+
+define( 'SKP_VERSION', '1.0.0' );
+define( 'SKP_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
+
+require_once SKP_PLUGIN_DIR . 'includes/class-registry.php';
+require_once SKP_PLUGIN_DIR . 'includes/class-sync.php';
+require_once SKP_PLUGIN_DIR . 'includes/class-rest.php';
+
+function skp_boot() {
+	load_plugin_textdomain( 'skeleton-plugin', false, dirname( plugin_basename( __FILE__ ) ) . '/languages' );
+	SKP_Rest::register();
+}
+add_action( 'plugins_loaded', 'skp_boot' );
+
+register_activation_hook( __FILE__, array( 'SKP_Registry', 'install' ) );

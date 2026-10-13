@@ -1,0 +1,6 @@
+<?php
+// SPDX-License-Identifier: GPL-2.0-or-later
+// SPDX-FileCopyrightText: 2026 Example Fixture Author
+// Source-Id: brk.test.broken
+
+// A development-only file: it must never end up in a release ZIP.

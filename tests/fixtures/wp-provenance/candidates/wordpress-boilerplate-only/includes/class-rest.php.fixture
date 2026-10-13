@@ -1,0 +1,18 @@
+<?php
+// SPDX-License-Identifier: GPL-2.0-or-later
+// SPDX-FileCopyrightText: 2026 Fifth Fixture Author
+// Source-Id: skp.rest
+
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
+}
+
+class SKP_Rest {
+
+	public static function register() {
+		add_action( 'rest_api_init', array( __CLASS__, 'routes' ) );
+	}
+
+	public static function routes() {
+	}
+}

@@ -1,0 +1,46 @@
+<?php
+// SPDX-License-Identifier: MIT
+// SPDX-FileCopyrightText: 2026 Another Fixture Author
+// Source-Id: glm.lamps
+
+defined( 'ABSPATH' ) || exit;
+
+/**
+ * Lamps are a custom post type, so editors get the normal list screen for free.
+ */
+function glm_register_lamp_type() {
+	register_post_type(
+		'glm_lamp',
+		array(
+			'label'        => 'Lamps',
+			'public'       => false,
+			'show_ui'      => true,
+			'supports'     => array( 'title', 'custom-fields' ),
+			'show_in_rest' => true,
+		)
+	);
+}
+
+function glm_lamp_payload( int $post_id ): array {
+	$post = get_post( $post_id );
+	if ( ! $post || 'glm_lamp' !== $post->post_type ) {
+		return array();
+	}
+	return array(
+		'name'    => $post->post_title,
+		'hue'     => (string) get_post_meta( $post_id, 'hue', true ),
+		'changed' => get_post_modified_time( 'c', true, $post ),
+	);
+}
+
+function glm_lamp_ids_changed_since( string $iso_time ): array {
+	$query = new WP_Query(
+		array(
+			'post_type'      => 'glm_lamp',
+			'fields'         => 'ids',
+			'posts_per_page' => 100,
+			'date_query'     => array( array( 'column' => 'post_modified_gmt', 'after' => $iso_time ) ),
+		)
+	);
+	return array_map( 'intval', $query->posts );
+}

@@ -1,0 +1,18 @@
+<?php
+// SPDX-License-Identifier: GPL-2.0-or-later
+// SPDX-FileCopyrightText: 2026 Fifth Fixture Author
+// Source-Id: skp.registry
+
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
+}
+
+/**
+ * Keeps one settings array; nothing else.
+ */
+class SKP_Registry {
+
+	public static function install() {
+		add_option( 'skp_settings', array( 'greeting' => 'hello' ) );
+	}
+}

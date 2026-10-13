@@ -639,3 +639,8 @@ Left: Martien to confirm the rights-holder wording (ProsperGenics is not named u
 Done: review of PR #44 fixed the private manifest "symbol" column (docblock tags were attributed to the declaration ABOVE the docblock, 21 of 30 design-note/symbol-doc markers wrong) and a stale .gitattributes reference in bin/provenance.php; added two regression tests.
 Verified: phpunit 218/218 (848 assertions), php -l and phpcs clean, regenerated manifest has 0 wrong docblock symbols; the candidate ZIP hash changes with every commit (git archive stamps the commit time), so only the release-time one counts.
 Left: Martien confirms the ProsperGenics wording; signed tag and the authoritative manifest/release record at release time from master.
+
+## 2026-10-10 - task 5184 (in progress)
+Done: draft PR opened. Plan: config-driven provenance check in tools/wp-provenance/ (own directory so it does not collide with PR #45, which also edits bin/provenance.php), findings with file/rule/fix and #5144-compatible fingerprints, release record + ZIP listing check, comparison mode with synthetic fixtures, verified plugin inventory + follow-up tasks.
+Verified: not yet.
+Left: everything in the task's Done-when list.

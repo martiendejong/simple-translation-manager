@@ -1,0 +1,32 @@
+<?php
+/**
+ * Plugin Name: Fixture Lantern Sync
+ * Description: Invented plugin used only by the provenance tool tests.
+ * Version: 1.0.0
+ * Author: Example Fixture Author
+ * License: GPL-2.0-or-later
+ * Text Domain: fixture-lantern-sync
+ */
+
+// SPDX-License-Identifier: GPL-2.0-or-later
+// SPDX-FileCopyrightText: 2026 Example Fixture Author
+// Source-Id: fls.bootstrap
+
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
+}
+
+define( 'FLS_VERSION', '1.0.0' );
+define( 'FLS_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
+
+require_once FLS_PLUGIN_DIR . 'includes/class-registry.php';
+require_once FLS_PLUGIN_DIR . 'includes/class-sync.php';
+require_once FLS_PLUGIN_DIR . 'includes/class-rest.php';
+
+function fls_boot() {
+	load_plugin_textdomain( 'fixture-lantern-sync', false, dirname( plugin_basename( __FILE__ ) ) . '/languages' );
+	FLS_Rest::register();
+}
+add_action( 'plugins_loaded', 'fls_boot' );
+
+register_activation_hook( __FILE__, array( 'FLS_Registry', 'install' ) );
