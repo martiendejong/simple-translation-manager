@@ -256,6 +256,32 @@ class WpPluginCheckImporterTest extends TestCase {
         $this->assertCount( 6, $this->board->tasks );
     }
 
+    public function test_the_real_baseline_report_becomes_bounded_tasks_and_a_second_import_adds_none() {
+        $file = dirname( __DIR__ ) . '/docs/wporg/baseline-9c1f4a49/report.json';
+        $this->assertFileExists( $file );
+        $report = json_decode( (string) file_get_contents( $file ), true );
+        $this->assertCount( 492, $report['findings'], 'the saved baseline: 11 errors and 481 warnings' );
+
+        $first = $this->importer->run( $report, true, 1000 );
+
+        $this->assertTrue( $first['accepted'] );
+        $this->assertSame( $first['groups'], count( $first['created'] ) );
+        $this->assertGreaterThan( 5, $first['groups'] );
+        $this->assertLessThan( 150, $first['groups'], '502 findings are far fewer tasks than findings' );
+        $this->assertSame( 492 + 10, array_sum( array_column( $first['created'], 'findings' ) ), '492 Plugin Check findings plus 10 unjustified suppressions, every one covered' );
+        foreach ( $this->board->tasks as $task ) {
+            $this->assertLessThanOrEqual( Importer::MAX_LISTED, substr_count( $task['description'], "\n| `" ), 'a task lists at most 20 locations' );
+            $this->assertLessThan( 6000, strlen( $task['description'] ) );
+        }
+
+        $this->board->clearRequests();
+        $second = $this->importer->run( $report, true, 1000 );
+        $this->assertSame( [], $second['created'] );
+        $this->assertSame( [], $second['updated'] );
+        $this->assertSame( $first['groups'], $second['unchanged'] );
+        $this->assertSame( [], $this->board->writes(), 'the second import of the same baseline writes nothing' );
+    }
+
     // --- a finding that changes -------------------------------------------------------------------------------
 
     public function test_a_changed_finding_list_adds_one_comment_and_the_comment_is_not_repeated() {
