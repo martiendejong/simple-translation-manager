@@ -227,6 +227,57 @@ if (!function_exists('stm_register_value_translatable_field')) {
     }
 }
 
+if (!function_exists('stm_get_pods_translation')) {
+    /**
+     * Get the translated value of a Pods custom field.
+     *
+     * @param string $pod_name   Pod (post type) name. Used to read the live
+     *                           Pods field value as a fallback — the stored
+     *                           translation itself is keyed by post ID +
+     *                           field name, same as any other STM post-field
+     *                           translation.
+     * @param string $field_name Pods field name (meta key).
+     * @param string|null $lang  Language code (defaults to current language).
+     * @param int|null $post_id  Post ID (defaults to the current post in the Loop).
+     * @return mixed Translated value, or the live Pods field value when no
+     *               translation exists for that language (e.g. a
+     *               relationship/file field, which is never translated
+     *               directly — its referenced item carries its own
+     *               translation instead).
+     */
+    function stm_get_pods_translation($pod_name, $field_name, $lang = null, $post_id = null) {
+        if (!$post_id) {
+            $post_id = get_the_ID();
+        }
+
+        if (!$post_id) {
+            return '';
+        }
+
+        if (!$lang) {
+            $lang = stm_get_current_language();
+        }
+
+        $translation = STM\Cache::get_post_translation($post_id, $field_name, $lang);
+        if ($translation !== '') {
+            return $translation;
+        }
+
+        // No stored translation (or default language) — fall back to the
+        // live Pods field value so template calls never render blank, and
+        // relationship/media fields (never offered for text translation)
+        // still resolve correctly.
+        if (function_exists('pods_field') && $pod_name) {
+            $raw = pods_field($pod_name, $post_id, $field_name);
+            if ($raw !== null && $raw !== false) {
+                return $raw;
+            }
+        }
+
+        return get_post_meta($post_id, $field_name, true);
+    }
+}
+
 if (!function_exists('stm_get_field_value_translation')) {
     /**
      * Translate a standardized field value via the shared value dictionary.

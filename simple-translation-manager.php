@@ -55,6 +55,7 @@ require_once STM_PLUGIN_DIR . 'includes/class-hreflang.php';
 require_once STM_PLUGIN_DIR . 'includes/class-sitemap.php';
 require_once STM_PLUGIN_DIR . 'includes/class-seo-god-integration.php';
 require_once STM_PLUGIN_DIR . 'includes/class-elementor-integration.php';
+require_once STM_PLUGIN_DIR . 'includes/class-pods-integration.php';
 
 // WP-CLI commands (only loaded if WP-CLI is available)
 if (defined('WP_CLI') && WP_CLI) {
@@ -271,6 +272,7 @@ function stm_init() {
     STM\Sitemap::init();
     STM\SeoGodIntegration::init();
     STM\ElementorIntegration::init();
+    STM\PodsIntegration::init();
 }
 add_action('plugins_loaded', 'stm_init');
 

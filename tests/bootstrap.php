@@ -14,6 +14,7 @@ if (!defined('OBJECT'))  define('OBJECT', 'OBJECT');
 if (!defined('ARRAY_A')) define('ARRAY_A', 'ARRAY_A');
 if (!defined('ARRAY_N')) define('ARRAY_N', 'ARRAY_N');
 
+if (!defined('ABSPATH'))        define('ABSPATH', __DIR__ . '/fixtures/fake-wp-root/');
 if (!defined('STM_VERSION'))    define('STM_VERSION', '1.1.1');
 if (!defined('STM_PLUGIN_URL')) define('STM_PLUGIN_URL', 'http://example.test/wp-content/plugins/simple-translation-manager/');
 if (!defined('STM_PLUGIN_DIR')) define('STM_PLUGIN_DIR', dirname(__DIR__) . '/');
@@ -62,5 +63,7 @@ require_once $pluginDir . 'class-frontend.php';
 require_once $pluginDir . 'class-hreflang.php';
 require_once $pluginDir . 'class-seo-god-integration.php';
 require_once $pluginDir . 'class-elementor-integration.php';
+require_once $pluginDir . 'class-pods-integration.php';
 require_once $pluginDir . 'class-dashboard.php';
 require_once $pluginDir . 'class-import-export.php';
+require_once $pluginDir . 'functions.php';
