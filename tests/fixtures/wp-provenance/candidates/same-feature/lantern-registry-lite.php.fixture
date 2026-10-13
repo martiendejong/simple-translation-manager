@@ -1,0 +1,23 @@
+<?php
+/**
+ * Plugin Name: Lantern Registry Lite
+ * Description: Invented plugin that offers the same feature as the reference (a lantern registry with a remote push) written from the same one-line spec. Used only by tests.
+ * Version: 2.1.0
+ * Author: Third Fixture Author
+ * License: GPL-2.0-or-later
+ */
+
+// SPDX-License-Identifier: GPL-2.0-or-later
+// SPDX-FileCopyrightText: 2026 Third Fixture Author
+// Source-Id: lrl.main
+
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
+}
+
+define( 'LRL_VERSION', '2.1.0' );
+
+require_once plugin_dir_path( __FILE__ ) . 'includes/class-registry.php';
+require_once plugin_dir_path( __FILE__ ) . 'includes/class-sync.php';
+
+add_action( 'rest_api_init', array( 'LRL_Sync', 'routes' ) );

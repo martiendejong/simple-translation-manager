@@ -1,0 +1,29 @@
+{
+    "schema": "wp-provenance-config/1",
+    "plugin": {
+        "slug": "broken-fixture",
+        "name": "Broken Fixture",
+        "dir": ".",
+        "main_file": "broken-fixture.php",
+        "version_from": { "header": "Version" },
+        "prefixes": ["brk"]
+    },
+    "rights": {
+        "holder": "Example Fixture Author",
+        "holder_status": "unconfirmed",
+        "holder_evidence": "",
+        "year": "2026",
+        "license": "GPL-2.0-or-later"
+    },
+    "source": {
+        "source_id": { "required": true, "prefix": "brk" }
+    },
+    "markers": [
+        { "kind": "diag-code", "pattern": "BRK-[EWI]-[A-Z0-9]+(?:-[A-Z0-9]+)+", "scope": "distributed", "min": 1 },
+        { "kind": "design-note", "pattern": "\\[(BRK-DN-\\d{2,3})\\]", "id_group": 1, "needle": "[{id}]", "scope": "distributed", "min": 3, "context": true }
+    ],
+    "release": {
+        "zip_root": "broken-fixture",
+        "dist_paths": ["broken-fixture.php", "includes", "readme.txt"]
+    }
+}

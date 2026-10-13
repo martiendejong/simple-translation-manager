@@ -1,0 +1,59 @@
+<?php
+// SPDX-License-Identifier: GPL-2.0-or-later
+// SPDX-FileCopyrightText: 2026 Example Fixture Author
+// Source-Id: fls.rest
+
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
+}
+
+/**
+ * REST routes for the lantern registry.
+ */
+class FLS_Rest {
+
+	public static function register() {
+		add_action( 'rest_api_init', array( __CLASS__, 'routes' ) );
+	}
+
+	public static function routes() {
+		register_rest_route(
+			'fls/v1',
+			'/lanterns',
+			array(
+				array(
+					'methods'             => 'GET',
+					'callback'            => array( __CLASS__, 'list_lanterns' ),
+					'permission_callback' => array( __CLASS__, 'can_manage' ),
+				),
+				array(
+					'methods'             => 'POST',
+					'callback'            => array( __CLASS__, 'create_lantern' ),
+					'permission_callback' => array( __CLASS__, 'can_manage' ),
+				),
+			)
+		);
+	}
+
+	public static function can_manage() {
+		return current_user_can( 'manage_options' );
+	}
+
+	public static function list_lanterns() {
+		return rest_ensure_response( array_values( FLS_Registry::all() ) );
+	}
+
+	public static function create_lantern( WP_REST_Request $request ) {
+		$slug   = (string) $request->get_param( 'slug' );
+		$record = array(
+			'title'  => sanitize_text_field( (string) $request->get_param( 'title' ) ),
+			'colour' => sanitize_hex_color( (string) $request->get_param( 'colour' ) ),
+		);
+		// [FLS-DN-04] Validation failures answer 422, not 400: the request is well formed, the lantern is what is wrong.
+		$result = FLS_Registry::register( $slug, $record );
+		if ( is_wp_error( $result ) ) {
+			return new WP_REST_Response( array( 'code' => $result->get_error_code(), 'fls_diag' => 'FLS-E-REST-CREATE-FAILED' ), 422 );
+		}
+		return new WP_REST_Response( array( 'slug' => sanitize_key( $slug ) ), 201 );
+	}
+}

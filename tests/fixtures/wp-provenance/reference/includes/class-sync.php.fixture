@@ -1,0 +1,58 @@
+<?php
+// SPDX-License-Identifier: GPL-2.0-or-later
+// SPDX-FileCopyrightText: 2026 Example Fixture Author
+// Source-Id: fls.sync
+
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
+}
+
+/**
+ * Pushes the registry to a remote endpoint in batches.
+ */
+class FLS_Sync {
+
+	const BATCH_SIZE = 25;
+	const MAX_TRIES  = 4;
+
+	/**
+	 * [FLS-DN-03] Retries wait 2, 4, 8 seconds instead of a fixed pause, so a struggling remote service gets room to recover instead of a steady hammering.
+	 */
+	public static function push_all( $endpoint ) {
+		$batches = array_chunk( FLS_Registry::all(), self::BATCH_SIZE, true );
+		$sent    = 0;
+		foreach ( $batches as $batch ) {
+			$result = self::push_batch( $endpoint, $batch );
+			if ( is_wp_error( $result ) ) {
+				return $result;
+			}
+			$sent += count( $batch );
+		}
+		return $sent;
+	}
+
+	private static function push_batch( $endpoint, array $batch ) {
+		$delay = 2;
+		for ( $try = 1; $try <= self::MAX_TRIES; $try++ ) {
+			$response = wp_remote_post(
+				$endpoint,
+				array(
+					'timeout' => 10,
+					'body'    => wp_json_encode( $batch ),
+					'headers' => array( 'Content-Type' => 'application/json' ),
+				)
+			);
+			$code = is_wp_error( $response ) ? 0 : (int) wp_remote_retrieve_response_code( $response );
+			if ( $code >= 200 && $code < 300 ) {
+				return true;
+			}
+			if ( $code >= 400 && $code < 500 ) {
+				return new WP_Error( 'fls_rejected', 'The remote service rejected the batch.', array( 'fls_diag' => 'FLS-E-SYNC-REJECTED', 'status' => $code ) );
+			}
+			error_log( '[FLS] FLS-W-SYNC-RETRY try ' . $try );
+			sleep( $delay );
+			$delay *= 2;
+		}
+		return new WP_Error( 'fls_unreachable', 'The remote service did not answer.', array( 'fls_diag' => 'FLS-E-SYNC-UNREACHABLE' ) );
+	}
+}
