@@ -39,6 +39,17 @@ changes the hash and turns every "evidence" line below back to open until it is 
 
 ## How to re-run everything
 
+One command does all of it (build the ZIP of a commit, official Plugin Check on exactly that ZIP, install, update and
+runtime test of the same ZIP) and prints one JSON verdict. A pull request check, a release check and the Jengo action
+all run this same command:
+
+```
+php bin/release-check.php [--commit=REF] [--reports-dir=DIR] [--from=auto|none|v1.3.0,v1.3.1]
+```
+
+It exits 0 only when the scan is complete and clean and the lifecycle test passed; `--skip-lifecycle` is allowed but is
+never reported as ok. The steps by hand, if one of them has to be run alone:
+
 ```
 php bin/provenance.php release . --commit=<sha> --out-dir=<private dir outside the repo> --published=<YYYY-MM-DD>
 php tools/wp-plugin-check/scan.php check <private dir>/simple-translation-manager-<version>.zip --reports-dir=<reports dir> --commit=<sha>

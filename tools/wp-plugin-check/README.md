@@ -46,6 +46,11 @@ php tools/wp-plugin-check/scan.php lifecycle <plugin.zip> --script=FILE --out-di
   into the report store (`<reports-dir>/<slug>/<scan time>-<zip hash prefix>/report.json`), prints the delta
   against the previous complete scan, imports into the board when `--board` is given (dry run unless
   `--apply`) and prints the status. Its exit code is the scan's.
+- **`bin/release-check.php`** (STM only, one level up) chains the three steps a release needs: build the ZIP of a commit
+  (`bin/provenance.php release`), `check` on exactly that ZIP, and `lifecycle` on the same ZIP with the older release
+  tags as update sources. One JSON verdict, exit 0 only when the scan is complete and clean and the lifecycle test
+  passed. Pull request checks, release checks and the Jengo action call this, not the steps separately. Another
+  plugin writes the same thin wrapper around its own ZIP build; `scan.php check` and `lifecycle` stay generic.
 - **`status`** is what a status screen shows: last attempt, last complete scan, delta, linked tasks.
 - **`lifecycle`** installs the ZIP in a throwaway site (clean install, update from older ZIPs, uninstall
   with and without "keep data") and runs a plugin-specific script between the steps; see
