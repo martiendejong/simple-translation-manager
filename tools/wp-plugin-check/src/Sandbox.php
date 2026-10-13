@@ -27,6 +27,14 @@ final class Sandbox
     private string $php;
     private string $dbBinDir;
     private bool $keep;
+    private string $siteUrl = 'http://plugin-check.test';
+    private bool $withPluginCheck = true;
+    private bool $reuse = false;
+
+    private ?int $webPid = null;
+    /** @var resource|null */
+    private $webProc = null;
+    private int $webPort = 0;
 
     private ?int $dbPid = null;
     /** @var resource|null */
@@ -47,9 +55,37 @@ final class Sandbox
         $this->keep     = $keep;
     }
 
+    /** Address the site is installed under. Call before provision(). */
+    public function useSiteUrl(string $url): void
+    {
+        $this->siteUrl = rtrim($url, '/');
+    }
+
+    /** Lifecycle tests do not need Plugin Check in the site. Call before provision(). */
+    public function withoutPluginCheck(): void
+    {
+        $this->withPluginCheck = false;
+    }
+
+    /** Start from a sandbox kept by an earlier run (database and site files), instead of a new one. */
+    public function reuseExisting(bool $reuse = true): void
+    {
+        $this->reuse = $reuse;
+    }
+
+    public function siteUrl(): string
+    {
+        return $this->siteUrl;
+    }
+
     public function sitePath(): string
     {
         return $this->root . '/site';
+    }
+
+    public function rootPath(): string
+    {
+        return $this->root;
     }
 
     public function pluginsDir(): string
@@ -165,17 +201,24 @@ final class Sandbox
         }
 
         $this->writePhpIni();
-        $this->startDatabase();
+        $marker = $this->root . '/provisioned.json';
+        if ($this->reuse && is_file($marker)) {
+            $this->attach($marker);
+            return;
+        }
+        $this->startDatabase(true);
 
         $wpZip = $this->fetcher->fetch($this->pins->section('wordpress'));
         (new ZipFile($wpZip))->extractTo($this->sitePath(), 'wordpress/');
         $this->wpCliPhar = $this->fetcher->fetch($this->pins->section('wp_cli'));
 
-        $pcZip = $this->fetcher->fetch($this->pins->section('plugin_check'));
-        (new ZipFile($pcZip))->extractTo($this->pluginsDir(), '');
+        if ($this->withPluginCheck) {
+            $pcZip = $this->fetcher->fetch($this->pins->section('plugin_check'));
+            (new ZipFile($pcZip))->extractTo($this->pluginsDir(), '');
+        }
 
         $this->adminPassword = bin2hex(random_bytes(12));
-        $url                 = 'http://plugin-check.test';
+        $url                 = $this->siteUrl;
 
         $this->mustWp(['config', 'create', '--dbname=wp', '--dbuser=root', '--dbpass=', '--dbhost=127.0.0.1:' . $this->dbPort, '--skip-check'], 'wp config create');
         foreach (['DISABLE_WP_CRON' => 'true', 'AUTOMATIC_UPDATER_DISABLED' => 'true', 'WP_DEBUG' => 'false'] as $name => $value) {
@@ -188,8 +231,30 @@ final class Sandbox
             'core', 'install', '--url=' . $url, '--title=Plugin Check Sandbox', '--admin_user=scan-admin',
             '--admin_password=' . $this->adminPassword, '--admin_email=admin@example.test', '--skip-email',
         ], 'wp core install');
-        $this->mustWp(['plugin', 'activate', 'plugin-check'], 'activate plugin-check');
+        if ($this->withPluginCheck) {
+            $this->mustWp(['plugin', 'activate', 'plugin-check'], 'activate plugin-check');
+        }
 
+        $this->environment = $this->collectEnvironment();
+        file_put_contents($marker, json_encode(['admin_password' => $this->adminPassword, 'environment' => $this->environment], JSON_PRETTY_PRINT));
+    }
+
+    /** Come back to a kept sandbox: same files and database, new processes and ports. */
+    private function attach(string $marker): void
+    {
+        $saved = json_decode((string) file_get_contents($marker), true);
+        if (!is_array($saved)) {
+            throw new RuntimeException('The kept sandbox has no readable provisioned.json');
+        }
+        $this->adminPassword = (string) $saved['admin_password'];
+        $this->wpCliPhar     = $this->fetcher->fetch($this->pins->section('wp_cli'));
+        $this->startDatabase(false);
+        $this->mustWp(['config', 'set', 'DB_HOST', '127.0.0.1:' . $this->dbPort], 'wp config set DB_HOST');
+        foreach (['WP_HOME', 'WP_SITEURL'] as $name) {
+            $this->mustWp(['config', 'set', $name, $this->siteUrl], "wp config set {$name}");
+        }
+        $this->mustWp(['option', 'update', 'home', $this->siteUrl], 'wp option update home');
+        $this->mustWp(['option', 'update', 'siteurl', $this->siteUrl], 'wp option update siteurl');
         $this->environment = $this->collectEnvironment();
     }
 
@@ -202,9 +267,10 @@ final class Sandbox
      *
      * @param string[] $args
      * @param string[] $requires absolute paths passed as --require
+     * @param string[] $flags    further global flags, for example --user=scan-admin
      * @return array{code:int,stdout:string,stderr:string,seconds:float,timed_out:bool}
      */
-    public function wp(array $args, array $requires = [], int $timeout = 900): array
+    public function wp(array $args, array $requires = [], int $timeout = 900, array $flags = []): array
     {
         $argv = [$this->php, '-c', $this->phpIni(), '-d', 'error_reporting=' . (E_ALL & ~E_DEPRECATED & ~E_USER_DEPRECATED), $this->wpCliPhar];
         foreach ($args as $a) {
@@ -215,6 +281,9 @@ final class Sandbox
         }
         $argv[] = '--path=' . $this->sitePath();
         $argv[] = '--allow-root';
+        foreach ($flags as $flag) {
+            $argv[] = $flag;
+        }
 
         return Proc::run($argv, $this->sitePath(), [
             'WP_CLI_CONFIG_PATH'            => $this->root . '/wp-cli.yml',
@@ -239,6 +308,7 @@ final class Sandbox
 
     public function teardown(): void
     {
+        $this->stopWebServer();
         $this->stopDatabase();
         if (!$this->keep && is_dir($this->root)) {
             self::removeTree($this->root);
@@ -289,7 +359,7 @@ final class Sandbox
         return str_replace('\\', '/', $dir);
     }
 
-    private function startDatabase(): void
+    private function startDatabase(bool $fresh): void
     {
         $install = self::dbBinary($this->dbBinDir, ['mariadb-install-db', 'mysql_install_db']);
         $server  = self::dbBinary($this->dbBinDir, ['mariadbd', 'mysqld']);
@@ -300,9 +370,11 @@ final class Sandbox
         }
 
         $data = $this->root . '/db';
-        $r    = Proc::run([$install, '--datadir=' . $data], $this->root, [], 300, $this->root . '/tmp');
-        if ($r['code'] !== 0) {
-            throw new RuntimeException('mariadb-install-db failed: ' . self::tail($r['stderr'] . $r['stdout']));
+        if ($fresh) {
+            $r = Proc::run([$install, '--datadir=' . $data], $this->root, [], 300, $this->root . '/tmp');
+            if ($r['code'] !== 0) {
+                throw new RuntimeException('mariadb-install-db failed: ' . self::tail($r['stderr'] . $r['stdout']));
+            }
         }
 
         $this->dbPort = $this->freePort();
@@ -325,9 +397,11 @@ final class Sandbox
             throw new RuntimeException('The throwaway MariaDB did not become ready: ' . self::tail((string) @file_get_contents($this->root . '/logs/mariadb.log')));
         }
 
-        $create = Proc::run([$client, '--no-defaults', '-h127.0.0.1', '-P' . $this->dbPort, '-uroot', '-e', 'CREATE DATABASE wp CHARACTER SET utf8mb4'], $this->root, [], 60, $this->root . '/tmp');
-        if ($create['code'] !== 0) {
-            throw new RuntimeException('CREATE DATABASE failed: ' . self::tail($create['stderr']));
+        if ($fresh) {
+            $create = Proc::run([$client, '--no-defaults', '-h127.0.0.1', '-P' . $this->dbPort, '-uroot', '-e', 'CREATE DATABASE wp CHARACTER SET utf8mb4'], $this->root, [], 60, $this->root . '/tmp');
+            if ($create['code'] !== 0) {
+                throw new RuntimeException('CREATE DATABASE failed: ' . self::tail($create['stderr']));
+            }
         }
         $ver = Proc::run([$server, '--version'], $this->root, [], 30, $this->root . '/tmp');
         $this->environment['mariadb'] = trim(explode("\n", $ver['stdout'] . $ver['stderr'])[0]);
@@ -361,7 +435,63 @@ final class Sandbox
         $this->dbProc = null;
     }
 
-    private function freePort(): int
+    /**
+     * Serve the site over HTTP with PHP's built-in web server, for tests that need real requests
+     * (unauthenticated REST calls, a logged-in admin session, frontend pages). One request at a time,
+     * which is enough because only the test script talks to it.
+     */
+    public function startWebServer(int $port): void
+    {
+        $this->webPort = $port;
+        $router        = $this->root . '/router.php';
+        file_put_contents($router, <<<'PHP'
+<?php
+// Router for PHP's built-in web server: real files are served as they are, everything else goes to WordPress.
+$docroot = $_SERVER['DOCUMENT_ROOT'];
+$path    = rawurldecode((string) parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH));
+$full    = realpath($docroot . $path);
+if ($full !== false && (is_file($full) || (is_dir($full) && is_file($full . '/index.php')))) {
+    return false;
+}
+$_SERVER['SCRIPT_NAME']     = '/index.php';
+$_SERVER['SCRIPT_FILENAME'] = $docroot . '/index.php';
+$_SERVER['PHP_SELF']        = '/index.php';
+chdir($docroot);
+require $docroot . '/index.php';
+PHP
+        );
+        $started       = Proc::start([
+            $this->php, '-c', $this->phpIni(), '-S', '127.0.0.1:' . $port, '-t', $this->sitePath(), $router,
+        ], $this->sitePath(), $this->root . '/logs/webserver.log');
+        $this->webProc = $started['proc'];
+        $this->webPid  = $started['pid'];
+
+        $deadline = time() + 30;
+        while (time() < $deadline) {
+            $socket = @fsockopen('127.0.0.1', $port, $errno, $errstr, 1);
+            if ($socket !== false) {
+                fclose($socket);
+                return;
+            }
+            usleep(250000);
+        }
+        throw new RuntimeException('The throwaway web server did not start: ' . self::tail((string) @file_get_contents($this->root . '/logs/webserver.log')));
+    }
+
+    private function stopWebServer(): void
+    {
+        if ($this->webPid === null) {
+            return;
+        }
+        Proc::killTree($this->webPid);
+        if (is_resource($this->webProc)) {
+            proc_close($this->webProc);
+        }
+        $this->webPid  = null;
+        $this->webProc = null;
+    }
+
+    public function freePort(): int
     {
         $socket = stream_socket_server('tcp://127.0.0.1:0', $errno, $errstr);
         if ($socket === false) {
@@ -379,7 +509,9 @@ final class Sandbox
         $env['php']           = $this->phpVersion();
         $env['wordpress']     = trim($this->mustWp(['core', 'version'], 'wp core version'));
         $env['wp_cli']        = trim(str_replace('WP-CLI ', '', $this->mustWp(['cli', 'version'], 'wp cli version')));
-        $env['plugin_check']  = trim($this->mustWp(['plugin', 'get', 'plugin-check', '--field=version'], 'plugin-check version'));
+        if ($this->withPluginCheck) {
+            $env['plugin_check'] = trim($this->mustWp(['plugin', 'get', 'plugin-check', '--field=version'], 'plugin-check version'));
+        }
         $env['os']            = PHP_OS_FAMILY . ' ' . php_uname('r');
         return $env;
     }

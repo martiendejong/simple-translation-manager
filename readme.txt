@@ -81,9 +81,10 @@ output for search engines.
 
 Only read access to the translated content of your public site: the language list, the string
 and translation lists, and the translations and slugs of **published** posts. Everything that
-creates, changes, deletes, imports, exports or auto-translates requires an administrator.
-Translations of drafts, private and password-protected posts are only returned to users who can
-edit that post.
+creates, changes, deletes, imports, exports or auto-translates requires an administrator, with one
+exception: the routes behind the post editor (removing one translation of a post, and the Elementor
+translation panel) need the capability to edit that particular post. Translations of drafts, private
+and password-protected posts are only returned to users who can edit that post.
 
 = Does it send my content to other services? =
 

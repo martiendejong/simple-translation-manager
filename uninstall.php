@@ -38,8 +38,10 @@ function stm_uninstall() {
         return;
     }
 
-    // Security: Require admin privileges
-    if (!current_user_can('activate_plugins')) {
+    // Security: WordPress only includes this file from uninstall_plugin(), after delete_plugins() checked
+    // the capability. A second check must still let WP-CLI through: `wp plugin uninstall` runs without a
+    // logged-in user, and a bare current_user_can() there silently skipped the whole clean-up.
+    if (!( defined('WP_CLI') && WP_CLI ) && !current_user_can('delete_plugins')) {
         return;
     }
 

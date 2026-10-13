@@ -26,6 +26,8 @@ final class Cli
                     return self::scan($positional, $options, $toolDir);
                 case 'compare':
                     return self::compare($positional, $options);
+                case 'lifecycle':
+                    return self::lifecycle($positional, $options, $toolDir);
                 case 'import':
                     return ImportCommand::run($positional, $options);
                 case 'status':
@@ -101,6 +103,42 @@ final class Cli
         ];
         echo json_encode($summary, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";
         return Scanner::exitCode($report);
+    }
+
+    /**
+     * @param list<string>               $positional
+     * @param array<string,string|bool>  $options
+     */
+    private static function lifecycle(array $positional, array $options, string $toolDir): int
+    {
+        $zip = $positional[0] ?? '';
+        if ($zip === '' || empty($options['out-dir']) || !is_string($options['out-dir']) || empty($options['script']) || !is_string($options['script'])) {
+            fwrite(STDERR, "Usage: php scan.php lifecycle <plugin.zip> --script=FILE --out-dir=DIR [--from=old1.zip,old2.zip] [--commit=SHA] [--php=BIN] [--mariadb-bin=DIR] [--work-dir=DIR] [--reuse-sandbox=DIR]\n");
+            return 64;
+        }
+        $workDir = is_string($options['work-dir'] ?? null) ? $options['work-dir'] : sys_get_temp_dir() . '/wp-plugin-check';
+        $runner  = new Lifecycle(
+            $toolDir,
+            $workDir,
+            is_string($options['php'] ?? null) ? $options['php'] : null,
+            is_string($options['mariadb-bin'] ?? null) ? $options['mariadb-bin'] : null
+        );
+        $report = $runner->run($zip, [
+            'out_dir'      => $options['out-dir'],
+            'script'       => $options['script'],
+            'from'         => is_string($options['from'] ?? null) ? array_values(array_filter(explode(',', $options['from']))) : [],
+            'commit'       => is_string($options['commit'] ?? null) ? $options['commit'] : null,
+            'keep_sandbox' => !empty($options['keep-sandbox']),
+            'reuse'        => is_string($options['reuse-sandbox'] ?? null) ? $options['reuse-sandbox'] : null,
+        ]);
+        echo json_encode([
+            'status'     => $report['scan']['status'],
+            'reason'     => $report['scan']['status_reason'],
+            'zip_sha256' => $report['subject']['zip_sha256'] ?? null,
+            'result'     => $report['result'],
+            'report'     => rtrim((string) $options['out-dir'], '/\\') . '/lifecycle.json',
+        ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";
+        return Lifecycle::exitCode($report);
     }
 
     /**
