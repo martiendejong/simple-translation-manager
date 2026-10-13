@@ -21,6 +21,17 @@ changes the hash and turns every "evidence" line below back to open until it is 
 | 7 | Open STM pull requests that touch shipped files are merged or excluded before the final scan | #39 (Pods) and #43 (stale detection) are **excluded**: the ZIP is built from `master` plus PR #45 only. If either merges first, rebuild the ZIP and run gate 1 and 6 again | Excluded; decision for Martien |
 | 8 | A human approves the submission | Martien | **Open** |
 
+## Supported WordPress and PHP versions: what is verified, what is not
+
+| Header | Evidence | Not covered |
+|---|---|---|
+| `Tested up to: 7.1` | The whole scan and the install, update and runtime test ran on WordPress 7.1.3, PHP 8.5.6, MariaDB 12.3.2. This is the only combination run here. | Any other WordPress or PHP version at runtime, multisite. |
+| `Requires PHP: 7.4` | `php bin/php-floor.php <zip>`: 35 PHP files, no PHP 8.0+ language feature (nullsafe, match, union types, promotion, named arguments, attributes, enums, throw expressions, ...) and no call to a function added after 7.4. The script is tested against a planted example of each feature. | The plugin has not been run on PHP 7.4 (this host has PHP 8.5 only), so a changed behaviour of an old function would not be seen. |
+| `Requires at least: 6.0` | Plugin Check reports no use of WordPress API newer than the declared minimum. At baseline it flagged `wp_sitemaps_get_max_urls()` (added in 5.5) against `Requires at least: 5.0`; the header now says 6.0, which includes it. | The plugin has not been run on WordPress 6.0 to 7.0. |
+
+A runtime matrix needs more pins in `tools/wp-plugin-check/pins.json` (one WordPress per version, PHP binaries for 7.4 to
+8.4) and is not part of this gate. If the plugin team asks for it, it is a separate piece of work.
+
 ## Open items for a human (not done, not automatable here)
 
 1. **Approve the submission** (gate 8) and decide on #39 and #43 (gate 7) before the final ZIP is built.
@@ -54,6 +65,7 @@ never reported as ok. The steps by hand, if one of them has to be run alone:
 php bin/provenance.php release . --commit=<sha> --out-dir=<private dir outside the repo> --published=<YYYY-MM-DD>
 php tools/wp-plugin-check/scan.php check <private dir>/simple-translation-manager-<version>.zip --reports-dir=<reports dir> --commit=<sha>
 php tools/wp-plugin-check/scan.php lifecycle <zip> --script=tests/lifecycle/stm-lifecycle.php --from=<old 1.3.0 zip>,<old 1.3.1 zip> --out-dir=<dir>
+php bin/php-floor.php <zip>
 vendor/bin/phpunit
 ```
 
