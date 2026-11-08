@@ -27,27 +27,31 @@ notes) or a test fixture.
 Headers name **Martien de Jong** (the plugin header's `Author`, and the author
 of the repository history). No other party is named as rights holder. If
 another legal entity (for example ProsperGenics) holds the rights, confirm the
-exact legal name first, then change `STM_PROV_HOLDER` in `bin/provenance.php`
-and run `php bin/provenance.php check` to find every header that still needs
-updating. Do not add third-party names or copyrights without verifying them.
+exact legal name first, update `rights.holder` in `provenance.json`, and run
+`php tools/wp-provenance/provenance.php check --config=provenance.json` to find
+every header that still needs updating. Do not add third-party names or
+copyrights without verifying them.
 
-## Tooling (`bin/provenance.php`, development only)
+## Tooling (`tools/wp-provenance/provenance.php`, development only)
+
+The config-driven tool introduced in task 5184 replaces the earlier `bin/provenance.php`.
+Each plugin keeps its own `provenance.json` config (see [wp-provenance docs](wp-provenance-tool.md)).
 
 ```
-php bin/provenance.php check                 # headers + unique Source-Ids
-php bin/provenance.php apply-headers         # add missing headers (idempotent)
-php bin/provenance.php manifest --out=FILE   # private manifest of all recognition points
-php bin/provenance.php compare REF CAND      # comparison report for two source trees
-php bin/provenance.php release --out-dir=DIR # exact ZIP + release record
-php bin/provenance.php verify-release RECORD # rebuild the ZIP and compare SHA-256
-php bin/provenance.php demo                  # report on literal / prefix-only / independent copies
+php tools/wp-provenance/provenance.php check --config=provenance.json              # all checks
+php tools/wp-provenance/provenance.php apply-headers --config=provenance.json      # add missing headers (idempotent)
+php tools/wp-provenance/provenance.php manifest --config=provenance.json --out=FILE  # private manifest
+php tools/wp-provenance/provenance.php release --config=provenance.json --out-dir=DIR  # ZIP + release record
+php tools/wp-provenance/provenance.php verify-release RECORD --config=provenance.json  # re-verify ZIP
+php tools/wp-provenance/provenance.php compare --config=provenance.json --candidate=DIR  # comparison
+php tools/wp-provenance/provenance.php demo                                         # fixture walk-through
 ```
 
 * `manifest` and `release` refuse to write inside the repository. The manifest
   lists every recognition point with file, symbol, introduction commit and
   release; keep it in a private location, not next to the code it describes.
-* The release ZIP is built from an allowlist (`STM_PROV_DIST_PATHS`) with
-  `git archive`, so tests, fixtures, tooling and `vendor/` cannot end up in it.
+* The release ZIP is built from the `release.dist_paths` allowlist in `provenance.json`
+  with `git archive`, so tests, fixtures, tooling and `vendor/` cannot end up in it.
   The same commit gives the same bytes; `verify-release` proves it.
 * The release record ties together commit, tree, ZIP SHA-256 and the recorded
   publication date. The hash identifies **that exact file only**. It says
@@ -55,15 +59,16 @@ php bin/provenance.php demo                  # report on literal / prefix-only /
 * Tag signing is reported, never assumed: the record says whether a signing key
   is available on the machine that built the release and whether the tag is
   signed.
-* `compare` and `demo` classify a candidate as `verbatim-indicators`,
-  `prefix-renamed-indicators`, `partial-overlap-only`, `copyright-notice-only`
-  or `no-recognition-points-found`. A kept copyright notice alone is not an
-  indicator (the GPL requires keeping it). The report lists observations; it
-  never concludes that copying happened.
+* `compare` and `demo` classify a candidate as `strong-indicators` (verbatim or
+  prefix-renamed registered markers, byte-identical files), `weak-indicators`
+  (single renamed marker, partial overlap), or `none`. A kept copyright notice,
+  the same brand name, the same feature or standard WordPress boilerplate are
+  informational only and never raise the assessment. The report lists
+  observations; it never concludes that copying happened.
 
 ## Adding a new module
 
 1. Create the file with the three header lines (or run `apply-headers`).
-2. Run `php bin/provenance.php check`.
+2. Run `php tools/wp-provenance/provenance.php check --config=provenance.json`.
 3. Add a diagnostic code to every new error return, and a design note where the
    behaviour is not obvious. Do not add either as decoration.
