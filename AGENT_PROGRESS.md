@@ -640,6 +640,15 @@ Done: review of PR #44 fixed the private manifest "symbol" column (docblock tags
 Verified: phpunit 218/218 (848 assertions), php -l and phpcs clean, regenerated manifest has 0 wrong docblock symbols; the candidate ZIP hash changes with every commit (git archive stamps the commit time), so only the release-time one counts.
 Left: Martien confirms the ProsperGenics wording; signed tag and the authoritative manifest/release record at release time from master.
 
+## 2026-10-10 - task 5144 (in progress)
+Plan: reproducible release ZIP, official Plugin Check (static + runtime) scanner in a throwaway WordPress, STM fixes until the final scan of the same ZIP hash is clean, install/update/REST-permission tests. Draft PR opened first so a crashed session stays discoverable.
+
+
+## 2026-10-13 - task 5144
+Done: PR #45: runtime-only release ZIP, official Plugin Check scanner (tools/wp-plugin-check), STM fixed to a clean final scan of ZIP 08564871, Jengo Work importer (phase B), bin/release-check.php (one command for PR/release checks), bin/php-floor.php, docs/wporg/SUBMISSION-GATE.md.
+Verified: official Plugin Check on ZIP 08564871, run twice (same hash): 0 errors, 0 warnings, runtime checks proven by the canary; install/update/runtime/REST test 280/280; phpunit 330 pass, jest 18/18; php-floor finds nothing newer than PHP 7.4 in the 35 shipped PHP files.
+Left: Martien approves the submission and settles the human items in docs/wporg/SUBMISSION-GATE.md (WordPress.org username, directory assets, signed v1.3.2 tag, PRs #39/#43); the Jengo dashboard action is task 5497.
+
 ## 2026-10-10 / 2026-11-08 - task 5184
 Done: config-driven WordPress plugin provenance check tool (tools/wp-provenance/) with 37 tests. Commands: check, apply-headers, manifest, release, verify-release, compare, diff, demo. Config driven from per-plugin provenance.json. Run on STM (1 warning: missing LICENSE file) and read-only on SEO God (56 source files, all missing headers - expected). Demo: broken fixture gives 16 errors / 3 warnings; 6 comparison scenarios all correct (literal copy and prefix-renamed = strong-indicators, independent / same-feature / brand-name / boilerplate = none). Release record verified: ZIP SHA-256, commit, signing status ("unsigned") all reported. docs/PROVENANCE.md updated to reference new tool path. docs/wp-provenance-tool.md added (usage, config reference, #5144 fit, edge cases). Plugin inventory verified live against 8 repos. Follow-up tasks: #7265 (SEO God, board 5), #7266 (Visit Platform, board 38), #7267 (Trip Planner Widget, board 38), #7268 (Bugatti Insights, board 2), #7269 (CoachOS Chat Widget, board 8), #7270 (Yin Yoga Sound Coach, board 8), #7271 (IDR Discography, board 35), #7272 (Linzi Security, board 58).
 Verified: 37/37 phpunit tests pass; demo correct on all 6 comparison scenarios; check on STM exits 0; check on SEO God exits 1 with the expected header errors; release command produces ZIP + SHA-256 + signing status; PROVENANCE.md references updated.

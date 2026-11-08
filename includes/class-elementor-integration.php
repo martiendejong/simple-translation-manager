@@ -206,12 +206,14 @@ class ElementorIntegration {
 
         $json = wp_json_encode( $translations );
 
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- reads the plugin's own table wp_stm_post_translations (no WordPress API for custom tables); read-before-write: needs the current row to choose update or insert, a cached copy could create a duplicate
         $existing = $wpdb->get_var( $wpdb->prepare(
-            "SELECT id FROM {$table} WHERE post_id = %d AND field_name = %s AND language_code = %s",
+            "SELECT id FROM {$wpdb->prefix}stm_post_translations WHERE post_id = %d AND field_name = %s AND language_code = %s",
             $post_id,
             self::FIELD_NAME,
             $lang_code
         ) );
+        // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
 
         $data = [
             'post_id'       => $post_id,
@@ -221,8 +223,10 @@ class ElementorIntegration {
         ];
 
         if ( $existing ) {
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- writes the plugin's own table wp_stm_post_translations (no WordPress API for custom tables); Cache::invalidate_post() drops the cached copies right after the write
             $wpdb->update( $table, $data, [ 'id' => $existing ] );
         } else {
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery -- writes the plugin's own table wp_stm_post_translations (no WordPress API for custom tables)
             $wpdb->insert( $table, $data );
         }
 
@@ -250,11 +254,13 @@ class ElementorIntegration {
         global $wpdb;
         $table = $wpdb->prefix . 'stm_post_translations';
 
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- deletes rows of the plugin's own table wp_stm_post_translations (no WordPress API for custom tables); Cache::invalidate_post() drops the cached copies right after the write
         $deleted = $wpdb->delete( $table, [
             'post_id'       => $post_id,
             'field_name'    => self::FIELD_NAME,
             'language_code' => $lang_code,
         ] );
+        // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
 
         Cache::invalidate_post( $post_id, self::FIELD_NAME );
 
@@ -324,6 +330,7 @@ class ElementorIntegration {
     }
 
     public static function current_editor_post_id(): int {
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- read-only: which post the Elementor editor has open; an (int) cast, nothing is saved from it
         return isset( $_GET['post'] ) ? (int) $_GET['post'] : 0;
     }
 

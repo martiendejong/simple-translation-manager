@@ -1,0 +1,2956 @@
+{
+    "schema": "wp-plugin-check-report/1",
+    "scan": {
+        "id": "20261013T181730Z-ca6d11",
+        "started_at": "2026-10-13T18:17:30+00:00",
+        "finished_at": "2026-10-13T18:20:32+00:00",
+        "seconds": 182.2,
+        "status": "complete",
+        "status_reason": "All checks ran: Plugin Check completed, runtime checks verified by the canary, installed files identical to the ZIP.",
+        "partial": false,
+        "tool": {
+            "name": "wp-plugin-check",
+            "pins_sha256": "a6514c5310096847fe8c20e22d0abf435c04d4307ba129614bd03d743764c3cc"
+        }
+    },
+    "subject": {
+        "file": "simple-translation-manager-1.3.2.zip",
+        "zip_sha256": "0856487161318e89a63c6152410861d18abd0f47b2cf4f0897fd68d2b89846f3",
+        "zip_bytes": 418326,
+        "entries": 56,
+        "slug": "simple-translation-manager",
+        "plugin_name": "Simple Translation Manager",
+        "plugin_version": "1.3.2",
+        "commit": "7bafa81"
+    },
+    "environment": {
+        "pinned": {
+            "wordpress": "7.1.3",
+            "wp_cli": "2.12.0",
+            "plugin_check": "2.1.0",
+            "php_minor": "8.5"
+        },
+        "mariadb": "C:/Program Files/MariaDB 12.3/bin/mariadbd.exe  Ver 12.3.2-MariaDB for Win64 on AMD64 (MariaDB Server)",
+        "php": "8.5.6",
+        "wordpress": "7.1.3",
+        "wp_cli": "2.12.0",
+        "plugin_check": "2.1.0",
+        "os": "Windows 10.0"
+    },
+    "command": {
+        "runtime_checks": {
+            "requested": true,
+            "verified": true,
+            "canary_plugin": "pcp-runtime-canary",
+            "expected_code": "EnqueuedScriptsSize.ScriptSizeGreaterThanThreshold",
+            "detail": "The canary triggered the expected runtime finding."
+        },
+        "display": "wp plugin check simple-translation-manager --format=strict-json --fields=file,line,column,type,code,message,docs,severity --require=<sandbox>/wp-content/plugins/plugin-check/cli.php",
+        "exit_code": 0,
+        "seconds": 20.62,
+        "global_flags": "none of --checks (unless partial), --exclude-checks, --ignore-codes, --exclude-directories, --exclude-files, --severity is used"
+    },
+    "result": {
+        "errors": 0,
+        "warnings": 0,
+        "findings_total": 0,
+        "suppression_problems": 0,
+        "hygiene_problems": 0,
+        "clean": true,
+        "by_check": [],
+        "by_file": []
+    },
+    "findings": [],
+    "suppressions": {
+        "total": 184,
+        "by_rule": {
+            "PluginCheck.CodeAnalysis.AIProvider.DirectIntegration": 1,
+            "PluginCheck.Security.DirectDB.UnescapedDBParameter": 4,
+            "Squiz.PHP.DiscouragedFunctions.Discouraged": 1,
+            "WordPress.DB.DirectDatabaseQuery.DirectQuery": 143,
+            "WordPress.DB.DirectDatabaseQuery.NoCaching": 105,
+            "WordPress.DB.DirectDatabaseQuery.SchemaChange": 1,
+            "WordPress.DB.PreparedSQL.InterpolatedNotPrepared": 11,
+            "WordPress.DB.PreparedSQL.NotPrepared": 2,
+            "WordPress.DB.PreparedSQLPlaceholders.ReplacementsWrongNumber": 1,
+            "WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare": 4,
+            "WordPress.PHP.DevelopmentFunctions.error_log_error_log": 7,
+            "WordPress.Security.EscapeOutput.OutputNotEscaped": 7,
+            "WordPress.Security.NonceVerification.Recommended": 14,
+            "WordPress.Security.ValidatedSanitizedInput.InputNotSanitized": 8
+        },
+        "items": [
+            {
+                "file": "includes/class-admin.php",
+                "line": 202,
+                "kind": "disable",
+                "rules": [
+                    "WordPress.Security.NonceVerification.Recommended"
+                ],
+                "reason": "read-only list filters on an admin screen, no state change"
+            },
+            {
+                "file": "includes/class-admin.php",
+                "line": 211,
+                "kind": "enable",
+                "rules": [
+                    "WordPress.Security.NonceVerification.Recommended"
+                ],
+                "reason": ""
+            },
+            {
+                "file": "includes/class-admin.php",
+                "line": 247,
+                "kind": "disable",
+                "rules": [
+                    "WordPress.DB.PreparedSQL.InterpolatedNotPrepared",
+                    "PluginCheck.Security.DirectDB.UnescapedDBParameter"
+                ],
+                "reason": "$where_sql is the AND-joined output of $wpdb->prepare() fragments built a few lines up; no request value is ever concatenated into it"
+            },
+            {
+                "file": "includes/class-admin.php",
+                "line": 249,
+                "kind": "disable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": "reads the plugin's own tables wp_stm_strings, wp_stm_translations (no WordPress API for custom tables); admin screen: shows the rows as they are right now, one query per page view"
+            },
+            {
+                "file": "includes/class-admin.php",
+                "line": 260,
+                "kind": "enable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": ""
+            },
+            {
+                "file": "includes/class-admin.php",
+                "line": 262,
+                "kind": "disable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": "reads the plugin's own table wp_stm_strings (no WordPress API for custom tables); admin screen: shows the rows as they are right now, one query per page view"
+            },
+            {
+                "file": "includes/class-admin.php",
+                "line": 266,
+                "kind": "enable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": ""
+            },
+            {
+                "file": "includes/class-admin.php",
+                "line": 268,
+                "kind": "enable",
+                "rules": [
+                    "WordPress.DB.PreparedSQL.InterpolatedNotPrepared",
+                    "PluginCheck.Security.DirectDB.UnescapedDBParameter"
+                ],
+                "reason": ""
+            },
+            {
+                "file": "includes/class-admin.php",
+                "line": 273,
+                "kind": "disable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching",
+                    "WordPress.DB.PreparedSQL.InterpolatedNotPrepared"
+                ],
+                "reason": "reads the plugin's own tables wp_stm_strings, wp_stm_translations (no WordPress API for custom tables); admin screen: shows the rows as they are right now, one query per page view; $where_sql is the AND-joined output of $wpdb->prepare() fragments built just above; no request value is concatenated into it"
+            },
+            {
+                "file": "includes/class-admin.php",
+                "line": 274,
+                "kind": "ignore",
+                "rules": [
+                    "WordPress.DB.PreparedSQL.InterpolatedNotPrepared",
+                    "PluginCheck.Security.DirectDB.UnescapedDBParameter"
+                ],
+                "reason": "$where_sql is the AND-joined output of $wpdb->prepare() fragments built a few lines up; no request value is ever concatenated into it"
+            },
+            {
+                "file": "includes/class-admin.php",
+                "line": 285,
+                "kind": "enable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching",
+                    "WordPress.DB.PreparedSQL.InterpolatedNotPrepared"
+                ],
+                "reason": ""
+            },
+            {
+                "file": "includes/class-admin.php",
+                "line": 288,
+                "kind": "disable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": "reads the plugin's own table wp_stm_strings (no WordPress API for custom tables); admin screen: shows the rows as they are right now, one query per page view"
+            },
+            {
+                "file": "includes/class-admin.php",
+                "line": 290,
+                "kind": "enable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": ""
+            },
+            {
+                "file": "includes/class-admin.php",
+                "line": 297,
+                "kind": "disable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching",
+                    "WordPress.DB.PreparedSQL.InterpolatedNotPrepared",
+                    "WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare"
+                ],
+                "reason": "reads the plugin's own table wp_stm_translations (no WordPress API for custom tables); admin screen: shows the rows as they are right now, one query per page view; the interpolated variable only holds a run of %s/%d markers (implode of array_fill), one per value passed to prepare()"
+            },
+            {
+                "file": "includes/class-admin.php",
+                "line": 298,
+                "kind": "ignore",
+                "rules": [
+                    "WordPress.DB.PreparedSQL.InterpolatedNotPrepared",
+                    "WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare"
+                ],
+                "reason": "$id_placeholders is only a run of %d markers (implode of array_fill), one per integer id in $string_ids"
+            },
+            {
+                "file": "includes/class-admin.php",
+                "line": 305,
+                "kind": "enable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching",
+                    "WordPress.DB.PreparedSQL.InterpolatedNotPrepared",
+                    "WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare"
+                ],
+                "reason": ""
+            },
+            {
+                "file": "includes/class-admin.php",
+                "line": 383,
+                "kind": "ignore",
+                "rules": [
+                    "WordPress.Security.NonceVerification.Recommended"
+                ],
+                "reason": "read-only view selector on an admin listing page, no state change"
+            },
+            {
+                "file": "includes/class-admin.php",
+                "line": 456,
+                "kind": "ignore",
+                "rules": [
+                    "WordPress.Security.ValidatedSanitizedInput.InputNotSanitized"
+                ],
+                "reason": "must stay byte-exact: it is only md5()-compared with the submitted hash below and stored through $wpdb, never printed"
+            },
+            {
+                "file": "includes/class-admin.php",
+                "line": 514,
+                "kind": "ignore",
+                "rules": [
+                    "Squiz.PHP.DiscouragedFunctions.Discouraged"
+                ],
+                "reason": "one external API call per missing value can add up to minutes on a large field; raised only for this admin request"
+            },
+            {
+                "file": "includes/class-admin.php",
+                "line": 612,
+                "kind": "disable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": "plain COUNT over core wp_posts (WP_Query would load every post object just to count); admin notice; the result is cached in a transient (set_transient further down in this function)"
+            },
+            {
+                "file": "includes/class-admin.php",
+                "line": 616,
+                "kind": "enable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": ""
+            },
+            {
+                "file": "includes/class-admin.php",
+                "line": 621,
+                "kind": "disable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": "joins the plugin's own table wp_stm_post_translations with core wp_posts (no WordPress function expresses this query); admin notice; the result is cached in a transient (set_transient further down in this function)"
+            },
+            {
+                "file": "includes/class-admin.php",
+                "line": 628,
+                "kind": "enable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": ""
+            },
+            {
+                "file": "includes/class-admin.php",
+                "line": 688,
+                "kind": "ignore",
+                "rules": [
+                    "WordPress.Security.ValidatedSanitizedInput.InputNotSanitized"
+                ],
+                "reason": "Security::sanitize_translation() is the sanitiser (wp_kses with the allowed-HTML list)"
+            },
+            {
+                "file": "includes/class-admin.php",
+                "line": 699,
+                "kind": "disable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": "reads the plugin's own table wp_stm_translations (no WordPress API for custom tables); admin handler: reads the current row before changing it"
+            },
+            {
+                "file": "includes/class-admin.php",
+                "line": 705,
+                "kind": "enable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": ""
+            },
+            {
+                "file": "includes/class-admin.php",
+                "line": 717,
+                "kind": "disable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": "writes the plugin's own table wp_stm_translations (no WordPress API for custom tables); Cache::invalidate_string() drops the cached copies right after the write"
+            },
+            {
+                "file": "includes/class-admin.php",
+                "line": 719,
+                "kind": "enable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": ""
+            },
+            {
+                "file": "includes/class-admin.php",
+                "line": 721,
+                "kind": "disable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery"
+                ],
+                "reason": "writes the plugin's own table wp_stm_translations (no WordPress API for custom tables)"
+            },
+            {
+                "file": "includes/class-admin.php",
+                "line": 723,
+                "kind": "enable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery"
+                ],
+                "reason": ""
+            },
+            {
+                "file": "includes/class-admin.php",
+                "line": 731,
+                "kind": "disable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": "reads the plugin's own table wp_stm_strings (no WordPress API for custom tables); admin handler: reads the current row before changing it"
+            },
+            {
+                "file": "includes/class-admin.php",
+                "line": 736,
+                "kind": "enable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": ""
+            },
+            {
+                "file": "includes/class-admin.php",
+                "line": 761,
+                "kind": "ignore",
+                "rules": [
+                    "WordPress.Security.ValidatedSanitizedInput.InputNotSanitized"
+                ],
+                "reason": "Security::sanitize_translation_key() is the sanitiser (lowercase key characters only)"
+            },
+            {
+                "file": "includes/class-admin.php",
+                "line": 763,
+                "kind": "ignore",
+                "rules": [
+                    "WordPress.Security.ValidatedSanitizedInput.InputNotSanitized"
+                ],
+                "reason": "Security::sanitize_context() is the sanitiser (lowercase context characters only)"
+            },
+            {
+                "file": "includes/class-admin.php",
+                "line": 784,
+                "kind": "disable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery"
+                ],
+                "reason": "writes the plugin's own table wp_stm_strings (no WordPress API for custom tables)"
+            },
+            {
+                "file": "includes/class-admin.php",
+                "line": 786,
+                "kind": "enable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery"
+                ],
+                "reason": ""
+            },
+            {
+                "file": "includes/class-admin.php",
+                "line": 838,
+                "kind": "ignore",
+                "rules": [
+                    "WordPress.Security.ValidatedSanitizedInput.InputNotSanitized"
+                ],
+                "reason": "the upload array is not printed or stored: the name goes through sanitize_file_name() and only the .json extension is used, the content is json_decode()d and every value is sanitised in API::process_import()"
+            },
+            {
+                "file": "includes/class-admin.php",
+                "line": 899,
+                "kind": "disable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": "reads the plugin's own table wp_stm_languages (no WordPress API for custom tables); admin handler: reads the current row before changing it"
+            },
+            {
+                "file": "includes/class-admin.php",
+                "line": 904,
+                "kind": "enable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": ""
+            },
+            {
+                "file": "includes/class-admin.php",
+                "line": 912,
+                "kind": "disable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery"
+                ],
+                "reason": "writes the plugin's own table wp_stm_languages (no WordPress API for custom tables)"
+            },
+            {
+                "file": "includes/class-admin.php",
+                "line": 914,
+                "kind": "enable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery"
+                ],
+                "reason": ""
+            },
+            {
+                "file": "includes/class-admin.php",
+                "line": 929,
+                "kind": "disable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery"
+                ],
+                "reason": "writes the plugin's own table wp_stm_languages (no WordPress API for custom tables)"
+            },
+            {
+                "file": "includes/class-admin.php",
+                "line": 931,
+                "kind": "enable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery"
+                ],
+                "reason": ""
+            },
+            {
+                "file": "includes/class-admin.php",
+                "line": 934,
+                "kind": "disable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery"
+                ],
+                "reason": "writes the plugin's own table wp_stm_languages (no WordPress API for custom tables)"
+            },
+            {
+                "file": "includes/class-admin.php",
+                "line": 936,
+                "kind": "enable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery"
+                ],
+                "reason": ""
+            },
+            {
+                "file": "includes/class-admin.php",
+                "line": 969,
+                "kind": "disable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": "reads the plugin's own table wp_stm_languages (no WordPress API for custom tables); admin handler: reads the current row before changing it"
+            },
+            {
+                "file": "includes/class-admin.php",
+                "line": 974,
+                "kind": "enable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": ""
+            },
+            {
+                "file": "includes/class-admin.php",
+                "line": 981,
+                "kind": "disable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery"
+                ],
+                "reason": "deletes rows of the plugin's own table wp_stm_languages (no WordPress API for custom tables)"
+            },
+            {
+                "file": "includes/class-admin.php",
+                "line": 983,
+                "kind": "enable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery"
+                ],
+                "reason": ""
+            },
+            {
+                "file": "includes/class-admin.php",
+                "line": 1013,
+                "kind": "disable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": "reads the plugin's own table wp_stm_languages (no WordPress API for custom tables); admin handler: reads the current row before changing it"
+            },
+            {
+                "file": "includes/class-admin.php",
+                "line": 1018,
+                "kind": "enable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": ""
+            },
+            {
+                "file": "includes/class-admin.php",
+                "line": 1031,
+                "kind": "disable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery"
+                ],
+                "reason": "writes the plugin's own table wp_stm_languages (no WordPress API for custom tables)"
+            },
+            {
+                "file": "includes/class-admin.php",
+                "line": 1033,
+                "kind": "enable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery"
+                ],
+                "reason": ""
+            },
+            {
+                "file": "includes/class-api.php",
+                "line": 277,
+                "kind": "ignore",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery"
+                ],
+                "reason": "writes the plugin's own table wp_stm_languages (no WordPress API for custom tables)"
+            },
+            {
+                "file": "includes/class-api.php",
+                "line": 303,
+                "kind": "disable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": "reads the plugin's own tables wp_stm_strings, wp_stm_translations (no WordPress API for custom tables); REST read: always returns the latest saved rows; HTTP caches and CDNs cache the response"
+            },
+            {
+                "file": "includes/class-api.php",
+                "line": 316,
+                "kind": "enable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": ""
+            },
+            {
+                "file": "includes/class-api.php",
+                "line": 351,
+                "kind": "ignore",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery"
+                ],
+                "reason": "writes the plugin's own table wp_stm_strings (no WordPress API for custom tables)"
+            },
+            {
+                "file": "includes/class-api.php",
+                "line": 397,
+                "kind": "disable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": "reads the plugin's own table wp_stm_strings (no WordPress API for custom tables); REST write handler: reads the current row before changing it"
+            },
+            {
+                "file": "includes/class-api.php",
+                "line": 402,
+                "kind": "enable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": ""
+            },
+            {
+                "file": "includes/class-api.php",
+                "line": 407,
+                "kind": "ignore",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": "writes the plugin's own table wp_stm_strings (no WordPress API for custom tables); only the description column changes; no cached value is built from it"
+            },
+            {
+                "file": "includes/class-api.php",
+                "line": 425,
+                "kind": "disable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": "reads the plugin's own table wp_stm_strings (no WordPress API for custom tables); REST write handler: reads the current row before changing it"
+            },
+            {
+                "file": "includes/class-api.php",
+                "line": 430,
+                "kind": "enable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": ""
+            },
+            {
+                "file": "includes/class-api.php",
+                "line": 436,
+                "kind": "ignore",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": "deletes rows of the plugin's own table wp_stm_translations (no WordPress API for custom tables); Cache::invalidate_string() drops the cached copies right after the write"
+            },
+            {
+                "file": "includes/class-api.php",
+                "line": 438,
+                "kind": "ignore",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": "deletes rows of the plugin's own table wp_stm_strings (no WordPress API for custom tables); Cache::invalidate_string() drops the cached copies right after the write"
+            },
+            {
+                "file": "includes/class-api.php",
+                "line": 461,
+                "kind": "disable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": "reads the plugin's own tables wp_stm_strings, wp_stm_translations (no WordPress API for custom tables); REST read: always returns the latest saved rows; HTTP caches and CDNs cache the response"
+            },
+            {
+                "file": "includes/class-api.php",
+                "line": 473,
+                "kind": "enable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": ""
+            },
+            {
+                "file": "includes/class-api.php",
+                "line": 475,
+                "kind": "disable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": "reads the plugin's own table wp_stm_translations (no WordPress API for custom tables); REST read: always returns the latest saved rows; HTTP caches and CDNs cache the response"
+            },
+            {
+                "file": "includes/class-api.php",
+                "line": 483,
+                "kind": "enable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": ""
+            },
+            {
+                "file": "includes/class-api.php",
+                "line": 500,
+                "kind": "disable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": "reads the plugin's own tables wp_stm_strings, wp_stm_translations (no WordPress API for custom tables); REST write handler: reads the current row before changing it"
+            },
+            {
+                "file": "includes/class-api.php",
+                "line": 508,
+                "kind": "enable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": ""
+            },
+            {
+                "file": "includes/class-api.php",
+                "line": 521,
+                "kind": "ignore",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": "writes the plugin's own table wp_stm_translations (no WordPress API for custom tables); Cache::invalidate_string() drops the cached copies right after the write"
+            },
+            {
+                "file": "includes/class-api.php",
+                "line": 550,
+                "kind": "disable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": "reads the plugin's own table wp_stm_post_translations (no WordPress API for custom tables); REST read: always returns the latest saved rows; HTTP caches and CDNs cache the response"
+            },
+            {
+                "file": "includes/class-api.php",
+                "line": 558,
+                "kind": "enable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": ""
+            },
+            {
+                "file": "includes/class-api.php",
+                "line": 596,
+                "kind": "disable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": "reads the plugin's own table wp_stm_post_translations (no WordPress API for custom tables); REST write handler: reads the current row before changing it"
+            },
+            {
+                "file": "includes/class-api.php",
+                "line": 601,
+                "kind": "enable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": ""
+            },
+            {
+                "file": "includes/class-api.php",
+                "line": 604,
+                "kind": "disable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": "writes the plugin's own table wp_stm_post_translations (no WordPress API for custom tables); Cache::invalidate_post() drops the cached copies right after the write"
+            },
+            {
+                "file": "includes/class-api.php",
+                "line": 610,
+                "kind": "enable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": ""
+            },
+            {
+                "file": "includes/class-api.php",
+                "line": 612,
+                "kind": "disable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery"
+                ],
+                "reason": "writes the plugin's own table wp_stm_post_translations (no WordPress API for custom tables)"
+            },
+            {
+                "file": "includes/class-api.php",
+                "line": 619,
+                "kind": "enable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery"
+                ],
+                "reason": ""
+            },
+            {
+                "file": "includes/class-api.php",
+                "line": 648,
+                "kind": "disable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": "deletes rows of the plugin's own table wp_stm_post_translations (no WordPress API for custom tables); Cache::invalidate_post() drops the cached copies right after the write"
+            },
+            {
+                "file": "includes/class-api.php",
+                "line": 653,
+                "kind": "enable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": ""
+            },
+            {
+                "file": "includes/class-api.php",
+                "line": 689,
+                "kind": "ignore",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery"
+                ],
+                "reason": "writes the plugin's own table wp_stm_translations (no WordPress API for custom tables)"
+            },
+            {
+                "file": "includes/class-api.php",
+                "line": 697,
+                "kind": "disable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": "reads the plugin's own table wp_stm_strings (no WordPress API for custom tables); REST write handler: reads the current row before changing it"
+            },
+            {
+                "file": "includes/class-api.php",
+                "line": 702,
+                "kind": "enable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": ""
+            },
+            {
+                "file": "includes/class-api.php",
+                "line": 749,
+                "kind": "disable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": "reads the plugin's own table wp_stm_strings (no WordPress API for custom tables); REST write handler: reads the current row before changing it"
+            },
+            {
+                "file": "includes/class-api.php",
+                "line": 756,
+                "kind": "enable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": ""
+            },
+            {
+                "file": "includes/class-api.php",
+                "line": 759,
+                "kind": "disable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery"
+                ],
+                "reason": "writes the plugin's own table wp_stm_strings (no WordPress API for custom tables)"
+            },
+            {
+                "file": "includes/class-api.php",
+                "line": 764,
+                "kind": "enable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery"
+                ],
+                "reason": ""
+            },
+            {
+                "file": "includes/class-api.php",
+                "line": 775,
+                "kind": "disable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": "reads the plugin's own table wp_stm_translations (no WordPress API for custom tables); REST write handler: reads the current row before changing it"
+            },
+            {
+                "file": "includes/class-api.php",
+                "line": 782,
+                "kind": "enable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": ""
+            },
+            {
+                "file": "includes/class-api.php",
+                "line": 794,
+                "kind": "ignore",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": "writes the plugin's own table wp_stm_translations (no WordPress API for custom tables); Cache::invalidate_string() drops the cached copies right after the write"
+            },
+            {
+                "file": "includes/class-api.php",
+                "line": 800,
+                "kind": "ignore",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery"
+                ],
+                "reason": "writes the plugin's own table wp_stm_translations (no WordPress API for custom tables)"
+            },
+            {
+                "file": "includes/class-api.php",
+                "line": 835,
+                "kind": "disable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": "reads the plugin's own table wp_stm_post_translations (no WordPress API for custom tables); REST read: always returns the latest saved rows; HTTP caches and CDNs cache the response"
+            },
+            {
+                "file": "includes/class-api.php",
+                "line": 840,
+                "kind": "enable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": ""
+            },
+            {
+                "file": "includes/class-api.php",
+                "line": 865,
+                "kind": "disable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": "reads the plugin's own table wp_stm_post_translations (no WordPress API for custom tables); REST write handler: reads the current row before changing it"
+            },
+            {
+                "file": "includes/class-api.php",
+                "line": 870,
+                "kind": "enable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": ""
+            },
+            {
+                "file": "includes/class-api.php",
+                "line": 880,
+                "kind": "ignore",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": "writes the plugin's own table wp_stm_post_translations (no WordPress API for custom tables); Cache::invalidate_post() runs right after this write"
+            },
+            {
+                "file": "includes/class-api.php",
+                "line": 883,
+                "kind": "ignore",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery"
+                ],
+                "reason": "writes the plugin's own table wp_stm_post_translations (no WordPress API for custom tables)"
+            },
+            {
+                "file": "includes/class-api.php",
+                "line": 901,
+                "kind": "disable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": "reads the plugin's own table wp_stm_languages (no WordPress API for custom tables); REST write handler: reads the current row before changing it"
+            },
+            {
+                "file": "includes/class-api.php",
+                "line": 906,
+                "kind": "enable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": ""
+            },
+            {
+                "file": "includes/class-api.php",
+                "line": 924,
+                "kind": "ignore",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery"
+                ],
+                "reason": "writes the plugin's own table wp_stm_languages (no WordPress API for custom tables)"
+            },
+            {
+                "file": "includes/class-api.php",
+                "line": 961,
+                "kind": "disable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": "deletes rows of the plugin's own table wp_stm_post_translations (no WordPress API for custom tables); Cache::invalidate_post() drops the cached copies right after the write"
+            },
+            {
+                "file": "includes/class-api.php",
+                "line": 967,
+                "kind": "enable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": ""
+            },
+            {
+                "file": "includes/class-api.php",
+                "line": 982,
+                "kind": "disable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": "reads the plugin's own table wp_stm_languages (no WordPress API for custom tables); REST write handler: reads the current row before changing it"
+            },
+            {
+                "file": "includes/class-api.php",
+                "line": 987,
+                "kind": "enable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": ""
+            },
+            {
+                "file": "includes/class-api.php",
+                "line": 997,
+                "kind": "ignore",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery"
+                ],
+                "reason": "deletes rows of the plugin's own table wp_stm_post_translations (no WordPress API for custom tables)"
+            },
+            {
+                "file": "includes/class-api.php",
+                "line": 999,
+                "kind": "ignore",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery"
+                ],
+                "reason": "deletes rows of the plugin's own table wp_stm_translations (no WordPress API for custom tables)"
+            },
+            {
+                "file": "includes/class-api.php",
+                "line": 1001,
+                "kind": "ignore",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery"
+                ],
+                "reason": "deletes rows of the plugin's own table wp_stm_languages (no WordPress API for custom tables)"
+            },
+            {
+                "file": "includes/class-api.php",
+                "line": 1018,
+                "kind": "disable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": "reads the plugin's own tables wp_stm_strings, wp_stm_translations (no WordPress API for custom tables); REST read: always returns the latest saved rows; HTTP caches and CDNs cache the response"
+            },
+            {
+                "file": "includes/class-api.php",
+                "line": 1031,
+                "kind": "enable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": ""
+            },
+            {
+                "file": "includes/class-api.php",
+                "line": 1081,
+                "kind": "disable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": "reads the plugin's own tables wp_stm_strings, wp_stm_translations (no WordPress API for custom tables); REST read: always returns the latest saved rows; HTTP caches and CDNs cache the response"
+            },
+            {
+                "file": "includes/class-api.php",
+                "line": 1090,
+                "kind": "enable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": ""
+            },
+            {
+                "file": "includes/class-api.php",
+                "line": 1176,
+                "kind": "disable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": "reads the plugin's own table wp_stm_strings (no WordPress API for custom tables); REST write handler: reads the current row before changing it"
+            },
+            {
+                "file": "includes/class-api.php",
+                "line": 1181,
+                "kind": "enable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": ""
+            },
+            {
+                "file": "includes/class-api.php",
+                "line": 1183,
+                "kind": "disable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": "reads the plugin's own table wp_stm_translations (no WordPress API for custom tables); REST write handler: reads the current row before changing it"
+            },
+            {
+                "file": "includes/class-api.php",
+                "line": 1188,
+                "kind": "enable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": ""
+            },
+            {
+                "file": "includes/class-api.php",
+                "line": 1197,
+                "kind": "disable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": "reads the plugin's own table wp_stm_strings (no WordPress API for custom tables); REST write handler: reads the current row before changing it"
+            },
+            {
+                "file": "includes/class-api.php",
+                "line": 1202,
+                "kind": "enable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": ""
+            },
+            {
+                "file": "includes/class-api.php",
+                "line": 1205,
+                "kind": "disable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery"
+                ],
+                "reason": "writes the plugin's own table wp_stm_strings (no WordPress API for custom tables)"
+            },
+            {
+                "file": "includes/class-api.php",
+                "line": 1210,
+                "kind": "enable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery"
+                ],
+                "reason": ""
+            },
+            {
+                "file": "includes/class-api.php",
+                "line": 1215,
+                "kind": "disable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": "reads the plugin's own table wp_stm_translations (no WordPress API for custom tables); REST write handler: reads the current row before changing it"
+            },
+            {
+                "file": "includes/class-api.php",
+                "line": 1220,
+                "kind": "enable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": ""
+            },
+            {
+                "file": "includes/class-api.php",
+                "line": 1232,
+                "kind": "ignore",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": "writes the plugin's own table wp_stm_translations (no WordPress API for custom tables); Cache::invalidate_string() drops the cached copies right after the write"
+            },
+            {
+                "file": "includes/class-api.php",
+                "line": 1236,
+                "kind": "ignore",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery"
+                ],
+                "reason": "writes the plugin's own table wp_stm_translations (no WordPress API for custom tables)"
+            },
+            {
+                "file": "includes/class-api.php",
+                "line": 1324,
+                "kind": "disable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": "reads the plugin's own table wp_stm_post_translations (no WordPress API for custom tables); REST write handler: reads the current row before changing it"
+            },
+            {
+                "file": "includes/class-api.php",
+                "line": 1329,
+                "kind": "enable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": ""
+            },
+            {
+                "file": "includes/class-api.php",
+                "line": 1333,
+                "kind": "disable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": "writes the plugin's own table wp_stm_post_translations (no WordPress API for custom tables); Cache::invalidate_post() drops the cached copies right after the write"
+            },
+            {
+                "file": "includes/class-api.php",
+                "line": 1341,
+                "kind": "enable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": ""
+            },
+            {
+                "file": "includes/class-api.php",
+                "line": 1344,
+                "kind": "disable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery"
+                ],
+                "reason": "writes the plugin's own table wp_stm_post_translations (no WordPress API for custom tables)"
+            },
+            {
+                "file": "includes/class-api.php",
+                "line": 1355,
+                "kind": "enable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery"
+                ],
+                "reason": ""
+            },
+            {
+                "file": "includes/class-api.php",
+                "line": 1362,
+                "kind": "ignore",
+                "rules": [
+                    "WordPress.PHP.DevelopmentFunctions.error_log_error_log"
+                ],
+                "reason": "logs a failed database operation (not debug output); the message carries a stable [STM-E-...] diagnostic code so a site owner can report it"
+            },
+            {
+                "file": "includes/class-auto-translate.php",
+                "line": 195,
+                "kind": "ignore",
+                "rules": [
+                    "PluginCheck.CodeAnalysis.AIProvider.DirectIntegration"
+                ],
+                "reason": "STM supports WordPress 6.0 and newer, which has no WordPress AI Client; the site owner picks the provider (OpenAI or DeepL) and supplies their own key, and the request only runs after an administrator action"
+            },
+            {
+                "file": "includes/class-cache.php",
+                "line": 59,
+                "kind": "disable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery"
+                ],
+                "reason": "reads the plugin's own tables wp_stm_strings, wp_stm_translations (no WordPress API for custom tables)"
+            },
+            {
+                "file": "includes/class-cache.php",
+                "line": 73,
+                "kind": "enable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery"
+                ],
+                "reason": ""
+            },
+            {
+                "file": "includes/class-cache.php",
+                "line": 101,
+                "kind": "disable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery"
+                ],
+                "reason": "reads the plugin's own table wp_stm_post_translations (no WordPress API for custom tables)"
+            },
+            {
+                "file": "includes/class-cache.php",
+                "line": 112,
+                "kind": "enable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery"
+                ],
+                "reason": ""
+            },
+            {
+                "file": "includes/class-cache.php",
+                "line": 116,
+                "kind": "ignore",
+                "rules": [
+                    "WordPress.PHP.DevelopmentFunctions.error_log_error_log"
+                ],
+                "reason": "logs a failed database operation (not debug output); the message carries a stable [STM-E-...] diagnostic code so a site owner can report it"
+            },
+            {
+                "file": "includes/class-cache.php",
+                "line": 146,
+                "kind": "disable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery"
+                ],
+                "reason": "reads the plugin's own table wp_stm_field_value_translations (no WordPress API for custom tables)"
+            },
+            {
+                "file": "includes/class-cache.php",
+                "line": 157,
+                "kind": "enable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery"
+                ],
+                "reason": ""
+            },
+            {
+                "file": "includes/class-cache.php",
+                "line": 160,
+                "kind": "ignore",
+                "rules": [
+                    "WordPress.PHP.DevelopmentFunctions.error_log_error_log"
+                ],
+                "reason": "logs a failed database operation (not debug output); the message carries a stable [STM-E-...] diagnostic code so a site owner can report it"
+            },
+            {
+                "file": "includes/class-cache.php",
+                "line": 218,
+                "kind": "disable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": "reads the plugin's own table wp_stm_post_translations (no WordPress API for custom tables); cache invalidation: it must read the live rows to know which cache keys to delete"
+            },
+            {
+                "file": "includes/class-cache.php",
+                "line": 223,
+                "kind": "enable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": ""
+            },
+            {
+                "file": "includes/class-cli.php",
+                "line": 226,
+                "kind": "disable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": "reads the plugin's own table wp_stm_post_translations (no WordPress API for custom tables); runs only on an administrator's request (admin screen, AJAX call or WP-CLI)"
+            },
+            {
+                "file": "includes/class-cli.php",
+                "line": 231,
+                "kind": "enable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": ""
+            },
+            {
+                "file": "includes/class-dashboard.php",
+                "line": 45,
+                "kind": "ignore",
+                "rules": [
+                    "WordPress.Security.NonceVerification.Recommended"
+                ],
+                "reason": "read-only tab selection, no state change"
+            },
+            {
+                "file": "includes/class-dashboard.php",
+                "line": 65,
+                "kind": "disable",
+                "rules": [
+                    "WordPress.Security.NonceVerification.Recommended"
+                ],
+                "reason": "read-only list filters, no state change"
+            },
+            {
+                "file": "includes/class-dashboard.php",
+                "line": 74,
+                "kind": "enable",
+                "rules": [
+                    "WordPress.Security.NonceVerification.Recommended"
+                ],
+                "reason": ""
+            },
+            {
+                "file": "includes/class-dashboard.php",
+                "line": 118,
+                "kind": "disable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching",
+                    "WordPress.DB.PreparedSQL.InterpolatedNotPrepared",
+                    "WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare"
+                ],
+                "reason": "plain COUNT over core wp_posts (WP_Query would load every post object just to count); the whole result is cached in a transient (set_transient at the end of this function); the interpolated variable only holds a run of %s/%d markers (implode of array_fill), one per value passed to prepare()"
+            },
+            {
+                "file": "includes/class-dashboard.php",
+                "line": 124,
+                "kind": "enable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching",
+                    "WordPress.DB.PreparedSQL.InterpolatedNotPrepared",
+                    "WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare"
+                ],
+                "reason": ""
+            },
+            {
+                "file": "includes/class-dashboard.php",
+                "line": 127,
+                "kind": "ignore",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": "reads the plugin's own table wp_stm_strings (no WordPress API for custom tables); the whole result is cached in a transient (set_transient at the end of this function)"
+            },
+            {
+                "file": "includes/class-dashboard.php",
+                "line": 140,
+                "kind": "disable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching",
+                    "WordPress.DB.PreparedSQL.InterpolatedNotPrepared"
+                ],
+                "reason": "joins the plugin's own table wp_stm_post_translations with core wp_posts (no WordPress function expresses this query); the whole result is cached in a transient (set_transient at the end of this function); the interpolated variable only holds a run of %s/%d markers (implode of array_fill), one per value passed to prepare()"
+            },
+            {
+                "file": "includes/class-dashboard.php",
+                "line": 150,
+                "kind": "enable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching",
+                    "WordPress.DB.PreparedSQL.InterpolatedNotPrepared"
+                ],
+                "reason": ""
+            },
+            {
+                "file": "includes/class-dashboard.php",
+                "line": 155,
+                "kind": "disable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching",
+                    "WordPress.DB.PreparedSQL.InterpolatedNotPrepared"
+                ],
+                "reason": "joins the plugin's own table wp_stm_post_translations with core wp_posts (no WordPress function expresses this query); the whole result is cached in a transient (set_transient at the end of this function); the interpolated variable only holds a run of %s/%d markers (implode of array_fill), one per value passed to prepare()"
+            },
+            {
+                "file": "includes/class-dashboard.php",
+                "line": 165,
+                "kind": "enable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching",
+                    "WordPress.DB.PreparedSQL.InterpolatedNotPrepared"
+                ],
+                "reason": ""
+            },
+            {
+                "file": "includes/class-dashboard.php",
+                "line": 169,
+                "kind": "disable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": "reads the plugin's own table wp_stm_translations (no WordPress API for custom tables); the whole result is cached in a transient (set_transient at the end of this function)"
+            },
+            {
+                "file": "includes/class-dashboard.php",
+                "line": 175,
+                "kind": "enable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": ""
+            },
+            {
+                "file": "includes/class-dashboard.php",
+                "line": 280,
+                "kind": "ignore",
+                "rules": [
+                    "WordPress.DB.PreparedSQL.NotPrepared",
+                    "PluginCheck.Security.DirectDB.UnescapedDBParameter",
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": "$sql (built above) uses array_fill()+implode() for its dynamic-length IN clause and %s/%d placeholders elsewhere; $args_full supplies the matching values and $wpdb->prepare() resolves them all right here.; lists published posts that still lack a translation: joins the plugin's own table wp_stm_post_translations with core wp_posts (no WordPress function expresses this query); runs only on an administrator's request (admin screen, AJAX call or WP-CLI)"
+            },
+            {
+                "file": "includes/class-dashboard.php",
+                "line": 325,
+                "kind": "disable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": "joins the plugin's own table wp_stm_post_translations with core wp_posts (no WordPress function expresses this query); runs only on an administrator's request (admin screen, AJAX call or WP-CLI)"
+            },
+            {
+                "file": "includes/class-dashboard.php",
+                "line": 335,
+                "kind": "enable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": ""
+            },
+            {
+                "file": "includes/class-dashboard.php",
+                "line": 337,
+                "kind": "disable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": "reads the plugin's own tables wp_stm_strings, wp_stm_translations (no WordPress API for custom tables); runs only on an administrator's request (admin screen, AJAX call or WP-CLI)"
+            },
+            {
+                "file": "includes/class-dashboard.php",
+                "line": 347,
+                "kind": "enable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": ""
+            },
+            {
+                "file": "includes/class-dashboard.php",
+                "line": 389,
+                "kind": "disable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": "reads the plugin's own table wp_stm_post_translations (no WordPress API for custom tables); read-before-write: needs the current row to choose update or insert, a cached copy could create a duplicate"
+            },
+            {
+                "file": "includes/class-dashboard.php",
+                "line": 396,
+                "kind": "enable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": ""
+            },
+            {
+                "file": "includes/class-dashboard.php",
+                "line": 406,
+                "kind": "ignore",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": "writes the plugin's own table wp_stm_post_translations (no WordPress API for custom tables); delete_transient() drops the cached dashboard figures right after this write"
+            },
+            {
+                "file": "includes/class-dashboard.php",
+                "line": 409,
+                "kind": "ignore",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery"
+                ],
+                "reason": "writes the plugin's own table wp_stm_post_translations (no WordPress API for custom tables)"
+            },
+            {
+                "file": "includes/class-dashboard.php",
+                "line": 449,
+                "kind": "ignore",
+                "rules": [
+                    "WordPress.Security.EscapeOutput.OutputNotEscaped"
+                ],
+                "reason": "CSV file content, not HTML; esc_html() would corrupt commas/quotes in the exported data."
+            },
+            {
+                "file": "includes/class-dashboard.php",
+                "line": 502,
+                "kind": "ignore",
+                "rules": [
+                    "WordPress.Security.EscapeOutput.OutputNotEscaped"
+                ],
+                "reason": "CSV file content, not HTML; esc_html() would corrupt commas/quotes in the exported data."
+            },
+            {
+                "file": "includes/class-database.php",
+                "line": 173,
+                "kind": "ignore",
+                "rules": [
+                    "WordPress.PHP.DevelopmentFunctions.error_log_error_log"
+                ],
+                "reason": "logs a failed database operation (not debug output); the message carries a stable [STM-E-...] diagnostic code so a site owner can report it"
+            },
+            {
+                "file": "includes/class-database.php",
+                "line": 225,
+                "kind": "disable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": "reads the plugin's own table wp_stm_languages (no WordPress API for custom tables); runs on activation and upgrade only: reads the row before seeding it"
+            },
+            {
+                "file": "includes/class-database.php",
+                "line": 230,
+                "kind": "enable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": ""
+            },
+            {
+                "file": "includes/class-database.php",
+                "line": 233,
+                "kind": "ignore",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery"
+                ],
+                "reason": "writes the plugin's own table wp_stm_languages (no WordPress API for custom tables)"
+            },
+            {
+                "file": "includes/class-database.php",
+                "line": 236,
+                "kind": "ignore",
+                "rules": [
+                    "WordPress.PHP.DevelopmentFunctions.error_log_error_log"
+                ],
+                "reason": "logs a failed database operation (not debug output); the message carries a stable [STM-E-...] diagnostic code so a site owner can report it"
+            },
+            {
+                "file": "includes/class-database.php",
+                "line": 242,
+                "kind": "ignore",
+                "rules": [
+                    "WordPress.PHP.DevelopmentFunctions.error_log_error_log"
+                ],
+                "reason": "logs a failed database operation (not debug output); the message carries a stable [STM-E-...] diagnostic code so a site owner can report it"
+            },
+            {
+                "file": "includes/class-database.php",
+                "line": 262,
+                "kind": "disable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery"
+                ],
+                "reason": "reads the plugin's own table wp_stm_languages (no WordPress API for custom tables)"
+            },
+            {
+                "file": "includes/class-database.php",
+                "line": 266,
+                "kind": "enable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery"
+                ],
+                "reason": ""
+            },
+            {
+                "file": "includes/class-database.php",
+                "line": 283,
+                "kind": "disable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": "reads the plugin's own table wp_stm_languages (no WordPress API for custom tables); deliberately uncached (see the docblock): the Languages screen must never show a stale row right after a toggle, add or delete"
+            },
+            {
+                "file": "includes/class-database.php",
+                "line": 287,
+                "kind": "enable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": ""
+            },
+            {
+                "file": "includes/class-database.php",
+                "line": 300,
+                "kind": "disable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery"
+                ],
+                "reason": "reads the plugin's own table wp_stm_languages (no WordPress API for custom tables)"
+            },
+            {
+                "file": "includes/class-database.php",
+                "line": 304,
+                "kind": "enable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery"
+                ],
+                "reason": ""
+            },
+            {
+                "file": "includes/class-elementor-integration.php",
+                "line": 209,
+                "kind": "disable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": "reads the plugin's own table wp_stm_post_translations (no WordPress API for custom tables); read-before-write: needs the current row to choose update or insert, a cached copy could create a duplicate"
+            },
+            {
+                "file": "includes/class-elementor-integration.php",
+                "line": 216,
+                "kind": "enable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": ""
+            },
+            {
+                "file": "includes/class-elementor-integration.php",
+                "line": 226,
+                "kind": "ignore",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": "writes the plugin's own table wp_stm_post_translations (no WordPress API for custom tables); Cache::invalidate_post() drops the cached copies right after the write"
+            },
+            {
+                "file": "includes/class-elementor-integration.php",
+                "line": 229,
+                "kind": "ignore",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery"
+                ],
+                "reason": "writes the plugin's own table wp_stm_post_translations (no WordPress API for custom tables)"
+            },
+            {
+                "file": "includes/class-elementor-integration.php",
+                "line": 257,
+                "kind": "disable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": "deletes rows of the plugin's own table wp_stm_post_translations (no WordPress API for custom tables); Cache::invalidate_post() drops the cached copies right after the write"
+            },
+            {
+                "file": "includes/class-elementor-integration.php",
+                "line": 263,
+                "kind": "enable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": ""
+            },
+            {
+                "file": "includes/class-elementor-integration.php",
+                "line": 333,
+                "kind": "ignore",
+                "rules": [
+                    "WordPress.Security.NonceVerification.Recommended"
+                ],
+                "reason": "read-only: which post the Elementor editor has open; an (int) cast, nothing is saved from it"
+            },
+            {
+                "file": "includes/class-field-values.php",
+                "line": 146,
+                "kind": "disable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching",
+                    "WordPress.DB.PreparedSQL.InterpolatedNotPrepared",
+                    "WordPress.DB.PreparedSQLPlaceholders.ReplacementsWrongNumber"
+                ],
+                "reason": "distinct meta values with their post counts, joined with wp_posts (no WordPress function returns that); admin screen: shows the rows as they are right now, one query per page view; the interpolated variable only holds a run of %s/%d markers (implode of array_fill), one per value passed to prepare(); the IN() markers are generated at run time and the values are passed as one array, which the sniff counts as one replacement"
+            },
+            {
+                "file": "includes/class-field-values.php",
+                "line": 159,
+                "kind": "enable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching",
+                    "WordPress.DB.PreparedSQL.InterpolatedNotPrepared",
+                    "WordPress.DB.PreparedSQLPlaceholders.ReplacementsWrongNumber"
+                ],
+                "reason": ""
+            },
+            {
+                "file": "includes/class-field-values.php",
+                "line": 173,
+                "kind": "disable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": "reads the plugin's own table wp_stm_field_value_translations (no WordPress API for custom tables); admin screen: shows the rows as they are right now, one query per page view"
+            },
+            {
+                "file": "includes/class-field-values.php",
+                "line": 178,
+                "kind": "enable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": ""
+            },
+            {
+                "file": "includes/class-field-values.php",
+                "line": 201,
+                "kind": "disable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": "reads the plugin's own table wp_stm_field_value_translations (no WordPress API for custom tables); admin screen: shows the rows as they are right now, one query per page view"
+            },
+            {
+                "file": "includes/class-field-values.php",
+                "line": 206,
+                "kind": "enable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": ""
+            },
+            {
+                "file": "includes/class-field-values.php",
+                "line": 229,
+                "kind": "disable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": "deletes rows of the plugin's own table wp_stm_field_value_translations (no WordPress API for custom tables); Cache::invalidate_field_value() drops the cached copies right after the write"
+            },
+            {
+                "file": "includes/class-field-values.php",
+                "line": 235,
+                "kind": "enable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": ""
+            },
+            {
+                "file": "includes/class-field-values.php",
+                "line": 240,
+                "kind": "disable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": "reads the plugin's own table wp_stm_field_value_translations (no WordPress API for custom tables); read-before-write: needs the current row to choose update or insert, a cached copy could create a duplicate"
+            },
+            {
+                "file": "includes/class-field-values.php",
+                "line": 247,
+                "kind": "enable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": ""
+            },
+            {
+                "file": "includes/class-field-values.php",
+                "line": 258,
+                "kind": "ignore",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": "writes the plugin's own table wp_stm_field_value_translations (no WordPress API for custom tables); Cache::invalidate_field_value() drops the cached copies right after the write"
+            },
+            {
+                "file": "includes/class-field-values.php",
+                "line": 261,
+                "kind": "ignore",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery"
+                ],
+                "reason": "writes the plugin's own table wp_stm_field_value_translations (no WordPress API for custom tables)"
+            },
+            {
+                "file": "includes/class-frontend.php",
+                "line": 107,
+                "kind": "ignore",
+                "rules": [
+                    "WordPress.Security.NonceVerification.Recommended"
+                ],
+                "reason": "public language link for visitors (cannot carry a nonce); the value must pass validate_language_code() and only picks which stored translation to show"
+            },
+            {
+                "file": "includes/class-frontend.php",
+                "line": 109,
+                "kind": "ignore",
+                "rules": [
+                    "WordPress.Security.NonceVerification.Recommended"
+                ],
+                "reason": "same public language link as the line above"
+            },
+            {
+                "file": "includes/class-frontend.php",
+                "line": 548,
+                "kind": "disable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": "reads the plugin's own table wp_stm_term_translations (no WordPress API for custom tables); single indexed lookup (term_id, language_code) per translated term on a non-default-language page; term translations are written outside this plugin, so there is no invalidation point for a cache"
+            },
+            {
+                "file": "includes/class-frontend.php",
+                "line": 554,
+                "kind": "enable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": ""
+            },
+            {
+                "file": "includes/class-hreflang.php",
+                "line": 138,
+                "kind": "disable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": "reads the plugin's own table wp_stm_term_translations (no WordPress API for custom tables); single indexed lookup (term_id, language_code) on an archive page; term translations are written outside this plugin, so there is no invalidation point for a cache"
+            },
+            {
+                "file": "includes/class-hreflang.php",
+                "line": 144,
+                "kind": "enable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": ""
+            },
+            {
+                "file": "includes/class-import-export.php",
+                "line": 101,
+                "kind": "ignore",
+                "rules": [
+                    "WordPress.DB.PreparedSQL.NotPrepared",
+                    "PluginCheck.Security.DirectDB.UnescapedDBParameter",
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": "$query (built above from %s placeholders in $where[] plus the language-code placeholders) is passed through $wpdb->prepare() with $params right here; no raw value ever reaches the SQL string.; reads the plugin's own tables wp_stm_strings and wp_stm_translations (no WordPress API for custom tables); export download triggered by an administrator, once per request"
+            },
+            {
+                "file": "includes/class-import-export.php",
+                "line": 173,
+                "kind": "disable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": "reads the plugin's own tables wp_stm_strings, wp_stm_translations (no WordPress API for custom tables); export download triggered by an administrator, once per request"
+            },
+            {
+                "file": "includes/class-import-export.php",
+                "line": 182,
+                "kind": "enable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": ""
+            },
+            {
+                "file": "includes/class-import-export.php",
+                "line": 302,
+                "kind": "disable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": "reads the plugin's own table wp_stm_strings (no WordPress API for custom tables); read-before-write: needs the current row to choose update or insert, a cached copy could create a duplicate"
+            },
+            {
+                "file": "includes/class-import-export.php",
+                "line": 307,
+                "kind": "enable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": ""
+            },
+            {
+                "file": "includes/class-import-export.php",
+                "line": 310,
+                "kind": "disable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery"
+                ],
+                "reason": "writes the plugin's own table wp_stm_strings (no WordPress API for custom tables)"
+            },
+            {
+                "file": "includes/class-import-export.php",
+                "line": 315,
+                "kind": "enable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery"
+                ],
+                "reason": ""
+            },
+            {
+                "file": "includes/class-import-export.php",
+                "line": 322,
+                "kind": "disable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": "reads the plugin's own table wp_stm_translations (no WordPress API for custom tables); read-before-write: needs the current row to choose update or insert, a cached copy could create a duplicate"
+            },
+            {
+                "file": "includes/class-import-export.php",
+                "line": 327,
+                "kind": "enable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": ""
+            },
+            {
+                "file": "includes/class-import-export.php",
+                "line": 339,
+                "kind": "ignore",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": "writes the plugin's own table wp_stm_translations (no WordPress API for custom tables); Cache::invalidate_string() drops the cached copies right after the write"
+            },
+            {
+                "file": "includes/class-import-export.php",
+                "line": 343,
+                "kind": "ignore",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery"
+                ],
+                "reason": "writes the plugin's own table wp_stm_translations (no WordPress API for custom tables)"
+            },
+            {
+                "file": "includes/class-import-export.php",
+                "line": 388,
+                "kind": "disable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": "reads the plugin's own table wp_stm_strings (no WordPress API for custom tables); read-before-write: needs the current row to choose update or insert, a cached copy could create a duplicate"
+            },
+            {
+                "file": "includes/class-import-export.php",
+                "line": 393,
+                "kind": "enable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": ""
+            },
+            {
+                "file": "includes/class-import-export.php",
+                "line": 396,
+                "kind": "disable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery"
+                ],
+                "reason": "writes the plugin's own table wp_stm_strings (no WordPress API for custom tables)"
+            },
+            {
+                "file": "includes/class-import-export.php",
+                "line": 401,
+                "kind": "enable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery"
+                ],
+                "reason": ""
+            },
+            {
+                "file": "includes/class-import-export.php",
+                "line": 408,
+                "kind": "disable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": "reads the plugin's own table wp_stm_translations (no WordPress API for custom tables); read-before-write: needs the current row to choose update or insert, a cached copy could create a duplicate"
+            },
+            {
+                "file": "includes/class-import-export.php",
+                "line": 413,
+                "kind": "enable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": ""
+            },
+            {
+                "file": "includes/class-import-export.php",
+                "line": 425,
+                "kind": "ignore",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": "writes the plugin's own table wp_stm_translations (no WordPress API for custom tables); Cache::invalidate_string() drops the cached copies right after the write"
+            },
+            {
+                "file": "includes/class-import-export.php",
+                "line": 429,
+                "kind": "ignore",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery"
+                ],
+                "reason": "writes the plugin's own table wp_stm_translations (no WordPress API for custom tables)"
+            },
+            {
+                "file": "includes/class-import-export.php",
+                "line": 585,
+                "kind": "ignore",
+                "rules": [
+                    "WordPress.Security.EscapeOutput.OutputNotEscaped"
+                ],
+                "reason": "file download, not HTML: escaping would corrupt the XLIFF markup, which export_xliff() builds with the DOM/XML API"
+            },
+            {
+                "file": "includes/class-import-export.php",
+                "line": 605,
+                "kind": "ignore",
+                "rules": [
+                    "WordPress.Security.EscapeOutput.OutputNotEscaped"
+                ],
+                "reason": "file download, not HTML: escaping would corrupt the PO syntax, export_po() escapes every field itself with escape_po_string()"
+            },
+            {
+                "file": "includes/class-import-export.php",
+                "line": 619,
+                "kind": "ignore",
+                "rules": [
+                    "WordPress.Security.ValidatedSanitizedInput.InputNotSanitized"
+                ],
+                "reason": "the upload array is not printed or stored: the name goes through sanitize_file_name() to pick the format, the content is parsed by import_xliff()/import_po() which sanitise every value"
+            },
+            {
+                "file": "includes/class-language-switcher.php",
+                "line": 52,
+                "kind": "ignore",
+                "rules": [
+                    "WordPress.Security.EscapeOutput.OutputNotEscaped"
+                ],
+                "reason": "before_widget is the theme's own register_sidebar() markup; WP_Widget's contract is to echo it verbatim"
+            },
+            {
+                "file": "includes/class-language-switcher.php",
+                "line": 59,
+                "kind": "ignore",
+                "rules": [
+                    "WordPress.Security.EscapeOutput.OutputNotEscaped"
+                ],
+                "reason": "before_title/after_title are the theme's own register_sidebar() markup; the title itself goes through wp_kses_post()"
+            },
+            {
+                "file": "includes/class-language-switcher.php",
+                "line": 69,
+                "kind": "ignore",
+                "rules": [
+                    "WordPress.Security.EscapeOutput.OutputNotEscaped"
+                ],
+                "reason": "theme-supplied wrapper markup, see above."
+            },
+            {
+                "file": "includes/class-post-editor.php",
+                "line": 143,
+                "kind": "ignore",
+                "rules": [
+                    "WordPress.Security.NonceVerification.Recommended"
+                ],
+                "reason": "read-only: which post the editor screen has open; an (int) cast, nothing is saved from it"
+            },
+            {
+                "file": "includes/class-post-editor.php",
+                "line": 217,
+                "kind": "ignore",
+                "rules": [
+                    "WordPress.Security.NonceVerification.Recommended"
+                ],
+                "reason": "read-only: which post the editor screen has open; an (int) cast, nothing is saved from it"
+            },
+            {
+                "file": "includes/class-post-editor.php",
+                "line": 304,
+                "kind": "ignore",
+                "rules": [
+                    "WordPress.Security.ValidatedSanitizedInput.InputNotSanitized"
+                ],
+                "reason": "is_array() type test only; the values are sanitised below"
+            },
+            {
+                "file": "includes/class-post-editor.php",
+                "line": 309,
+                "kind": "ignore",
+                "rules": [
+                    "WordPress.Security.ValidatedSanitizedInput.InputNotSanitized"
+                ],
+                "reason": "every field is sanitised by its type in the loop below (wp_kses_post for post_content, sanitize_title for post_name, sanitize_text_field otherwise)"
+            },
+            {
+                "file": "includes/class-post-editor.php",
+                "line": 331,
+                "kind": "disable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": "reads the plugin's own table wp_stm_post_translations (no WordPress API for custom tables); read-before-write: needs the current row to choose update or insert, a cached copy could create a duplicate"
+            },
+            {
+                "file": "includes/class-post-editor.php",
+                "line": 338,
+                "kind": "enable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": ""
+            },
+            {
+                "file": "includes/class-post-editor.php",
+                "line": 343,
+                "kind": "ignore",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": "deletes rows of the plugin's own table wp_stm_post_translations (no WordPress API for custom tables); Cache::invalidate_post() drops the cached copies right after the write"
+            },
+            {
+                "file": "includes/class-post-editor.php",
+                "line": 357,
+                "kind": "ignore",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": "writes the plugin's own table wp_stm_post_translations (no WordPress API for custom tables); Cache::invalidate_post() drops the cached copies right after the write"
+            },
+            {
+                "file": "includes/class-post-editor.php",
+                "line": 360,
+                "kind": "ignore",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery"
+                ],
+                "reason": "writes the plugin's own table wp_stm_post_translations (no WordPress API for custom tables)"
+            },
+            {
+                "file": "includes/class-post-editor.php",
+                "line": 387,
+                "kind": "disable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching",
+                    "WordPress.DB.PreparedSQL.InterpolatedNotPrepared",
+                    "WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare"
+                ],
+                "reason": "reads the plugin's own table wp_stm_post_translations (no WordPress API for custom tables); this one query is the preload: it fetches the rows of every post on the list page at once and the result is kept in self::$list_cache for the rest of the request; the interpolated variable only holds a run of %s/%d markers (implode of array_fill), one per value passed to prepare()"
+            },
+            {
+                "file": "includes/class-post-editor.php",
+                "line": 398,
+                "kind": "enable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching",
+                    "WordPress.DB.PreparedSQL.InterpolatedNotPrepared",
+                    "WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare"
+                ],
+                "reason": ""
+            },
+            {
+                "file": "includes/class-post-editor.php",
+                "line": 490,
+                "kind": "disable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": "reads the plugin's own table wp_stm_post_associations (no WordPress API for custom tables); front-end filters call it per post: one indexed lookup by post_id, not cached so a language change made in the editor shows at once"
+            },
+            {
+                "file": "includes/class-post-editor.php",
+                "line": 495,
+                "kind": "enable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": ""
+            },
+            {
+                "file": "includes/class-post-editor.php",
+                "line": 531,
+                "kind": "disable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": "reads the plugin's own table wp_stm_post_associations (no WordPress API for custom tables); read-before-write: needs the current row to choose update or insert, a cached copy could create a duplicate"
+            },
+            {
+                "file": "includes/class-post-editor.php",
+                "line": 536,
+                "kind": "enable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": ""
+            },
+            {
+                "file": "includes/class-post-editor.php",
+                "line": 546,
+                "kind": "ignore",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": "writes the plugin's own table wp_stm_post_associations (no WordPress API for custom tables); the post-to-language association is never read from a cache (get_post_language() reads the table)"
+            },
+            {
+                "file": "includes/class-post-editor.php",
+                "line": 549,
+                "kind": "ignore",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery"
+                ],
+                "reason": "writes the plugin's own table wp_stm_post_associations (no WordPress API for custom tables)"
+            },
+            {
+                "file": "includes/class-post-editor.php",
+                "line": 560,
+                "kind": "disable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": "reads the plugin's own table wp_stm_post_associations (no WordPress API for custom tables); single indexed lookup by post_id, used by the editor, the post list and the save handler"
+            },
+            {
+                "file": "includes/class-post-editor.php",
+                "line": 565,
+                "kind": "enable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": ""
+            },
+            {
+                "file": "includes/class-post-editor.php",
+                "line": 574,
+                "kind": "disable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": "reads the plugin's own table wp_stm_post_translations (no WordPress API for custom tables); front-end filters call it per post: one indexed lookup by post_id and language, not cached so an edit shows at once"
+            },
+            {
+                "file": "includes/class-post-editor.php",
+                "line": 580,
+                "kind": "enable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": ""
+            },
+            {
+                "file": "includes/class-post-editor.php",
+                "line": 601,
+                "kind": "disable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": "reads the plugin's own table wp_stm_post_translations (no WordPress API for custom tables); runs only on a request that carries a translated slug: one indexed lookup, not cached so a changed slug routes correctly at once"
+            },
+            {
+                "file": "includes/class-post-editor.php",
+                "line": 607,
+                "kind": "enable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": ""
+            },
+            {
+                "file": "includes/class-post-editor.php",
+                "line": 616,
+                "kind": "disable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": "reads the plugin's own table wp_stm_post_associations (no WordPress API for custom tables); single indexed lookup by translation_group, a public helper for themes and add-ons"
+            },
+            {
+                "file": "includes/class-post-editor.php",
+                "line": 621,
+                "kind": "enable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": ""
+            },
+            {
+                "file": "includes/class-security.php",
+                "line": 183,
+                "kind": "ignore",
+                "rules": [
+                    "WordPress.PHP.DevelopmentFunctions.error_log_error_log"
+                ],
+                "reason": "only runs when WP_DEBUG is on (the condition above); this is the plugin's single debug-log writer"
+            },
+            {
+                "file": "includes/class-settings.php",
+                "line": 44,
+                "kind": "ignore",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": "reads the plugin's own table wp_stm_languages (no WordPress API for custom tables); runs only while the option stm_default_language is unset; the result is stored with update_option() right after, which is the cache"
+            },
+            {
+                "file": "includes/class-settings.php",
+                "line": 49,
+                "kind": "ignore",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": "reads the plugin's own table wp_stm_languages (no WordPress API for custom tables); runs only while the option stm_default_language is unset; the result is stored with update_option() right after, which is the cache"
+            },
+            {
+                "file": "includes/class-string-scanner.php",
+                "line": 337,
+                "kind": "disable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": "reads the plugin's own table wp_stm_strings (no WordPress API for custom tables); string scan started by an administrator or on activation: reads the row before inserting it"
+            },
+            {
+                "file": "includes/class-string-scanner.php",
+                "line": 343,
+                "kind": "enable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": ""
+            },
+            {
+                "file": "includes/class-string-scanner.php",
+                "line": 346,
+                "kind": "disable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery"
+                ],
+                "reason": "writes the plugin's own table wp_stm_strings (no WordPress API for custom tables)"
+            },
+            {
+                "file": "includes/class-string-scanner.php",
+                "line": 352,
+                "kind": "enable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery"
+                ],
+                "reason": ""
+            },
+            {
+                "file": "includes/class-string-scanner.php",
+                "line": 365,
+                "kind": "disable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": "reads the plugin's own table wp_stm_translations (no WordPress API for custom tables); string scan started by an administrator or on activation: reads the row before inserting it"
+            },
+            {
+                "file": "includes/class-string-scanner.php",
+                "line": 371,
+                "kind": "enable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": ""
+            },
+            {
+                "file": "includes/class-string-scanner.php",
+                "line": 376,
+                "kind": "disable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery"
+                ],
+                "reason": "writes the plugin's own table wp_stm_translations (no WordPress API for custom tables)"
+            },
+            {
+                "file": "includes/class-string-scanner.php",
+                "line": 385,
+                "kind": "enable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery"
+                ],
+                "reason": ""
+            },
+            {
+                "file": "includes/class-translation-memory.php",
+                "line": 145,
+                "kind": "disable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": "reads the plugin's own tables wp_stm_strings, wp_stm_translations (no WordPress API for custom tables); runs only on an administrator's request (admin screen, AJAX call or WP-CLI)"
+            },
+            {
+                "file": "includes/class-translation-memory.php",
+                "line": 159,
+                "kind": "enable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": ""
+            },
+            {
+                "file": "includes/class-translation-memory.php",
+                "line": 194,
+                "kind": "disable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": "joins the plugin's own table wp_stm_post_translations with core wp_posts (no WordPress function expresses this query); runs only on an administrator's request (admin screen, AJAX call or WP-CLI)"
+            },
+            {
+                "file": "includes/class-translation-memory.php",
+                "line": 213,
+                "kind": "enable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": ""
+            },
+            {
+                "file": "includes/class-translation-memory.php",
+                "line": 222,
+                "kind": "disable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": "joins the plugin's own table wp_stm_post_translations with core wp_posts (no WordPress function expresses this query); runs only on an administrator's request (admin screen, AJAX call or WP-CLI)"
+            },
+            {
+                "file": "includes/class-translation-memory.php",
+                "line": 235,
+                "kind": "enable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": ""
+            },
+            {
+                "file": "includes/class-translation-memory.php",
+                "line": 279,
+                "kind": "disable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": "joins the plugin's own table wp_stm_post_translations with core wp_posts (no WordPress function expresses this query); runs only on an administrator's request (admin screen, AJAX call or WP-CLI)"
+            },
+            {
+                "file": "includes/class-translation-memory.php",
+                "line": 292,
+                "kind": "enable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": ""
+            },
+            {
+                "file": "includes/class-translation-memory.php",
+                "line": 387,
+                "kind": "ignore",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": "reads the plugin's own table wp_stm_translations (no WordPress API for custom tables); runs only on an administrator's request (admin screen, AJAX call or WP-CLI)"
+            },
+            {
+                "file": "includes/class-translation-memory.php",
+                "line": 389,
+                "kind": "ignore",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": "reads the plugin's own table wp_stm_post_translations (no WordPress API for custom tables); runs only on an administrator's request (admin screen, AJAX call or WP-CLI)"
+            },
+            {
+                "file": "includes/class-translation-memory.php",
+                "line": 391,
+                "kind": "ignore",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": "reads the plugin's own table wp_stm_translations (no WordPress API for custom tables); runs only on an administrator's request (admin screen, AJAX call or WP-CLI)"
+            },
+            {
+                "file": "includes/class-translation-memory.php",
+                "line": 393,
+                "kind": "ignore",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": "reads the plugin's own table wp_stm_post_translations (no WordPress API for custom tables); runs only on an administrator's request (admin screen, AJAX call or WP-CLI)"
+            },
+            {
+                "file": "includes/class-translation-memory.php",
+                "line": 399,
+                "kind": "disable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": "reads the plugin's own tables wp_stm_post_translations, wp_stm_translations (no WordPress API for custom tables); runs only on an administrator's request (admin screen, AJAX call or WP-CLI)"
+            },
+            {
+                "file": "includes/class-translation-memory.php",
+                "line": 410,
+                "kind": "enable",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": ""
+            },
+            {
+                "file": "templates/admin-field-value-edit.php",
+                "line": 19,
+                "kind": "disable",
+                "rules": [
+                    "WordPress.Security.NonceVerification.Recommended"
+                ],
+                "reason": "display-only flags, no state change"
+            },
+            {
+                "file": "templates/admin-field-value-edit.php",
+                "line": 24,
+                "kind": "enable",
+                "rules": [
+                    "WordPress.Security.NonceVerification.Recommended"
+                ],
+                "reason": ""
+            },
+            {
+                "file": "templates/admin-field-values.php",
+                "line": 18,
+                "kind": "disable",
+                "rules": [
+                    "WordPress.Security.NonceVerification.Recommended"
+                ],
+                "reason": "display-only flags, no state change"
+            },
+            {
+                "file": "templates/admin-field-values.php",
+                "line": 22,
+                "kind": "enable",
+                "rules": [
+                    "WordPress.Security.NonceVerification.Recommended"
+                ],
+                "reason": ""
+            },
+            {
+                "file": "templates/admin-import-export.php",
+                "line": 17,
+                "kind": "disable",
+                "rules": [
+                    "WordPress.Security.NonceVerification.Recommended"
+                ],
+                "reason": "display-only flags, no state change"
+            },
+            {
+                "file": "templates/admin-import-export.php",
+                "line": 21,
+                "kind": "enable",
+                "rules": [
+                    "WordPress.Security.NonceVerification.Recommended"
+                ],
+                "reason": ""
+            },
+            {
+                "file": "templates/admin-languages.php",
+                "line": 12,
+                "kind": "disable",
+                "rules": [
+                    "WordPress.Security.NonceVerification.Recommended"
+                ],
+                "reason": "display-only flags, no state change"
+            },
+            {
+                "file": "templates/admin-languages.php",
+                "line": 18,
+                "kind": "enable",
+                "rules": [
+                    "WordPress.Security.NonceVerification.Recommended"
+                ],
+                "reason": ""
+            },
+            {
+                "file": "templates/admin-translations.php",
+                "line": 20,
+                "kind": "disable",
+                "rules": [
+                    "WordPress.Security.NonceVerification.Recommended"
+                ],
+                "reason": "display-only flags, no state change"
+            },
+            {
+                "file": "templates/admin-translations.php",
+                "line": 43,
+                "kind": "enable",
+                "rules": [
+                    "WordPress.Security.NonceVerification.Recommended"
+                ],
+                "reason": ""
+            },
+            {
+                "file": "uninstall.php",
+                "line": 60,
+                "kind": "ignore",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching",
+                    "WordPress.DB.DirectDatabaseQuery.SchemaChange",
+                    "WordPress.DB.PreparedSQL.InterpolatedNotPrepared"
+                ],
+                "reason": "drops the plugin's own tables on uninstall (no WordPress function drops a custom table); schema change by design: only when the plugin is deleted with 'Keep data on uninstall' off; uninstall: wp_cache_flush() runs right after; $table comes from the fixed list of the plugin's own table names above"
+            },
+            {
+                "file": "uninstall.php",
+                "line": 96,
+                "kind": "ignore",
+                "rules": [
+                    "WordPress.DB.DirectDatabaseQuery.DirectQuery",
+                    "WordPress.DB.DirectDatabaseQuery.NoCaching"
+                ],
+                "reason": "removes the plugin's own transients by name prefix on uninstall (no WordPress function does that); uninstall: wp_cache_flush() runs right after"
+            }
+        ],
+        "problems": []
+    },
+    "hygiene": [],
+    "external_hosts": {
+        "api-free.deepl.com": [
+            "includes/class-auto-translate.php"
+        ],
+        "api.deepl.com": [
+            "includes/class-auto-translate.php"
+        ],
+        "api.openai.com": [
+            "includes/class-auto-translate.php"
+        ],
+        "martiendejong.nl": [
+            "simple-translation-manager.php"
+        ],
+        "platform.openai.com": [
+            "templates/admin-settings.php"
+        ],
+        "www.deepl.com": [
+            "templates/admin-settings.php"
+        ],
+        "www.gnu.org": [
+            "simple-translation-manager.php"
+        ]
+    },
+    "raw": {
+        "stdout_file": "raw/plugin-check.stdout.txt",
+        "stdout_sha256": "abe55b9dd953a065b918abfb442b3160cd094e3a9add33e8da44f5995a0d6361",
+        "stderr_file": "raw/plugin-check.stderr.txt",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "install_verification": {
+        "files": 49,
+        "mismatches": [],
+        "extra": []
+    }
+}

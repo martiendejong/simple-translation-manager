@@ -12,15 +12,15 @@ if (!defined('ABSPATH')) exit;
 if (isset($_POST['stm_save_settings']) && check_admin_referer('stm_settings')) {
     if (current_user_can('manage_options')) {
         // Save settings
-        STM\Settings::set_default_language(sanitize_text_field($_POST['default_language'] ?? ''));
+        STM\Settings::set_default_language(sanitize_text_field(wp_unslash($_POST['default_language'] ?? '')));
         STM\Settings::set_url_routing(isset($_POST['enable_url_routing']));
-        STM\Settings::set_cache_duration((int) $_POST['cache_duration'] ?? 3600);
+        STM\Settings::set_cache_duration(intval(wp_unslash($_POST['cache_duration'] ?? 3600)));
         STM\Settings::set_keep_data_on_uninstall(isset($_POST['keep_data_on_uninstall']));
         STM\Settings::set_debug_mode(isset($_POST['debug_mode']));
-        STM\Settings::set_switcher_style(sanitize_text_field($_POST['switcher_style'] ?? 'list'));
+        STM\Settings::set_switcher_style(sanitize_text_field(wp_unslash($_POST['switcher_style'] ?? 'list')));
         STM\Settings::set_switcher_show_flags(isset($_POST['switcher_show_flags']));
         STM\Settings::set_switcher_show_names(isset($_POST['switcher_show_names']));
-        STM\Settings::set_switcher_position(sanitize_text_field($_POST['switcher_position'] ?? 'none'));
+        STM\Settings::set_switcher_position(sanitize_text_field(wp_unslash($_POST['switcher_position'] ?? 'none')));
 
         echo '<div class="notice notice-success is-dismissible"><p>Settings saved successfully.</p></div>';
     }

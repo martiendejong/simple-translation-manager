@@ -199,11 +199,11 @@ class Admin {
 
         // Get filter values. Read-only list filtering (no state change), so a
         // nonce is not required here â€” see WordPress.Security.NonceVerification docs.
-        // phpcs:disable WordPress.Security.NonceVerification.Recommended
-        $lang_filter = wp_unslash($_GET['lang'] ?? '');
-        $context_filter = wp_unslash($_GET['context'] ?? '');
-        $status_filter = wp_unslash($_GET['status'] ?? '');
-        $search = wp_unslash($_GET['search'] ?? '');
+        // phpcs:disable WordPress.Security.NonceVerification.Recommended -- read-only list filters on an admin screen, no state change
+        $lang_filter = sanitize_text_field(wp_unslash($_GET['lang'] ?? ''));
+        $context_filter = sanitize_text_field(wp_unslash($_GET['context'] ?? ''));
+        $status_filter = sanitize_text_field(wp_unslash($_GET['status'] ?? ''));
+        $search = sanitize_text_field(wp_unslash($_GET['search'] ?? ''));
 
         // Pagination
         $per_page = 50;
@@ -222,8 +222,6 @@ class Admin {
         $default_lang_code = $default_language ? $default_language->code : '';
 
         // Get strings with translation status
-        $table_strings = $wpdb->prefix . 'stm_strings';
-        $table_translations = $wpdb->prefix . 'stm_translations';
 
         $where = ['1=1'];
         if ($context_filter) {
@@ -238,53 +236,73 @@ class Admin {
         // 'missing'/'complete' filter on translated_count, which is only known once the
         // per-string correlated subquery below has run â€” so it's applied as a HAVING
         // clause against that subquery's alias, not folded into $where_sql.
-        $status_having = self::build_status_having($status_filter, $total_languages);
-
-        $translated_count_sql = "(SELECT COUNT(*) FROM {$table_translations} t
-                 WHERE t.string_id = s.id AND t.status = 'published') as translated_count";
+        // The filter name and both numbers below are placeholders of the prepared
+        // statements: no part of the HAVING clause is spliced in as text.
+        $status_filter = self::normalise_status_filter($status_filter);
 
         // Get total count for pagination. When a status filter is active the plain
         // COUNT(*) can't see translated_count, so wrap the same per-string query the
         // results below use in a derived table and count that instead.
-        if ($status_having !== '') {
-            $total_items = $wpdb->get_var("
+        // $where_sql below is assembled above from $wpdb->prepare() fragments only.
+        // phpcs:disable WordPress.DB.PreparedSQL.InterpolatedNotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- $where_sql is the AND-joined output of $wpdb->prepare() fragments built a few lines up; no request value is ever concatenated into it
+        if ($status_filter !== '') {
+            // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- reads the plugin's own tables wp_stm_strings, wp_stm_translations (no WordPress API for custom tables); admin screen: shows the rows as they are right now, one query per page view
+            $total_items = $wpdb->get_var($wpdb->prepare("
                 SELECT COUNT(*) FROM (
-                    SELECT s.id, {$translated_count_sql}
-                    FROM {$table_strings} s
+                    SELECT s.id,
+                           (SELECT COUNT(*) FROM {$wpdb->prefix}stm_translations t
+                             WHERE t.string_id = s.id AND t.status = 'published') AS translated_count
+                    FROM {$wpdb->prefix}stm_strings s
                     WHERE {$where_sql}
-                    {$status_having}
+                    HAVING (%s = 'missing' AND translated_count < %d) OR (%s = 'complete' AND translated_count >= %d)
                 ) stm_filtered
-            ");
+            ", $status_filter, $total_languages, $status_filter, $total_languages));
+            // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
         } else {
+            // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- reads the plugin's own table wp_stm_strings (no WordPress API for custom tables); admin screen: shows the rows as they are right now, one query per page view
             $total_items = $wpdb->get_var("
-                SELECT COUNT(*) FROM {$table_strings} s WHERE {$where_sql}
+                SELECT COUNT(*) FROM {$wpdb->prefix}stm_strings s WHERE {$where_sql}
             ");
+            // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
         }
+        // phpcs:enable WordPress.DB.PreparedSQL.InterpolatedNotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter
 
         $total_pages = ceil($total_items / $per_page);
 
         // Get paginated results
-        $strings = $wpdb->get_results("
-            SELECT s.*, {$translated_count_sql}
-            FROM {$table_strings} s
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- reads the plugin's own tables wp_stm_strings, wp_stm_translations (no WordPress API for custom tables); admin screen: shows the rows as they are right now, one query per page view; $where_sql is the AND-joined output of $wpdb->prepare() fragments built just above; no request value is concatenated into it
+        // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- $where_sql is the AND-joined output of $wpdb->prepare() fragments built a few lines up; no request value is ever concatenated into it
+        $strings = $wpdb->get_results($wpdb->prepare("
+            SELECT s.*,
+                   (SELECT COUNT(*) FROM {$wpdb->prefix}stm_translations t
+                     WHERE t.string_id = s.id AND t.status = 'published') AS translated_count
+            FROM {$wpdb->prefix}stm_strings s
             WHERE {$where_sql}
-            {$status_having}
+            HAVING (%s = '' OR (%s = 'missing' AND translated_count < %d) OR (%s = 'complete' AND translated_count >= %d))
             ORDER BY s.context ASC, s.string_key ASC
-            LIMIT {$per_page} OFFSET {$offset}
-        ");
+            LIMIT %d OFFSET %d
+        ", $status_filter, $status_filter, $total_languages, $status_filter, $total_languages, $per_page, $offset));
+        // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 
         // Get unique contexts for filter
-        $contexts = $wpdb->get_col("SELECT DISTINCT context FROM {$table_strings} ORDER BY context ASC");
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- reads the plugin's own table wp_stm_strings (no WordPress API for custom tables); admin screen: shows the rows as they are right now, one query per page view
+        $contexts = $wpdb->get_col("SELECT DISTINCT context FROM {$wpdb->prefix}stm_strings ORDER BY context ASC");
+        // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
 
         // Batch-fetch all translations for visible strings (avoids N+1 in template)
         $translations_map = [];
         if (!empty($strings)) {
-            $string_ids = implode(',', array_map('intval', array_column($strings, 'id')));
-            $all_translations = $wpdb->get_results(
+            $string_ids = array_map('intval', array_column($strings, 'id'));
+            $id_placeholders = implode(',', array_fill(0, count($string_ids), '%d'));
+            // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare -- reads the plugin's own table wp_stm_translations (no WordPress API for custom tables); admin screen: shows the rows as they are right now, one query per page view; the interpolated variable only holds a run of %s/%d markers (implode of array_fill), one per value passed to prepare()
+            // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare -- $id_placeholders is only a run of %d markers (implode of array_fill), one per integer id in $string_ids
+            $all_translations = $wpdb->get_results($wpdb->prepare(
                 "SELECT string_id, language_code, id, translation, status
-                 FROM {$table_translations}
-                 WHERE string_id IN ({$string_ids})"
-            );
+                 FROM {$wpdb->prefix}stm_translations
+                 WHERE string_id IN ({$id_placeholders})",
+                $string_ids
+            ));
+            // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare
             foreach ($all_translations as $t) {
                 $translations_map[$t->string_id][$t->language_code] = $t;
             }
@@ -299,25 +317,16 @@ class Admin {
      *
      * translated_count comes from a correlated subquery on the string, not a real
      * column, so it can only be filtered via HAVING once it's computed â€” this can't
-     * be folded into $where. Pure/static so the threshold logic is unit-testable
-     * without a live or fake $wpdb.
+     * be folded into $where. The SQL itself lives in page_translations(), where the
+     * filter name and the language count are prepared-statement placeholders; this
+     * method only reduces the request value to one of the known filter names.
+     * Pure/static so it is unit-testable without a live or fake $wpdb.
      *
      * @param string $status_filter    '' (all), 'missing', or 'complete'.
-     * @param int    $total_languages  Number of active languages a string can be translated into.
-     * @return string HAVING clause (including the "HAVING" keyword), or '' for no filter.
+     * @return string 'missing', 'complete', or '' for no filter (also for any unknown value).
      */
-    public static function build_status_having($status_filter, $total_languages) {
-        $total_languages = intval($total_languages);
-
-        if ($status_filter === 'missing') {
-            return "HAVING translated_count < {$total_languages}";
-        }
-
-        if ($status_filter === 'complete') {
-            return "HAVING translated_count >= {$total_languages}";
-        }
-
-        return '';
+    public static function normalise_status_filter($status_filter) {
+        return in_array($status_filter, ['missing', 'complete'], true) ? $status_filter : '';
     }
 
     /**
@@ -371,7 +380,7 @@ class Admin {
 
         // Read-only view selector on an admin listing page — no state change,
         // so no nonce (same policy as the filter params on page_translations).
-        // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- read-only view selector on an admin listing page, no state change
         $field = sanitize_key($_GET['field'] ?? '');
 
         if ($field && isset($registered[$field])) {
@@ -400,16 +409,16 @@ class Admin {
 
         $field_name = sanitize_key($_POST['field_name'] ?? '');
         if (!$field_name) {
-            wp_redirect(add_query_arg('stm_error', 'invalid_field', wp_get_referer()));
+            wp_safe_redirect(add_query_arg('stm_error', 'invalid_field', wp_get_referer()));
             exit;
         }
 
         FieldValues::save_field($field_name, [
-            'label'      => sanitize_text_field($_POST['field_label'] ?? $field_name),
+            'label'      => sanitize_text_field(wp_unslash($_POST['field_label'] ?? $field_name)),
             'post_types' => array_map('sanitize_key', (array) ($_POST['field_post_types'] ?? [])),
         ]);
 
-        wp_redirect(add_query_arg('stm_added', '1', wp_get_referer()));
+        wp_safe_redirect(add_query_arg('stm_added', '1', wp_get_referer()));
         exit;
     }
 
@@ -425,7 +434,7 @@ class Admin {
         $field_name = sanitize_key($_POST['field_name'] ?? '');
         FieldValues::remove_field($field_name);
 
-        wp_redirect(add_query_arg('stm_deleted', '1', wp_get_referer()));
+        wp_safe_redirect(add_query_arg('stm_deleted', '1', wp_get_referer()));
         exit;
     }
 
@@ -444,8 +453,9 @@ class Admin {
 
         // source[hash] carries the exact original value; do not sanitize it
         // beyond unslashing or the md5 key would no longer match the meta value
+        // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- must stay byte-exact: it is only md5()-compared with the submitted hash below and stored through $wpdb, never printed
         $sources = wp_unslash($_POST['source'] ?? []);
-        $translations = wp_unslash($_POST['translations'] ?? []);
+        $translations = map_deep(wp_unslash($_POST['translations'] ?? []), 'sanitize_text_field');
         $saved = 0;
 
         foreach ((array) $translations as $hash => $per_language) {
@@ -466,7 +476,7 @@ class Admin {
             }
         }
 
-        wp_redirect(add_query_arg('stm_saved', $saved, wp_get_referer()));
+        wp_safe_redirect(add_query_arg('stm_saved', $saved, wp_get_referer()));
         exit;
     }
 
@@ -483,7 +493,7 @@ class Admin {
             wp_die('Unknown field', 400);
         }
 
-        $target = sanitize_text_field($_POST['target_language'] ?? '');
+        $target = sanitize_text_field(wp_unslash($_POST['target_language'] ?? ''));
         $default_language = Database::get_default_language();
         $default_code = $default_language ? $default_language->code : 'en';
 
@@ -501,6 +511,7 @@ class Admin {
         $existing = FieldValues::get_translations_for_field($field);
 
         if (function_exists('set_time_limit')) {
+            // phpcs:ignore Squiz.PHP.DiscouragedFunctions.Discouraged -- one external API call per missing value can add up to minutes on a large field; raised only for this admin request
             set_time_limit(300);
         }
 
@@ -533,7 +544,7 @@ class Admin {
         if ($failed > 0 && $last_error) {
             $args['stm_error'] = urlencode($last_error);
         }
-        wp_redirect(add_query_arg($args, wp_get_referer()));
+        wp_safe_redirect(add_query_arg($args, wp_get_referer()));
         exit;
     }
 
@@ -596,22 +607,25 @@ class Admin {
                 return;
             }
 
-            $table_pt = $wpdb->prefix . 'stm_post_translations';
 
             // Count published posts
+            // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- plain COUNT over core wp_posts (WP_Query would load every post object just to count); admin notice; the result is cached in a transient (set_transient further down in this function)
             $total_posts = $wpdb->get_var(
                 "SELECT COUNT(*) FROM {$wpdb->posts} WHERE post_status = 'publish' AND post_type IN ('post', 'page')"
             );
+            // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
 
             // Count posts with title translations per non-default language
             $missing_by_lang = [];
             foreach ($non_default_langs as $lang) {
+                // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- joins the plugin's own table wp_stm_post_translations with core wp_posts (no WordPress function expresses this query); admin notice; the result is cached in a transient (set_transient further down in this function)
                 $translated = $wpdb->get_var($wpdb->prepare(
-                    "SELECT COUNT(DISTINCT post_id) FROM {$table_pt}
+                    "SELECT COUNT(DISTINCT post_id) FROM {$wpdb->prefix}stm_post_translations
                      WHERE language_code = %s AND field_name = 'title'
                      AND post_id IN (SELECT ID FROM {$wpdb->posts} WHERE post_status = 'publish' AND post_type IN ('post', 'page'))",
                     $lang->code
                 ));
+                // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
 
                 $missing = $total_posts - intval($translated);
                 if ($missing > 0) {
@@ -669,9 +683,10 @@ class Admin {
         global $wpdb;
 
         // Validate and sanitize inputs
-        $string_id = intval($_POST['string_id']);
-        $language_code = sanitize_text_field(wp_unslash($_POST['language_code']));
-        $translation = Security::sanitize_translation(wp_unslash($_POST['translation']));
+        $string_id = intval($_POST['string_id'] ?? 0);
+        $language_code = sanitize_text_field(wp_unslash($_POST['language_code'] ?? ''));
+        // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Security::sanitize_translation() is the sanitiser (wp_kses with the allowed-HTML list)
+        $translation = Security::sanitize_translation(wp_unslash($_POST['translation'] ?? ''));
 
         if (!Security::validate_language_code($language_code)) {
             wp_die('Invalid language code', 400);
@@ -681,11 +696,13 @@ class Admin {
             $table = $wpdb->prefix . 'stm_translations';
 
             // Upsert translation
+            // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- reads the plugin's own table wp_stm_translations (no WordPress API for custom tables); admin handler: reads the current row before changing it
             $existing = $wpdb->get_var($wpdb->prepare(
-                "SELECT id FROM {$table} WHERE string_id = %d AND language_code = %s",
+                "SELECT id FROM {$wpdb->prefix}stm_translations WHERE string_id = %d AND language_code = %s",
                 $string_id,
                 $language_code
             ));
+            // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
 
             $data = [
                 'string_id' => $string_id,
@@ -697,9 +714,13 @@ class Admin {
             ];
 
             if ($existing) {
+                // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- writes the plugin's own table wp_stm_translations (no WordPress API for custom tables); Cache::invalidate_string() drops the cached copies right after the write
                 $result = $wpdb->update($table, $data, ['id' => $existing]);
+                // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
             } else {
+                // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery -- writes the plugin's own table wp_stm_translations (no WordPress API for custom tables)
                 $result = $wpdb->insert($table, $data);
+                // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery
             }
 
             if ($result === false) {
@@ -707,10 +728,12 @@ class Admin {
             }
 
             // Invalidate cache
+            // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- reads the plugin's own table wp_stm_strings (no WordPress API for custom tables); admin handler: reads the current row before changing it
             $string = $wpdb->get_row($wpdb->prepare(
                 "SELECT string_key, context FROM {$wpdb->prefix}stm_strings WHERE id = %d",
                 $string_id
             ));
+            // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
 
             if ($string) {
                 Cache::invalidate_string($string->string_key, $string->context);
@@ -735,7 +758,9 @@ class Admin {
         global $wpdb;
 
         // Validate and sanitize inputs
-        $string_key = Security::sanitize_translation_key(wp_unslash($_POST['string_key']));
+        // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Security::sanitize_translation_key() is the sanitiser (lowercase key characters only)
+        $string_key = Security::sanitize_translation_key(wp_unslash($_POST['string_key'] ?? ''));
+        // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Security::sanitize_context() is the sanitiser (lowercase context characters only)
         $context = Security::sanitize_context(wp_unslash($_POST['context'] ?? 'general'));
         $description = sanitize_textarea_field(wp_unslash($_POST['description'] ?? ''));
 
@@ -756,7 +781,9 @@ class Admin {
                 'description' => $description,
             ];
 
+            // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery -- writes the plugin's own table wp_stm_strings (no WordPress API for custom tables)
             $result = $wpdb->insert($table, $data);
+            // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery
 
             if ($result === false) {
                 throw new \Exception('Database operation failed');
@@ -808,6 +835,7 @@ class Admin {
             exit;
         }
 
+        // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- the upload array is not printed or stored: the name goes through sanitize_file_name() and only the .json extension is used, the content is json_decode()d and every value is sanitised in API::process_import()
         $file = $_FILES['stm_import_file'];
 
         // Only allow JSON files
@@ -868,10 +896,12 @@ class Admin {
 
         $code = strtolower($code);
 
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- reads the plugin's own table wp_stm_languages (no WordPress API for custom tables); admin handler: reads the current row before changing it
         $existing = $wpdb->get_row($wpdb->prepare(
-            "SELECT id, is_active FROM {$table} WHERE code = %s",
+            "SELECT id, is_active FROM {$wpdb->prefix}stm_languages WHERE code = %s",
             $code
         ));
+        // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
 
         if ($existing && $existing->is_active) {
             wp_safe_redirect(add_query_arg('stm_error', 'already_active', wp_get_referer()));
@@ -879,7 +909,9 @@ class Admin {
         }
 
         if ($is_default) {
+            // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery -- writes the plugin's own table wp_stm_languages (no WordPress API for custom tables)
             $wpdb->update($table, ['is_default' => 0], ['is_default' => 1]);
+            // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery
         }
 
         $fields = [
@@ -894,10 +926,14 @@ class Admin {
         if ($existing) {
             // Reactivate the existing inactive row â€” never delete/reinsert, so any
             // translations already tied to this language code are left untouched.
+            // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery -- writes the plugin's own table wp_stm_languages (no WordPress API for custom tables)
             $result = $wpdb->update($table, $fields, ['id' => $existing->id]);
+            // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery
             $success_arg = 'stm_reactivated';
         } else {
+            // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery -- writes the plugin's own table wp_stm_languages (no WordPress API for custom tables)
             $result = $wpdb->insert($table, $fields + ['code' => $code]);
+            // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery
             $success_arg = 'stm_added';
         }
 
@@ -930,17 +966,21 @@ class Admin {
         global $wpdb;
 
         // Prevent deleting the default language
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- reads the plugin's own table wp_stm_languages (no WordPress API for custom tables); admin handler: reads the current row before changing it
         $is_default = $wpdb->get_var($wpdb->prepare(
             "SELECT is_default FROM {$wpdb->prefix}stm_languages WHERE code = %s",
             $code
         ));
+        // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
 
         if ($is_default) {
             wp_safe_redirect(add_query_arg('stm_error', 'cannot_delete_default', wp_get_referer()));
             exit;
         }
 
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery -- deletes rows of the plugin's own table wp_stm_languages (no WordPress API for custom tables)
         $wpdb->delete($wpdb->prefix . 'stm_languages', ['code' => $code]);
+        // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery
 
         wp_cache_delete(Database::CACHE_ACTIVE_LANGUAGES);
         wp_cache_delete('stm_all_languages');
@@ -970,10 +1010,12 @@ class Admin {
         global $wpdb;
         $table = $wpdb->prefix . 'stm_languages';
 
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- reads the plugin's own table wp_stm_languages (no WordPress API for custom tables); admin handler: reads the current row before changing it
         $lang = $wpdb->get_row($wpdb->prepare(
-            "SELECT is_active, is_default FROM {$table} WHERE code = %s",
+            "SELECT is_active, is_default FROM {$wpdb->prefix}stm_languages WHERE code = %s",
             $code
         ));
+        // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
 
         $redirect_arg = 'stm_toggled';
         $redirect_val = '1';
@@ -986,7 +1028,9 @@ class Admin {
             $redirect_arg = 'stm_error';
             $redirect_val = 'cannot_deactivate_default';
         } else {
+            // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery -- writes the plugin's own table wp_stm_languages (no WordPress API for custom tables)
             $wpdb->update($table, ['is_active' => $lang->is_active ? 0 : 1], ['code' => $code]);
+            // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery
             wp_cache_delete(Database::CACHE_ACTIVE_LANGUAGES);
             wp_cache_delete('stm_all_languages');
         }
@@ -1004,7 +1048,7 @@ class Admin {
         check_ajax_referer('stm_admin_nonce', 'nonce');
 
         $page  = sanitize_key($_POST['page'] ?? '');
-        $prefs = $_POST['prefs'] ?? [];
+        $prefs = map_deep(wp_unslash($_POST['prefs'] ?? []), 'sanitize_text_field');
 
         if (!$page || !is_array($prefs)) {
             wp_send_json_error('Invalid request');
@@ -1061,9 +1105,9 @@ class Admin {
         $deepl_key  = sanitize_text_field(wp_unslash($_POST['deepl_key'] ?? ''));
 
         AutoTranslate::save_settings($provider, $openai_key ?: null, $deepl_key ?: null, [
-            'openai_model'           => sanitize_text_field($_POST['openai_model'] ?? ''),
-            'openai_temperature'     => (float) ($_POST['openai_temperature'] ?? 0.3),
-            'openai_prompt_template' => sanitize_textarea_field($_POST['openai_prompt_template'] ?? ''),
+            'openai_model'           => sanitize_text_field(wp_unslash($_POST['openai_model'] ?? '')),
+            'openai_temperature'     => floatval(wp_unslash($_POST['openai_temperature'] ?? 0.3)),
+            'openai_prompt_template' => sanitize_textarea_field(wp_unslash($_POST['openai_prompt_template'] ?? '')),
         ]);
 
         wp_safe_redirect(add_query_arg('stm_saved', '1', wp_get_referer()));

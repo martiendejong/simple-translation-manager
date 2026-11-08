@@ -72,8 +72,6 @@ class ImportExport {
     public static function export_xliff($source_lang, $target_lang, $context = '') {
         global $wpdb;
 
-        $table_strings = $wpdb->prefix . 'stm_strings';
-        $table_translations = $wpdb->prefix . 'stm_translations';
 
         $where = ['1=1'];
         $params = [];
@@ -90,9 +88,9 @@ class ImportExport {
                    src.translation as source_text,
                    tgt.translation as target_text,
                    tgt.status as target_status
-            FROM {$table_strings} s
-            LEFT JOIN {$table_translations} src ON s.id = src.string_id AND src.language_code = %s
-            LEFT JOIN {$table_translations} tgt ON s.id = tgt.string_id AND tgt.language_code = %s
+            FROM {$wpdb->prefix}stm_strings s
+            LEFT JOIN {$wpdb->prefix}stm_translations src ON s.id = src.string_id AND src.language_code = %s
+            LEFT JOIN {$wpdb->prefix}stm_translations tgt ON s.id = tgt.string_id AND tgt.language_code = %s
             WHERE {$where_sql}
             ORDER BY s.context, s.string_key
         ";
@@ -100,7 +98,7 @@ class ImportExport {
         array_unshift($params, $target_lang);
         array_unshift($params, $source_lang);
 
-        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- $query (built above from %s placeholders in $where[] plus the language-code placeholders) is passed through $wpdb->prepare() with $params right here; no raw value ever reaches the SQL string.
+        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- $query (built above from %s placeholders in $where[] plus the language-code placeholders) is passed through $wpdb->prepare() with $params right here; no raw value ever reaches the SQL string.; reads the plugin's own tables wp_stm_strings and wp_stm_translations (no WordPress API for custom tables); export download triggered by an administrator, once per request
         $results = $wpdb->get_results($wpdb->prepare($query, $params));
 
         // Build XLIFF XML
@@ -169,28 +167,19 @@ class ImportExport {
     public static function export_po($lang, $context = '') {
         global $wpdb;
 
-        $table_strings = $wpdb->prefix . 'stm_strings';
-        $table_translations = $wpdb->prefix . 'stm_translations';
 
-        $where = ['1=1'];
-        $params = [$lang];
+        $context = $context ? (string) $context : '';
 
-        if ($context) {
-            $where[] = 's.context = %s';
-            $params[] = $context;
-        }
-
-        $where_sql = implode(' AND ', $where);
-
-        // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- $where_sql is assembled from %s placeholders in $where[] and their values in $params above; $wpdb->prepare() below resolves every placeholder before the query runs.
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- reads the plugin's own tables wp_stm_strings, wp_stm_translations (no WordPress API for custom tables); export download triggered by an administrator, once per request
         $results = $wpdb->get_results($wpdb->prepare("
             SELECT s.string_key, s.context, s.description,
                    t.translation, t.status
-            FROM {$table_strings} s
-            LEFT JOIN {$table_translations} t ON s.id = t.string_id AND t.language_code = %s
-            WHERE {$where_sql}
+            FROM {$wpdb->prefix}stm_strings s
+            LEFT JOIN {$wpdb->prefix}stm_translations t ON s.id = t.string_id AND t.language_code = %s
+            WHERE (%s = '' OR s.context = %s)
             ORDER BY s.context, s.string_key
-        ", $params));
+        ", $lang, $context, $context));
+        // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
 
         $output = [];
 
@@ -310,26 +299,32 @@ class ImportExport {
             }
 
             // Find or create string
+            // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- reads the plugin's own table wp_stm_strings (no WordPress API for custom tables); read-before-write: needs the current row to choose update or insert, a cached copy could create a duplicate
             $string = $wpdb->get_row($wpdb->prepare(
-                "SELECT id FROM {$table_strings} WHERE string_key = %s AND context = %s",
+                "SELECT id FROM {$wpdb->prefix}stm_strings WHERE string_key = %s AND context = %s",
                 $string_key, $context
             ));
+            // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
 
             if (!$string) {
+                // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery -- writes the plugin's own table wp_stm_strings (no WordPress API for custom tables)
                 $wpdb->insert($table_strings, [
                     'string_key' => $string_key,
                     'context' => $context,
                 ]);
+                // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery
                 $string_id = $wpdb->insert_id;
             } else {
                 $string_id = $string->id;
             }
 
             // Upsert translation
+            // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- reads the plugin's own table wp_stm_translations (no WordPress API for custom tables); read-before-write: needs the current row to choose update or insert, a cached copy could create a duplicate
             $existing = $wpdb->get_var($wpdb->prepare(
-                "SELECT id FROM {$table_translations} WHERE string_id = %d AND language_code = %s",
+                "SELECT id FROM {$wpdb->prefix}stm_translations WHERE string_id = %d AND language_code = %s",
                 $string_id, $target_lang
             ));
+            // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
 
             $data = [
                 'string_id' => $string_id,
@@ -341,9 +336,11 @@ class ImportExport {
             ];
 
             if ($existing) {
+                // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- writes the plugin's own table wp_stm_translations (no WordPress API for custom tables); Cache::invalidate_string() drops the cached copies right after the write
                 $wpdb->update($table_translations, $data, ['id' => $existing]);
                 $result['updated']++;
             } else {
+                // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery -- writes the plugin's own table wp_stm_translations (no WordPress API for custom tables)
                 $wpdb->insert($table_translations, $data);
                 $result['created']++;
             }
@@ -388,26 +385,32 @@ class ImportExport {
             $is_fuzzy = !empty($entry['fuzzy']);
 
             // Find or create string
+            // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- reads the plugin's own table wp_stm_strings (no WordPress API for custom tables); read-before-write: needs the current row to choose update or insert, a cached copy could create a duplicate
             $string = $wpdb->get_row($wpdb->prepare(
-                "SELECT id FROM {$table_strings} WHERE string_key = %s AND context = %s",
+                "SELECT id FROM {$wpdb->prefix}stm_strings WHERE string_key = %s AND context = %s",
                 $string_key, $context
             ));
+            // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
 
             if (!$string) {
+                // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery -- writes the plugin's own table wp_stm_strings (no WordPress API for custom tables)
                 $wpdb->insert($table_strings, [
                     'string_key' => $string_key,
                     'context' => $context,
                 ]);
+                // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery
                 $string_id = $wpdb->insert_id;
             } else {
                 $string_id = $string->id;
             }
 
             // Upsert translation
+            // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- reads the plugin's own table wp_stm_translations (no WordPress API for custom tables); read-before-write: needs the current row to choose update or insert, a cached copy could create a duplicate
             $existing = $wpdb->get_var($wpdb->prepare(
-                "SELECT id FROM {$table_translations} WHERE string_id = %d AND language_code = %s",
+                "SELECT id FROM {$wpdb->prefix}stm_translations WHERE string_id = %d AND language_code = %s",
                 $string_id, $lang
             ));
+            // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
 
             $data = [
                 'string_id' => $string_id,
@@ -419,9 +422,11 @@ class ImportExport {
             ];
 
             if ($existing) {
+                // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- writes the plugin's own table wp_stm_translations (no WordPress API for custom tables); Cache::invalidate_string() drops the cached copies right after the write
                 $wpdb->update($table_translations, $data, ['id' => $existing]);
                 $result['updated']++;
             } else {
+                // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery -- writes the plugin's own table wp_stm_translations (no WordPress API for custom tables)
                 $wpdb->insert($table_translations, $data);
                 $result['created']++;
             }
@@ -577,7 +582,7 @@ class ImportExport {
         // Generated XLIFF/XML file streamed verbatim as a download (Content-Type is not text/html);
         // esc_html() would corrupt the XML markup. export_xliff() builds the document via DOM/XML APIs,
         // not raw concatenation.
-        // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+        // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- file download, not HTML: escaping would corrupt the XLIFF markup, which export_xliff() builds with the DOM/XML API
         echo $content;
         exit;
     }
@@ -597,7 +602,7 @@ class ImportExport {
         // Generated PO file streamed verbatim as a download (Content-Type is not text/html);
         // esc_html() would corrupt the PO syntax. export_po() already escapes each field via
         // its own escape_po_string().
-        // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+        // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- file download, not HTML: escaping would corrupt the PO syntax, export_po() escapes every field itself with escape_po_string()
         echo $content;
         exit;
     }
@@ -611,6 +616,7 @@ class ImportExport {
             wp_die('No file uploaded', 400);
         }
 
+        // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- the upload array is not printed or stored: the name goes through sanitize_file_name() to pick the format, the content is parsed by import_xliff()/import_po() which sanitise every value
         $file = $_FILES['import_file'];
         $content = file_get_contents($file['tmp_name']);
         $filename = strtolower(sanitize_file_name($file['name']));

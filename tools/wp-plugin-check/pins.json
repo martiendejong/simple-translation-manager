@@ -1,0 +1,28 @@
+{
+    "schema": "wp-plugin-check-pins/1",
+    "comment": "Everything the scan depends on is pinned here. Changing a pin changes what 'clean' means, so bump them deliberately and re-baseline. Download hashes are verified before use; a mismatch aborts the scan.",
+    "php": {
+        "minor": "8.5",
+        "note": "Major.minor of the PHP binary that runs WP-CLI and WordPress. The exact version is recorded in every report."
+    },
+    "wordpress": {
+        "version": "7.1.3",
+        "url": "https://downloads.wordpress.org/release/wordpress-7.1.3.zip",
+        "sha1": "13eb1d042b1ca39224e44906cd84fe203112210c",
+        "sha256": "eb58a90ed55147f90f7bd55d0d3334960a69b7e8a4cc142c8ddfea8965218227"
+    },
+    "wp_cli": {
+        "version": "2.12.0",
+        "url": "https://github.com/wp-cli/wp-cli/releases/download/v2.12.0/wp-cli-2.12.0.phar",
+        "sha256": "ce34ddd838f7351d6759068d09793f26755463b4a4610a5a5c0a97b68220d85c"
+    },
+    "plugin_check": {
+        "version": "2.1.0",
+        "url": "https://downloads.wordpress.org/plugin/plugin-check.2.1.0.zip",
+        "sha256": "6ff4bd2145f3befcf907df158cc466b1649dafed5686de8369907403c3013fc4"
+    },
+    "runtime_canary": {
+        "expected_code": "EnqueuedScriptsSize.ScriptSizeGreaterThanThreshold",
+        "note": "A generated synthetic plugin that must trigger this runtime-check finding. If it does not, runtime checks did not run and the scan is reported as failed."
+    }
+}

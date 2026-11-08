@@ -95,7 +95,7 @@ class PostEditor {
     }
 
     /**
-     * Some external integrations (e.g. Bugatti Insights' sync API) write
+     * Some external integrations (for example a site's own sync code) write
      * translation rows directly via STM\API::save_post_translations() using
      * short field names ('title', 'content') instead of the post_title/
      * post_content keys this metabox's own save handler uses. The rows are
@@ -140,6 +140,7 @@ class PostEditor {
             true
         );
 
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- read-only: which post the editor screen has open; an (int) cast, nothing is saved from it
         $post_id = isset($_GET['post']) ? (int) $_GET['post'] : 0;
         $current_lang = $post_id ? self::get_post_language($post_id) : Settings::get_default_language();
 
@@ -213,6 +214,7 @@ class PostEditor {
             return;
         }
 
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- read-only: which post the editor screen has open; an (int) cast, nothing is saved from it
         $post_id = isset($_GET['post']) ? (int) $_GET['post'] : 0;
         $current_lang = $post_id ? self::get_post_language($post_id) : Settings::get_default_language();
         $languages = Database::get_all_languages();
@@ -276,7 +278,7 @@ class PostEditor {
      */
     public static function save_translations($post_id, $post) {
         // Security checks
-        if (!isset($_POST['stm_translations_nonce']) || !wp_verify_nonce(wp_unslash($_POST['stm_translations_nonce']), 'stm_save_translations')) {
+        if (!isset($_POST['stm_translations_nonce']) || !wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['stm_translations_nonce'])), 'stm_save_translations')) {
             return;
         }
 
@@ -299,10 +301,12 @@ class PostEditor {
         self::set_post_language($post_id, $post_language, $translation_group);
 
         // Save translations
+        // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- is_array() type test only; the values are sanitised below
         if (isset($_POST['stm_translations']) && is_array($_POST['stm_translations'])) {
             global $wpdb;
             $table = $wpdb->prefix . 'stm_post_translations';
 
+            // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- every field is sanitised by its type in the loop below (wp_kses_post for post_content, sanitize_title for post_name, sanitize_text_field otherwise)
             $translations = wp_unslash($_POST['stm_translations']);
 
             foreach ($translations as $lang_code => $fields) {
@@ -324,16 +328,19 @@ class PostEditor {
                         $value = sanitize_text_field($value);
                     }
 
+                    // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- reads the plugin's own table wp_stm_post_translations (no WordPress API for custom tables); read-before-write: needs the current row to choose update or insert, a cached copy could create a duplicate
                     $existing = $wpdb->get_var($wpdb->prepare(
-                        "SELECT id FROM {$table} WHERE post_id = %d AND field_name = %s AND language_code = %s",
+                        "SELECT id FROM {$wpdb->prefix}stm_post_translations WHERE post_id = %d AND field_name = %s AND language_code = %s",
                         $post_id,
                         $field_name,
                         $lang_code
                     ));
+                    // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
 
                     // Empty value — delete existing row if present
                     if (empty($value)) {
                         if ($existing) {
+                            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- deletes rows of the plugin's own table wp_stm_post_translations (no WordPress API for custom tables); Cache::invalidate_post() drops the cached copies right after the write
                             $wpdb->delete($table, ['id' => $existing]);
                         }
                         continue;
@@ -347,8 +354,10 @@ class PostEditor {
                     ];
 
                     if ($existing) {
+                        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- writes the plugin's own table wp_stm_post_translations (no WordPress API for custom tables); Cache::invalidate_post() drops the cached copies right after the write
                         $wpdb->update($table, $data, ['id' => $existing]);
                     } else {
+                        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery -- writes the plugin's own table wp_stm_post_translations (no WordPress API for custom tables)
                         $wpdb->insert($table, $data);
                     }
                 }
@@ -375,6 +384,7 @@ class PostEditor {
 
         global $wpdb;
         $placeholders = implode(',', array_fill(0, count($post_ids), '%d'));
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare -- reads the plugin's own table wp_stm_post_translations (no WordPress API for custom tables); this one query is the preload: it fetches the rows of every post on the list page at once and the result is kept in self::$list_cache for the rest of the request; the interpolated variable only holds a run of %s/%d markers (implode of array_fill), one per value passed to prepare()
         $rows = $wpdb->get_results(
             $wpdb->prepare(
                 "SELECT post_id, language_code, field_name, translation
@@ -385,6 +395,7 @@ class PostEditor {
             ),
             ARRAY_A
         );
+        // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare
 
         foreach ($rows as $row) {
             self::$list_cache[$row['post_id']][$row['language_code']][$row['field_name']] = $row['translation'];
@@ -475,12 +486,13 @@ class PostEditor {
      */
     public static function get_post_language($post_id) {
         global $wpdb;
-        $table = $wpdb->prefix . 'stm_post_associations';
 
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- reads the plugin's own table wp_stm_post_associations (no WordPress API for custom tables); front-end filters call it per post: one indexed lookup by post_id, not cached so a language change made in the editor shows at once
         $lang = $wpdb->get_var($wpdb->prepare(
-            "SELECT language_code FROM {$table} WHERE post_id = %d",
+            "SELECT language_code FROM {$wpdb->prefix}stm_post_associations WHERE post_id = %d",
             $post_id
         ));
+        // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
 
         if ($lang) {
             return $lang;
@@ -516,10 +528,12 @@ class PostEditor {
         global $wpdb;
         $table = $wpdb->prefix . 'stm_post_associations';
 
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- reads the plugin's own table wp_stm_post_associations (no WordPress API for custom tables); read-before-write: needs the current row to choose update or insert, a cached copy could create a duplicate
         $existing = $wpdb->get_var($wpdb->prepare(
-            "SELECT id FROM {$table} WHERE post_id = %d",
+            "SELECT id FROM {$wpdb->prefix}stm_post_associations WHERE post_id = %d",
             $post_id
         ));
+        // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
 
         $data = [
             'post_id' => $post_id,
@@ -529,8 +543,10 @@ class PostEditor {
         ];
 
         if ($existing) {
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- writes the plugin's own table wp_stm_post_associations (no WordPress API for custom tables); the post-to-language association is never read from a cache (get_post_language() reads the table)
             $wpdb->update($table, $data, ['id' => $existing]);
         } else {
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery -- writes the plugin's own table wp_stm_post_associations (no WordPress API for custom tables)
             $wpdb->insert($table, $data);
         }
     }
@@ -540,12 +556,13 @@ class PostEditor {
      */
     public static function get_translation_group($post_id) {
         global $wpdb;
-        $table = $wpdb->prefix . 'stm_post_associations';
 
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- reads the plugin's own table wp_stm_post_associations (no WordPress API for custom tables); single indexed lookup by post_id, used by the editor, the post list and the save handler
         return $wpdb->get_var($wpdb->prepare(
-            "SELECT translation_group FROM {$table} WHERE post_id = %d",
+            "SELECT translation_group FROM {$wpdb->prefix}stm_post_associations WHERE post_id = %d",
             $post_id
         ));
+        // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
     }
 
     /**
@@ -553,13 +570,14 @@ class PostEditor {
      */
     public static function get_post_translation($post_id, $language_code) {
         global $wpdb;
-        $table = $wpdb->prefix . 'stm_post_translations';
 
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- reads the plugin's own table wp_stm_post_translations (no WordPress API for custom tables); front-end filters call it per post: one indexed lookup by post_id and language, not cached so an edit shows at once
         $results = $wpdb->get_results($wpdb->prepare(
-            "SELECT field_name, translation FROM {$table} WHERE post_id = %d AND language_code = %s",
+            "SELECT field_name, translation FROM {$wpdb->prefix}stm_post_translations WHERE post_id = %d AND language_code = %s",
             $post_id,
             $language_code
         ), ARRAY_A);
+        // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
 
         $translation = [];
         foreach ($results as $row) {
@@ -579,13 +597,14 @@ class PostEditor {
      */
     public static function get_post_id_by_translated_slug($language_code, $slug) {
         global $wpdb;
-        $table = $wpdb->prefix . 'stm_post_translations';
 
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- reads the plugin's own table wp_stm_post_translations (no WordPress API for custom tables); runs only on a request that carries a translated slug: one indexed lookup, not cached so a changed slug routes correctly at once
         return (int) $wpdb->get_var($wpdb->prepare(
-            "SELECT post_id FROM {$table} WHERE field_name = 'post_name' AND language_code = %s AND translation = %s LIMIT 1",
+            "SELECT post_id FROM {$wpdb->prefix}stm_post_translations WHERE field_name = 'post_name' AND language_code = %s AND translation = %s LIMIT 1",
             $language_code,
             $slug
         ));
+        // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
     }
 
     /**
@@ -593,11 +612,12 @@ class PostEditor {
      */
     public static function get_translation_group_posts($translation_group) {
         global $wpdb;
-        $table = $wpdb->prefix . 'stm_post_associations';
 
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- reads the plugin's own table wp_stm_post_associations (no WordPress API for custom tables); single indexed lookup by translation_group, a public helper for themes and add-ons
         return $wpdb->get_results($wpdb->prepare(
-            "SELECT post_id, language_code FROM {$table} WHERE translation_group = %s",
+            "SELECT post_id, language_code FROM {$wpdb->prefix}stm_post_associations WHERE translation_group = %s",
             $translation_group
         ), ARRAY_A);
+        // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
     }
 }

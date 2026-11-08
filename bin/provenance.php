@@ -905,14 +905,33 @@ function stm_prov_run(string $command, ?int &$code = null): string
     return trim(implode("\n", $output));
 }
 
-/** Build the distribution ZIP for $commit with git archive. Same commit, same git => same bytes. */
+/**
+ * Timestamp written into every ZIP entry: the commit time of the last commit that touched a shipped path.
+ *
+ * Not the commit time of $commit itself: a commit that only changes docs, tests or tooling must not change
+ * the ZIP bytes, otherwise the SHA-256 recorded by a Plugin Check scan would be stale after every such commit.
+ */
+function stm_prov_zip_mtime(string $root, string $commit): string
+{
+    $paths = implode(' ', array_map('escapeshellarg', STM_PROV_DIST_PATHS));
+    $time  = stm_prov_git($root, 'log -1 --format=%cI ' . escapeshellarg($commit) . ' -- ' . $paths);
+    return $time ?? (string) stm_prov_git($root, 'log -1 --format=%cI ' . escapeshellarg($commit));
+}
+
+/**
+ * Build the distribution ZIP for $commit with git archive. Same shipped content, same git => same bytes.
+ *
+ * The archive is taken from the commit's TREE, not the commit: archiving a commit writes the commit id into
+ * the ZIP comment, which would make the bytes differ for commits that change nothing that is shipped.
+ */
 function stm_prov_build_zip(string $root, string $commit, string $zipPath): void
 {
     stm_prov_assert_outside_repo($zipPath, $root);
     $paths = implode(' ', array_map('escapeshellarg', STM_PROV_DIST_PATHS));
     $out   = stm_prov_run(
-        'git -C ' . escapeshellarg($root) . ' archive --format=zip --prefix=simple-translation-manager/ -o '
-        . escapeshellarg($zipPath) . ' ' . escapeshellarg($commit) . ' -- ' . $paths,
+        'git -C ' . escapeshellarg($root) . ' archive --format=zip --mtime=' . escapeshellarg(stm_prov_zip_mtime($root, $commit))
+        . ' --prefix=simple-translation-manager/ -o '
+        . escapeshellarg($zipPath) . ' ' . escapeshellarg($commit . '^{tree}') . ' -- ' . $paths,
         $code
     );
     if ($code !== 0) {
@@ -990,7 +1009,7 @@ function stm_prov_release(string $root, string $commit, string $zipPath, string 
             'bytes'    => filesize($zipPath),
             'sha256'   => hash_file('sha256', $zipPath),
             'entries'  => count(stm_prov_zip_entries($zipPath)),
-            'built_by' => 'git archive from the commit above, limited to STM_PROV_DIST_PATHS',
+            'built_by' => 'git archive from the commit above, limited to STM_PROV_DIST_PATHS, entry times fixed to the last commit that touched a shipped path',
         ],
         'published' => $published,
         'tag'       => stm_prov_tag_status($root, $version, $sha),

@@ -192,6 +192,7 @@ class AutoTranslate {
             'max_tokens' => max(strlen($text) * 3, 500),
         ];
 
+        // phpcs:ignore PluginCheck.CodeAnalysis.AIProvider.DirectIntegration -- STM supports WordPress 6.0 and newer, which has no WordPress AI Client; the site owner picks the provider (OpenAI or DeepL) and supplies their own key, and the request only runs after an administrator action
         $response = wp_remote_post('https://api.openai.com/v1/chat/completions', [
             'timeout' => 30,
             'headers' => [

@@ -41,6 +41,8 @@ class ApiSqlSafetyTest extends TestCase {
             return new FakeRestResponse($data);
         });
         Functions\when('sanitize_text_field')->returnArg(1);
+        // Anonymous caller: the public GET routes only list published translations.
+        Functions\when('current_user_can')->justReturn(false);
     }
 
     protected function tearDown(): void {
@@ -70,7 +72,8 @@ class ApiSqlSafetyTest extends TestCase {
         API::get_strings($request);
 
         $this->assertStringNotContainsString('%s', $this->wpdb->lastQuery());
-        $this->assertStringContainsString('WHERE 1=1', $this->wpdb->lastQuery());
+        // No context given: the filter is switched off inside the statement ('' = '' is always true).
+        $this->assertStringContainsString("('' = '' OR s.context = '')", $this->wpdb->lastQuery());
     }
 
     // -----------------------------------------------------------------
@@ -146,7 +149,8 @@ class ApiSqlSafetyTest extends TestCase {
 
         $query = $this->wpdb->lastQuery();
         $this->assertStringNotContainsString('%s', $query);
-        $this->assertStringContainsString('t.status = "published"', $query);
+        $this->assertStringContainsString("t.status = 'published'", $query);
+        $this->assertStringContainsString("('' = '' OR t.language_code = '')", $query);
     }
 }
 

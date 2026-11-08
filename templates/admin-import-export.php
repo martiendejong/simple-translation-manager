@@ -14,10 +14,10 @@ $languages = STM\Database::get_languages();
 // back from a redirect Admin::import_json() issues after it has already
 // verified its own nonce; displaying them here is read-only and causes no
 // state change, so no nonce is required.
-// phpcs:disable WordPress.Security.NonceVerification.Recommended
+// phpcs:disable WordPress.Security.NonceVerification.Recommended -- display-only flags, no state change
 $imported   = isset($_GET['imported'])   ? intval($_GET['imported'])   : null;
 $stm_errors = isset($_GET['stm_errors']) ? intval($_GET['stm_errors']) : 0;
-$stm_error  = isset($_GET['stm_error'])  ? sanitize_text_field($_GET['stm_error']) : '';
+$stm_error  = isset($_GET['stm_error'])  ? sanitize_text_field(wp_unslash($_GET['stm_error'])) : '';
 // phpcs:enable WordPress.Security.NonceVerification.Recommended
 ?>
 

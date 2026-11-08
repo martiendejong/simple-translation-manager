@@ -130,6 +130,63 @@ class ProvenanceToolTest extends TestCase {
         }
     }
 
+    public function test_zip_bytes_only_change_when_a_shipped_file_changes() {
+        $repo = sys_get_temp_dir() . '/stm-zipmtime-' . bin2hex(random_bytes(4));
+        $out  = sys_get_temp_dir() . '/stm-zipmtime-out-' . bin2hex(random_bytes(4));
+        mkdir($repo, 0777, true);
+        mkdir($out, 0777, true);
+        $commit = function (string $message, string $date) use ($repo) {
+            putenv("GIT_AUTHOR_DATE={$date}");
+            putenv("GIT_COMMITTER_DATE={$date}");
+            stm_prov_run('git -C ' . escapeshellarg($repo) . ' add -A');
+            stm_prov_run('git -C ' . escapeshellarg($repo) . ' -c user.name=Test -c user.email=test@example.test commit -q -m ' . escapeshellarg($message), $code);
+            putenv('GIT_AUTHOR_DATE');
+            putenv('GIT_COMMITTER_DATE');
+            $this->assertSame(0, $code, 'commit failed');
+        };
+        $hash = function (string $name) use ($repo, $out): string {
+            stm_prov_build_zip($repo, 'HEAD', $out . '/' . $name . '.zip');
+            return hash_file('sha256', $out . '/' . $name . '.zip');
+        };
+        try {
+            stm_prov_run('git -C ' . escapeshellarg($repo) . ' init -q');
+            file_put_contents($repo . '/simple-translation-manager.php', "<?php\n// plugin\n");
+            file_put_contents($repo . '/readme.txt', "=== STM ===\n");
+            file_put_contents($repo . '/VERSION', "1.0.0\n");
+            file_put_contents($repo . '/uninstall.php', "<?php\n");
+            foreach (['includes/a.php', 'templates/a.php', 'assets/a.css', 'docs/editors/pdf/guide.pdf'] as $shipped) {
+                mkdir(dirname($repo . '/' . $shipped), 0777, true);
+                file_put_contents($repo . '/' . $shipped, "x\n");
+            }
+            $commit('ship', '2026-01-01T10:00:00+00:00');
+            $first = $hash('first');
+
+            file_put_contents($repo . '/docs/NOTES.md', "notes\n");
+            $commit('docs only', '2026-02-01T10:00:00+00:00');
+            $this->assertSame($first, $hash('after-docs'), 'a docs-only commit must not change the release ZIP bytes');
+
+            file_put_contents($repo . '/readme.txt', "=== STM ===\nchanged\n");
+            $commit('shipped change', '2026-03-01T10:00:00+00:00');
+            $this->assertNotSame($first, $hash('after-ship'));
+        } finally {
+            $this->removeTree($repo);
+            $this->removeTree($out);
+        }
+    }
+
+    /** Remove a tree that may hold read-only git objects (Windows refuses to unlink those). */
+    private function removeTree(string $dir): void {
+        if (!is_dir($dir)) {
+            return;
+        }
+        $it = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator($dir, \FilesystemIterator::SKIP_DOTS), \RecursiveIteratorIterator::CHILD_FIRST);
+        foreach ($it as $file) {
+            chmod($file->getPathname(), 0666);
+            $file->isDir() ? rmdir($file->getPathname()) : unlink($file->getPathname());
+        }
+        rmdir($dir);
+    }
+
     public function test_a_docblock_tag_names_the_declaration_it_documents_not_the_one_above() {
         $src = implode("\n", [
             '<?php',                                    // 1

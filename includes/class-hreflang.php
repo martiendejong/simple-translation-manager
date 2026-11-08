@@ -134,13 +134,14 @@ class Hreflang {
      */
     private static function has_term_translation( int $term_id, string $lang_code ): bool {
         global $wpdb;
-        $table = $wpdb->prefix . 'stm_term_translations';
 
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- reads the plugin's own table wp_stm_term_translations (no WordPress API for custom tables); single indexed lookup (term_id, language_code) on an archive page; term translations are written outside this plugin, so there is no invalidation point for a cache
         $found = $wpdb->get_var( $wpdb->prepare(
-            "SELECT term_id FROM {$table} WHERE term_id = %d AND language_code = %s LIMIT 1",
+            "SELECT term_id FROM {$wpdb->prefix}stm_term_translations WHERE term_id = %d AND language_code = %s LIMIT 1",
             $term_id,
             $lang_code
         ) );
+        // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
 
         return ! empty( $found );
     }

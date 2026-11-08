@@ -180,6 +180,7 @@ class Security {
      */
     public static function log($message, $level = 'info') {
         if (defined('WP_DEBUG') && WP_DEBUG) {
+            // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- only runs when WP_DEBUG is on (the condition above); this is the plugin's single debug-log writer
             error_log(sprintf('[STM Security %s] %s', strtoupper($level), $message));
         }
     }

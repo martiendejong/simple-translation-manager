@@ -49,14 +49,14 @@ class LanguageSwitcher extends \WP_Widget {
         // before_widget/after_widget are built by the active theme's register_sidebar() call, not
         // user input; WP_Widget's own contract is that widgets echo them verbatim (every core widget
         // does the same).
-        // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+        // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- before_widget is the theme's own register_sidebar() markup; WP_Widget's contract is to echo it verbatim
         echo $args['before_widget'];
 
         if (!empty($instance['title'])) {
             // before_title/after_title are theme-supplied wrapper markup (same as before_widget
             // above); the title itself is wp_kses_post()'d since the widget_title filter is commonly
             // used by themes/plugins to add inline markup (icons, spans) to the heading.
-            // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+            // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- before_title/after_title are the theme's own register_sidebar() markup; the title itself goes through wp_kses_post()
             echo $args['before_title'] . wp_kses_post(apply_filters('widget_title', $instance['title'])) . $args['after_title'];
         }
 
@@ -187,6 +187,8 @@ class LanguageSwitcher extends \WP_Widget {
      * }
      */
     public static function render($args = []) {
+        wp_enqueue_style('stm-frontend');
+
         $style      = $args['style']      ?? Settings::get_switcher_style();
         $show_flags = $args['show_flags'] ?? Settings::switcher_show_flags();
         $show_names = $args['show_names'] ?? Settings::switcher_show_names();
@@ -299,7 +301,7 @@ class LanguageSwitcher extends \WP_Widget {
 
     private static function get_current_url() {
         $protocol = is_ssl() ? 'https://' : 'http://';
-        $uri      = wp_unslash( $_SERVER['REQUEST_URI'] ?? '' );
+        $uri      = esc_url_raw( wp_unslash( $_SERVER['REQUEST_URI'] ?? '' ) );
 
         // Strip ?lang= parameter
         $uri = preg_replace('/([?&])lang=[^&]*(&|$)/', '$1', $uri);
@@ -310,7 +312,7 @@ class LanguageSwitcher extends \WP_Widget {
             $uri = preg_replace('#^/[a-z]{2,3}(/|$)#', '/', $uri);
         }
 
-        return $protocol . wp_unslash( $_SERVER['HTTP_HOST'] ?? '' ) . $uri;
+        return $protocol . sanitize_text_field( wp_unslash( $_SERVER['HTTP_HOST'] ?? '' ) ) . $uri;
     }
 
     private static function get_language_url($lang_code, $base_url) {
@@ -339,8 +341,12 @@ class LanguageSwitcher extends \WP_Widget {
     // Assets
     // -------------------------------------------------------------------------
 
+    /**
+     * Only registers the switcher stylesheet. render() enqueues it, so pages that do not show a
+     * language switcher do not load it.
+     */
     public static function enqueue_styles() {
-        wp_enqueue_style(
+        wp_register_style(
             'stm-frontend',
             STM_PLUGIN_URL . 'assets/frontend.css',
             [],

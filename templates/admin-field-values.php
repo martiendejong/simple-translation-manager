@@ -14,9 +14,12 @@
  */
 if (!defined('ABSPATH')) exit;
 
+// Result flags read back from a redirect the form handlers issue after they verified their own nonce; display only.
+// phpcs:disable WordPress.Security.NonceVerification.Recommended -- display-only flags, no state change
 $added   = isset($_GET['stm_added']);
 $deleted = isset($_GET['stm_deleted']);
-$error   = isset($_GET['stm_error']) ? sanitize_text_field($_GET['stm_error']) : '';
+$error   = isset($_GET['stm_error']) ? sanitize_text_field(wp_unslash($_GET['stm_error'])) : '';
+// phpcs:enable WordPress.Security.NonceVerification.Recommended
 $error_messages = [
     'invalid_field' => 'Invalid field name.',
 ];

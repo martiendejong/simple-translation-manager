@@ -55,13 +55,12 @@ class Cache {
         }
 
         // Cache miss - query database
-        $table_strings = $wpdb->prefix . 'stm_strings';
-        $table_translations = $wpdb->prefix . 'stm_translations';
 
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery -- reads the plugin's own tables wp_stm_strings, wp_stm_translations (no WordPress API for custom tables)
         $result = $wpdb->get_var($wpdb->prepare(
             "SELECT t.translation
-            FROM {$table_translations} t
-            INNER JOIN {$table_strings} s ON t.string_id = s.id
+            FROM {$wpdb->prefix}stm_translations t
+            INNER JOIN {$wpdb->prefix}stm_strings s ON t.string_id = s.id
             WHERE s.string_key = %s
             AND s.context = %s
             AND t.language_code = %s
@@ -71,6 +70,7 @@ class Cache {
             $context,
             $lang
         ));
+        // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery
 
         // Store in cache (even if null, to avoid repeated DB queries)
         wp_cache_set($cache_key, $result, self::GROUP, self::TTL);
@@ -97,10 +97,10 @@ class Cache {
         }
 
         // Cache miss - query database
-        $table = $wpdb->prefix . 'stm_post_translations';
 
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery -- reads the plugin's own table wp_stm_post_translations (no WordPress API for custom tables)
         $result = $wpdb->get_var($wpdb->prepare(
-            "SELECT translation FROM {$table}
+            "SELECT translation FROM {$wpdb->prefix}stm_post_translations
             WHERE post_id = %d
             AND field_name = %s
             AND language_code = %s
@@ -109,9 +109,11 @@ class Cache {
             $field,
             $lang
         ));
+        // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery
 
         // Log database errors (not empty results)
         if ($wpdb->last_error) {
+            // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- logs a failed database operation (not debug output); the message carries a stable [STM-E-...] diagnostic code so a site owner can report it
             error_log("[STM] [STM-E-CACHE-GET-POST-TRANSLATION-DB-READ] DB error getting translation for post {$post_id} field {$field}: " . $wpdb->last_error);
         }
 
@@ -140,10 +142,10 @@ class Cache {
             return $translation;
         }
 
-        $table = $wpdb->prefix . 'stm_field_value_translations';
 
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery -- reads the plugin's own table wp_stm_field_value_translations (no WordPress API for custom tables)
         $result = $wpdb->get_var($wpdb->prepare(
-            "SELECT translation FROM {$table}
+            "SELECT translation FROM {$wpdb->prefix}stm_field_value_translations
             WHERE field_name = %s
             AND value_hash = %s
             AND language_code = %s
@@ -152,8 +154,10 @@ class Cache {
             $value_hash,
             $lang
         ));
+        // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery
 
         if ($wpdb->last_error) {
+            // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- logs a failed database operation (not debug output); the message carries a stable [STM-E-...] diagnostic code so a site owner can report it
             error_log("[STM] [STM-E-CACHE-GET-FIELD-VALUE-TRANSLATION-DB-READ] DB error getting field value translation for {$field}: " . $wpdb->last_error);
         }
 
@@ -211,10 +215,12 @@ class Cache {
         } else {
             // Query which fields exist for this post and delete each targeted key
             global $wpdb;
+            // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- reads the plugin's own table wp_stm_post_translations (no WordPress API for custom tables); cache invalidation: it must read the live rows to know which cache keys to delete
             $fields = $wpdb->get_col($wpdb->prepare(
                 "SELECT DISTINCT field_name FROM {$wpdb->prefix}stm_post_translations WHERE post_id = %d",
                 $post_id
             ));
+            // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
             foreach ($languages as $lang) {
                 foreach ($fields as $f) {
                     wp_cache_delete("post_{$post_id}_{$f}_{$lang->code}", self::GROUP);
