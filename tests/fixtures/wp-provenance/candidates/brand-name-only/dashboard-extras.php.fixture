@@ -1,0 +1,35 @@
+<?php
+/**
+ * Plugin Name: Dashboard Extras
+ * Description: Invented plugin that only mentions another plugin by name: it works with Fixture Lantern Sync when that is active. Used only by tests.
+ * Version: 1.2.0
+ * Author: Fourth Fixture Author
+ * License: GPL-2.0-or-later
+ */
+
+// SPDX-License-Identifier: GPL-2.0-or-later
+// SPDX-FileCopyrightText: 2026 Fourth Fixture Author
+// Source-Id: dex.main
+
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
+}
+
+/**
+ * Optional integration with Fixture Lantern Sync: when that plugin keeps its records in the option
+ * we know about, show how many lanterns there are on the dashboard. We only read; we never write.
+ */
+function dex_lantern_count() {
+	$records = get_option( 'fls_lanterns', array() );
+	return is_array( $records ) ? count( $records ) : 0;
+}
+
+function dex_dashboard_widget() {
+	$count = dex_lantern_count();
+	echo '<p>' . esc_html( sprintf( _n( '%d lantern is registered.', '%d lanterns are registered.', $count, 'dashboard-extras' ), $count ) ) . '</p>';
+}
+
+function dex_add_widget() {
+	wp_add_dashboard_widget( 'dex_lanterns', 'Lanterns', 'dex_dashboard_widget' );
+}
+add_action( 'wp_dashboard_setup', 'dex_add_widget' );

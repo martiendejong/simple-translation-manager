@@ -1,0 +1,43 @@
+<?php
+// SPDX-License-Identifier: GPL-2.0-or-later
+// SPDX-FileCopyrightText: 2026 Third Fixture Author
+// Source-Id: lrl.sync
+
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
+}
+
+/**
+ * Remote push plus the REST routes, in one class. Pushes everything in one request and
+ * leaves retrying to the caller (a cron job in the host site).
+ */
+class LRL_Sync {
+
+	public static function routes() {
+		register_rest_route(
+			'lrl/v2',
+			'/lanterns',
+			array(
+				'methods'             => 'GET',
+				'callback'            => function () {
+					return array_values( LRL_Registry::all() );
+				},
+				'permission_callback' => function () {
+					return current_user_can( 'edit_others_posts' );
+				},
+			)
+		);
+	}
+
+	public static function push_all( $endpoint ) {
+		$records = array_values( LRL_Registry::all() );
+		if ( ! $records ) {
+			return 0;
+		}
+		$reply = wp_remote_post( $endpoint, array( 'body' => array( 'lanterns' => wp_json_encode( $records ) ) ) );
+		if ( is_wp_error( $reply ) ) {
+			return $reply;
+		}
+		return wp_remote_retrieve_response_code( $reply ) < 300 ? count( $records ) : new WP_Error( 'lrl_push_failed', 'Push failed.' );
+	}
+}

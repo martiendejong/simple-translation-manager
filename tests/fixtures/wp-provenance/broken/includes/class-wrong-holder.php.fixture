@@ -1,0 +1,11 @@
+<?php
+// SPDX-License-Identifier: MIT
+// SPDX-FileCopyrightText: 2026 Somebody Else
+// Source-Id: brk.wrong-holder
+
+class BRK_Wrong_Holder {
+
+	public static function run() {
+		return true;
+	}
+}

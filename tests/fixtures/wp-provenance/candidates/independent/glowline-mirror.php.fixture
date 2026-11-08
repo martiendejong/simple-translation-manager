@@ -1,0 +1,23 @@
+<?php
+/**
+ * Plugin Name: Glowline Mirror
+ * Description: Invented independent plugin: mirrors lamp posts to a partner site. Used only by tests.
+ * Version: 0.3.0
+ * Author: Another Fixture Author
+ * License: MIT
+ */
+
+// SPDX-License-Identifier: MIT
+// SPDX-FileCopyrightText: 2026 Another Fixture Author
+// Source-Id: glm.main
+
+defined( 'ABSPATH' ) || exit;
+
+define( 'GLM_VERSION', '0.3.0' );
+
+require_once __DIR__ . '/src/lamps.php';
+require_once __DIR__ . '/src/queue.php';
+
+add_action( 'init', 'glm_register_lamp_type' );
+add_action( 'glm_process_queue', 'glm_process_next_job' );
+register_activation_hook( __FILE__, 'glm_schedule_queue' );

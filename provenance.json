@@ -1,0 +1,56 @@
+{
+    "schema": "wp-provenance-config/1",
+    "plugin": {
+        "slug": "simple-translation-manager",
+        "name": "Simple Translation Manager",
+        "dir": ".",
+        "main_file": "simple-translation-manager.php",
+        "version_from": { "file": "VERSION" },
+        "prefixes": ["stm"]
+    },
+    "rights": {
+        "holder": "Martien de Jong",
+        "holder_status": "verified",
+        "holder_evidence": "Plugin header Author and the repository commit history (task 5182, checked 2026-10-09). ProsperGenics is not named: its legal status as rights holder is not confirmed.",
+        "year": "2026",
+        "license": "GPL-2.0-or-later"
+    },
+    "source": {
+        "extensions": ["php", "js", "mjs"],
+        "skip_dirs": ["vendor", "node_modules", "coverage", ".git", ".phpunit.cache", "dist"],
+        "third_party_paths": [],
+        "source_id": {
+            "required": true,
+            "prefix": "stm",
+            "overrides": {
+                "simple-translation-manager.php": "stm.bootstrap",
+                "uninstall.php": "stm.uninstall"
+            }
+        }
+    },
+    "markers": [
+        { "kind": "diag-code", "pattern": "STM-[EWI]-[A-Z0-9]+(?:-[A-Z0-9]+)+", "scope": "distributed", "min": 1 },
+        { "kind": "design-note", "pattern": "\\[(STM-DN-\\d{2,3})\\]", "id_group": 1, "needle": "[{id}]", "scope": "distributed", "min": 1, "context": true },
+        { "kind": "symbol-doc", "pattern": "\\[(STM-SYM-\\d{2,3})\\]", "id_group": 1, "needle": "[{id}]", "scope": "distributed", "min": 1, "context": true },
+        { "kind": "fixture", "pattern": "STM-FX-[A-Z0-9]+(?:-[A-Z0-9]+)*", "scope": "dir:tests/fixtures", "min": 0, "compare": false }
+    ],
+    "release": {
+        "zip_root": "simple-translation-manager",
+        "dist_paths": [
+            "simple-translation-manager.php",
+            "uninstall.php",
+            "readme.txt",
+            "includes",
+            "templates",
+            "assets",
+            "docs/editors/pdf"
+        ],
+        "forbidden_extra": ["vendor", "composer.json", "test-bulk-api.php"],
+        "tag_prefix": "v"
+    },
+    "brand": { "names": ["Simple Translation Manager"] },
+    "private": {
+        "dir": "${WP_PROVENANCE_PRIVATE_DIR}/simple-translation-manager",
+        "manifest": "${WP_PROVENANCE_PRIVATE_DIR}/simple-translation-manager/manifest-simple-translation-manager.json"
+    }
+}

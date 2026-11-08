@@ -1,0 +1,62 @@
+<?php
+// SPDX-License-Identifier: GPL-2.0-or-later
+// SPDX-FileCopyrightText: 2026 Example Fixture Author
+// Source-Id: fls.registry
+
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
+}
+
+/**
+ * Stores lantern records in one option.
+ */
+class FLS_Registry {
+
+	const OPTION = 'fls_lanterns';
+
+	/**
+	 * [FLS-DN-01] Records are kept in one option instead of a custom table: a site has dozens of lanterns, never thousands, and an option survives plugin updates without a schema migration.
+	 */
+	public static function install() {
+		if ( false === get_option( self::OPTION ) ) {
+			add_option( self::OPTION, array(), '', 'no' );
+		}
+	}
+
+	public static function all() {
+		$records = get_option( self::OPTION, array() );
+		return is_array( $records ) ? $records : array();
+	}
+
+	public static function find( $slug ) {
+		$records = self::all();
+		return isset( $records[ $slug ] ) ? $records[ $slug ] : null;
+	}
+
+	public static function register( $slug, array $record ) {
+		$slug = sanitize_key( $slug );
+		if ( '' === $slug ) {
+			return new WP_Error( 'fls_invalid_slug', 'The lantern slug is empty.', array( 'fls_diag' => 'FLS-E-REGISTRY-EMPTY-SLUG' ) );
+		}
+		$records = self::all();
+		if ( isset( $records[ $slug ] ) ) {
+			return new WP_Error( 'fls_duplicate', 'A lantern with this slug exists.', array( 'fls_diag' => 'FLS-E-REGISTRY-DUPLICATE' ) );
+		}
+		// [FLS-DN-02] The updated-at stamp is written here and never by callers, so every record has one even when a caller forgets it.
+		$record['updated_at'] = time();
+		$records[ $slug ]     = $record;
+		update_option( self::OPTION, $records, false );
+		return true;
+	}
+
+	public static function remove( $slug ) {
+		$records = self::all();
+		if ( ! isset( $records[ $slug ] ) ) {
+			error_log( '[FLS] FLS-W-REGISTRY-REMOVE-UNKNOWN ' . $slug );
+			return false;
+		}
+		unset( $records[ $slug ] );
+		update_option( self::OPTION, $records, false );
+		return true;
+	}
+}

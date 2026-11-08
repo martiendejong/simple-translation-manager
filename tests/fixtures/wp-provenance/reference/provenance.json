@@ -1,0 +1,30 @@
+{
+    "schema": "wp-provenance-config/1",
+    "plugin": {
+        "slug": "fixture-lantern-sync",
+        "name": "Fixture Lantern Sync",
+        "dir": ".",
+        "main_file": "fixture-lantern-sync.php",
+        "version_from": { "header": "Version" },
+        "prefixes": ["fls"]
+    },
+    "rights": {
+        "holder": "Example Fixture Author",
+        "holder_status": "verified",
+        "holder_evidence": "Invented for the provenance tool tests: this plugin does not exist.",
+        "year": "2026",
+        "license": "GPL-2.0-or-later"
+    },
+    "source": {
+        "source_id": { "required": true, "prefix": "fls" }
+    },
+    "markers": [
+        { "kind": "diag-code", "pattern": "FLS-[EWI]-[A-Z0-9]+(?:-[A-Z0-9]+)+", "scope": "distributed", "min": 1 },
+        { "kind": "design-note", "pattern": "\\[(FLS-DN-\\d{2,3})\\]", "id_group": 1, "needle": "[{id}]", "scope": "distributed", "min": 1, "context": true }
+    ],
+    "release": {
+        "zip_root": "fixture-lantern-sync",
+        "dist_paths": ["fixture-lantern-sync.php", "uninstall.php", "readme.txt", "includes"]
+    },
+    "brand": { "names": ["Fixture Lantern Sync"] }
+}

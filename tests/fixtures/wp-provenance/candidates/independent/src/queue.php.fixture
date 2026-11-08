@@ -1,0 +1,50 @@
+<?php
+// SPDX-License-Identifier: MIT
+// SPDX-FileCopyrightText: 2026 Another Fixture Author
+// Source-Id: glm.queue
+
+defined( 'ABSPATH' ) || exit;
+
+/**
+ * One job per cron tick keeps every request short; the partner site is slow.
+ */
+function glm_schedule_queue() {
+	if ( ! wp_next_scheduled( 'glm_process_queue' ) ) {
+		wp_schedule_event( time() + 60, 'hourly', 'glm_process_queue' );
+	}
+}
+
+function glm_next_job_key(): ?string {
+	$jobs = get_option( 'glm_jobs', array() );
+	foreach ( $jobs as $key => $job ) {
+		if ( ( $job['not_before'] ?? 0 ) <= time() ) {
+			return (string) $key;
+		}
+	}
+	return null;
+}
+
+function glm_process_next_job() {
+	$key = glm_next_job_key();
+	if ( null === $key ) {
+		return;
+	}
+	$jobs    = get_option( 'glm_jobs', array() );
+	$job     = $jobs[ $key ];
+	$payload = glm_lamp_payload( (int) $job['post_id'] );
+	$reply   = wp_remote_request(
+		get_option( 'glm_partner_url' ),
+		array(
+			'method' => 'PUT',
+			'body'   => wp_json_encode( $payload ),
+		)
+	);
+	$ok = ! is_wp_error( $reply ) && 200 === wp_remote_retrieve_response_code( $reply );
+	if ( $ok ) {
+		unset( $jobs[ $key ] );
+	} else {
+		$jobs[ $key ]['not_before'] = time() + 600 + wp_rand( 0, 120 );
+		$jobs[ $key ]['attempts']   = ( $job['attempts'] ?? 0 ) + 1;
+	}
+	update_option( 'glm_jobs', $jobs, false );
+}

@@ -1,0 +1,12 @@
+<?php
+// SPDX-License-Identifier: GPL-2.0-or-later
+// SPDX-FileCopyrightText: 2026 Example Fixture Author
+// Source-Id: brk.ok
+
+class BRK_Ok {
+
+	public static function run() {
+		// [BRK-DN-05] This note used to live in class-no-header.php; it was moved here and the register still points there.
+		return new WP_Error( 'brk_ok', 'Nothing to do.', array( 'brk_diag' => 'BRK-E-OK-ONE' ) );
+	}
+}
