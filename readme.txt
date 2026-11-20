@@ -4,7 +4,7 @@ Tags: translation, multilingual, i18n, language switcher, rest api
 Requires at least: 6.0
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 1.4.0
+Stable tag: 1.5.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -141,6 +141,15 @@ translate, the source and target language code, and your API key, to
 2. Elementor in-editor translation panel.
 
 == Changelog ==
+
+= 1.5.0 =
+* Merged the Port of Giethoorn fork back into STM so every site can run the plain plugin:
+  persistent language choice (cookie + localStorage, `assets/language-preference.js`) with a redirect from bare
+  URLs to the visitor's preferred language; the cookie only changes on explicit choices of an active language,
+  never on REST calls, previews or tracking links; the default-language switcher link carries `?lang=`.
+* Fixed: a translated slug no longer resolves to a trashed or deleted post (landing pages 404).
+* New filters `stm_sitemap_post_types` and `stm_sitemap_include_post` so a site can keep posts out of the
+  language sitemaps (e.g. noindex posts) without patching the plugin.
 
 = 1.4.0 =
 * New: translations now remember which source text they were made from (`source_hash`), who made them

@@ -609,8 +609,13 @@ class PostEditor {
         global $wpdb;
 
         // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- reads the plugin's own table wp_stm_post_translations (no WordPress API for custom tables); runs only on a request that carries a translated slug: one indexed lookup, not cached so a changed slug routes correctly at once
+        // Translation rows outlive their post (nothing deletes them when a
+        // post is deleted or trashed), so a slug reused by a later page --
+        // e.g. a landing page re-seeded after a hand-made duplicate was
+        // removed (task 3615) -- must not resolve to the dead/trashed row:
+        // only live posts count, published ones first, newest first.
         return (int) $wpdb->get_var($wpdb->prepare(
-            "SELECT post_id FROM {$wpdb->prefix}stm_post_translations WHERE field_name = 'post_name' AND language_code = %s AND translation = %s LIMIT 1",
+            "SELECT t.post_id FROM {$wpdb->prefix}stm_post_translations t INNER JOIN {$wpdb->posts} p ON p.ID = t.post_id WHERE t.field_name = 'post_name' AND t.language_code = %s AND t.translation = %s AND p.post_status NOT IN ('trash', 'auto-draft', 'inherit') ORDER BY CASE WHEN p.post_status = 'publish' THEN 0 ELSE 1 END, t.post_id DESC LIMIT 1",
             $language_code,
             $slug
         ));

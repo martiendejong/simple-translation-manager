@@ -150,6 +150,7 @@ class WP_Sitemaps_Provider {}
 // Database::get_languages() and Settings::get_default_language() touch.
 $wpdb = new class {
     public $prefix = 'wp_';
+        public $posts  = 'wp_posts';
 
     public function get_results($query, $output = ARRAY_A) {
         if (strpos($query, 'stm_languages') !== false) {
@@ -162,7 +163,7 @@ $wpdb = new class {
         [$sql, $argsJson] = array_pad(explode('::', $query, 2), 2, '[]');
         $args = json_decode($argsJson, true) ?: [];
 
-        if (strpos($sql, 'stm_post_translations') !== false && strpos($sql, 'SELECT post_id') !== false) {
+        if (strpos($sql, 'stm_post_translations') !== false && strpos($sql, 'post_id FROM') !== false) {
             [$language_code, $slug] = array_pad($args, 2, null);
             foreach ($GLOBALS['stm_post_translations'] ?? [] as $row) {
                 if ($row['field_name'] === 'post_name' && $row['language_code'] === $language_code && $row['translation'] === $slug) {

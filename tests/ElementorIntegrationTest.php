@@ -44,6 +44,7 @@ class ElementorIntegrationTest extends TestCase {
         Functions\when('wp_cache_delete')->justReturn(true);
         Functions\when('get_option')->justReturn('en');
         Functions\when('get_query_var')->justReturn('');
+        Functions\when('is_ssl')->justReturn(false);
         Functions\when('is_preview')->justReturn(false);
         Functions\when('__')->returnArg(1);
         Functions\when('rest_ensure_response')->returnArg(1);

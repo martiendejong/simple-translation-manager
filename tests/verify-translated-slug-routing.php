@@ -57,11 +57,27 @@ $GLOBALS['stm_posts'] = [
     42 => (object) [ 'ID' => 42, 'post_name' => 'valsuani-place', 'post_type' => 'visit_location' ],
     // No translated slug at all — must keep resolving via its own post_name.
     43 => (object) [ 'ID' => 43, 'post_name' => 'untouched-page', 'post_type' => 'page' ],
+    // Task 3615: a translated PAGE slug (SEO landing page) and a child page.
+    44 => (object) [ 'ID' => 44, 'post_name' => 'botenverhuur-giethoorn', 'post_type' => 'page', 'post_parent' => 0 ],
+    45 => (object) [ 'ID' => 45, 'post_name' => 'kind-pagina', 'post_type' => 'page', 'post_parent' => 44 ],
+    // A plain blog post with a translated slug must keep using 'name'.
+    46 => (object) [ 'ID' => 46, 'post_name' => 'nieuws-bericht', 'post_type' => 'post' ],
+    48 => (object) [ 'ID' => 48, 'post_name' => 'rondvaart-oud__trashed', 'post_type' => 'page', 'post_status' => 'trash' ],
+    49 => (object) [ 'ID' => 49, 'post_name' => 'rondvaart-giethoorn', 'post_type' => 'page', 'post_status' => 'publish' ],
 ];
 
 $GLOBALS['stm_post_translations'] = [
     [ 'post_id' => 42, 'field_name' => 'post_name',  'language_code' => 'nl', 'translation' => 'valsuani-plek' ],
     [ 'post_id' => 42, 'field_name' => 'post_title', 'language_code' => 'nl', 'translation' => 'Valsuani plek' ],
+    [ 'post_id' => 44, 'field_name' => 'post_name',  'language_code' => 'nl', 'translation' => 'boat-rental-giethoorn' ],
+    [ 'post_id' => 45, 'field_name' => 'post_name',  'language_code' => 'nl', 'translation' => 'child-page' ],
+    [ 'post_id' => 46, 'field_name' => 'post_name',  'language_code' => 'nl', 'translation' => 'news-item' ],
+    // Task 3615: leftover rows for the same translated slug from a deleted
+    // page (99, no post any more) and a trashed duplicate (48) -- listed
+    // BEFORE the live page's row, like the older rows are in the real table.
+    [ 'post_id' => 99, 'field_name' => 'post_name',  'language_code' => 'nl', 'translation' => 'boat-tour-giethoorn' ],
+    [ 'post_id' => 48, 'field_name' => 'post_name',  'language_code' => 'nl', 'translation' => 'boat-tour-giethoorn' ],
+    [ 'post_id' => 49, 'field_name' => 'post_name',  'language_code' => 'nl', 'translation' => 'boat-tour-giethoorn' ],
 ];
 
 // One active non-default language, for get_current_language()'s active-code check.
@@ -119,6 +135,7 @@ function plugin_dir_path($f) { return dirname($f) . '/'; }
 function plugin_dir_url($f)  { return STM_TEST_BASE_URL . 'wp-content/plugins/simple-translation-manager/'; }
 
 function is_admin()                   { return false; }
+function is_ssl()                     { return false; }
 function current_user_can($cap)       { return true; }
 function sanitize_text_field($s)      { return is_string($s) ? trim($s) : ''; }
 function sanitize_key($s)             { return is_string($s) ? strtolower(preg_replace('/[^a-z0-9_]/i', '', $s)) : ''; }
@@ -163,6 +180,17 @@ function get_post($post) {
     return $GLOBALS['stm_posts'][(int) $post] ?? null;
 }
 
+function get_page_uri($post) {
+    $post = get_post($post);
+    $uri  = $post->post_name;
+    $p    = $post;
+    while (!empty($p->post_parent)) {
+        $p   = get_post($p->post_parent);
+        $uri = $p->post_name . '/' . $uri;
+    }
+    return $uri;
+}
+
 function get_permalink($post) {
     $post = get_post($post);
     if (!$post) {
@@ -186,6 +214,7 @@ function get_permalink($post) {
 if (!isset($wpdb)) {
     $wpdb = new class {
         public $prefix = 'wp_';
+        public $posts  = 'wp_posts';
 
         public function prepare($query, ...$args) {
             return $query . '::' . json_encode($args);
@@ -199,14 +228,29 @@ if (!isset($wpdb)) {
         public function get_var($query) {
             [$sql, $args] = $this->split($query);
 
-            if (strpos($sql, 'stm_post_translations') !== false && strpos($sql, 'SELECT post_id') !== false) {
+            if (strpos($sql, 'stm_post_translations') !== false && strpos($sql, 'post_id FROM') !== false) {
                 [$language_code, $slug] = $args;
+                // Mirrors the real query: INNER JOIN posts (orphan rows
+                // drop out), no trashed posts, publish first, newest first.
+                $hits = [];
                 foreach ($GLOBALS['stm_post_translations'] as $row) {
-                    if ($row['field_name'] === 'post_name' && $row['language_code'] === $language_code && $row['translation'] === $slug) {
-                        return $row['post_id'];
+                    if ($row['field_name'] !== 'post_name' || $row['language_code'] !== $language_code || $row['translation'] !== $slug) {
+                        continue;
                     }
+                    if (strpos($sql, 'JOIN') !== false) {
+                        $post = $GLOBALS['stm_posts'][(int) $row['post_id']] ?? null;
+                        $status = $post->post_status ?? 'publish';
+                        if (!$post || in_array($status, ['trash', 'auto-draft', 'inherit'], true)) {
+                            continue;
+                        }
+                        $row['rank'] = [ $status === 'publish' ? 0 : 1, -(int) $row['post_id'] ];
+                    } else {
+                        $row['rank'] = [ 0, 0 ];
+                    }
+                    $hits[] = $row;
                 }
-                return null;
+                usort($hits, fn($a, $b) => $a['rank'] <=> $b['rank']);
+                return $hits ? $hits[0]['post_id'] : null;
             }
 
             // Settings::get_default_language()'s fallback lookups — no
@@ -281,6 +325,16 @@ assert_same(
     \STM\PostEditor::get_post_id_by_translated_slug('nl', 'valsuani-plek')
 );
 assert_same(
+    'PostEditor::get_post_id_by_translated_slug() skips rows of deleted/trashed posts and returns the live page (task 3615)',
+    49,
+    \STM\PostEditor::get_post_id_by_translated_slug('nl', 'boat-tour-giethoorn')
+);
+assert_same(
+    'resolve_translated_slug_request(): a re-seeded page slug with stale rows still routes to the live page (task 3615)',
+    'rondvaart-giethoorn',
+    \STM\Frontend::resolve_translated_slug_request([ 'name' => 'boat-tour-giethoorn', 'lang' => 'nl' ])['pagename'] ?? null
+);
+assert_same(
     'PostEditor::get_post_id_by_translated_slug() returns 0 when nothing matches',
     0,
     \STM\PostEditor::get_post_id_by_translated_slug('nl', 'no-such-slug')
@@ -350,6 +404,41 @@ assert_same(
 );
 
 unset( $GLOBALS['wp'] );
+
+// 2c. Task 3615 (live 404 on test.portofgiethoorn.com 2026-10-31,
+//     /en/boat-rental-giethoorn/): WP::parse_request() skips the verbose
+//     page rule for a translated page slug (get_page_by_path() can't find
+//     it), so the request arrives on the POST rule as name=<translated>.
+//     Swapping the value alone made WP query post_type=post -> 404.
+$qv = \STM\Frontend::resolve_translated_slug_request( [ 'name' => 'boat-rental-giethoorn', 'page' => '', 'lang' => 'nl', 'error' => '404' ] );
+assert_same(
+    'resolve_translated_slug_request(): translated PAGE slug arriving as name= becomes pagename=<real slug> (task 3615)',
+    'botenverhuur-giethoorn',
+    $qv['pagename'] ?? null
+);
+assert_true(
+    'resolve_translated_slug_request(): ...and the post-type name= var is dropped so WP does not query post_type=post',
+    !array_key_exists('name', $qv)
+);
+assert_true(
+    'resolve_translated_slug_request(): ...and a stale error=404 from the failed rule match is cleared',
+    !array_key_exists('error', $qv)
+);
+assert_same(
+    'resolve_translated_slug_request(): translated child-page slug resolves to the full hierarchical page path',
+    'botenverhuur-giethoorn/kind-pagina',
+    \STM\Frontend::resolve_translated_slug_request( [ 'name' => 'child-page', 'lang' => 'nl' ] )['pagename'] ?? null
+);
+$qv = \STM\Frontend::resolve_translated_slug_request( [ 'name' => 'news-item', 'lang' => 'nl' ] );
+assert_true(
+    'resolve_translated_slug_request(): a translated blog POST slug stays on name= (no pagename)',
+    ($qv['name'] ?? null) === 'nieuws-bericht' && !isset($qv['pagename'])
+);
+assert_same(
+    'resolve_translated_slug_request(): translated page slug that already arrives as pagename= still resolves',
+    'botenverhuur-giethoorn',
+    \STM\Frontend::resolve_translated_slug_request( [ 'pagename' => 'boat-rental-giethoorn', 'lang' => 'nl' ] )['pagename']
+);
 
 // 3. Shared forward lookup — substitution + prefix, and untranslated no-op.
 $post42 = get_post(42);
