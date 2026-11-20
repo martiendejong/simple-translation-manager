@@ -59,6 +59,7 @@ class FrontendTest extends TestCase {
             return 'en';
         });
         Functions\when('get_query_var')->justReturn('');
+        Functions\when('is_ssl')->justReturn(false);
         Functions\when('is_preview')->justReturn(false);
         Functions\when('get_queried_object_id')->justReturn(0);
         Functions\when('current_user_can')->justReturn(false);
@@ -204,15 +205,17 @@ class FrontendTest extends TestCase {
     }
 
     // -----------------------------------------------------------------
-    // 869ebjzzc: ?lang= must only ever write the cookie once per request.
-    // A search/archive loop calls get_current_language() once per post
-    // (via the_title/post_type_link), so without a dedup guard a single
-    // request emits a dozen-plus identical Set-Cookie headers — which the
-    // production PHP-FPM/IIS front end turns into a 502 instead of a
-    // response. See the class-frontend.php $cookie_written guard.
+    // 869ebjzzc / 6324: get_current_language() must never write the
+    // stm_lang cookie. A search/archive loop calls it once per post (via
+    // the_title/post_type_link) — 12 results used to mean 12 identical
+    // Set-Cookie headers, which the production PHP-FPM/IIS front end turns
+    // into a 502 — and REST handlers call it with the page's ?lang= echoed
+    // back, which silently overwrote a visitor's stored taalkeuze. The
+    // cookie is written from template_redirect only; see
+    // LanguageCookieWriteTest.
     // -----------------------------------------------------------------
 
-    public function test_lang_cookie_is_only_written_once_per_request() {
+    public function test_get_current_language_never_writes_the_cookie() {
         $_GET['lang'] = 'nl';
 
         $this->resetCookieWrittenGuard();
@@ -225,12 +228,22 @@ class FrontendTest extends TestCase {
             $this->assertSame('nl', Frontend::get_current_language());
         }
 
-        // The guard must have latched after the very first call and stayed
-        // latched — proving at most one setcookie() call happened, not 12.
-        $this->assertTrue($this->cookieWrittenGuard());
+        $this->assertFalse($this->cookieWrittenGuard(), 'rendering must not touch the stm_lang cookie');
     }
 
-    private function cookieWrittenGuard(): bool {
+    public function test_get_current_language_does_not_write_the_cookie_for_a_rewrite_query_var() {
+        Functions\when('get_query_var')->justReturn('nl');
+
+        $this->assertSame('nl', Frontend::get_current_language());
+
+        $this->assertFalse($this->cookieWrittenGuard());
+    }
+
+    /**
+     * @return string|false The language the stm_lang cookie was written with
+     *                      during this test, or false when it was not.
+     */
+    private function cookieWrittenGuard() {
         $prop = new \ReflectionProperty(Frontend::class, 'cookie_written');
         return $prop->getValue();
     }

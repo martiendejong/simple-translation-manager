@@ -320,9 +320,14 @@ class LanguageSwitcher extends \WP_Widget {
             // De default-taal heeft géén taal-prefix: de rewrite-regels worden
             // alleen voor niet-default talen gegenereerd (stm_rewrite_rules_array
             // slaat de default over), dus een /nl/-link zou op WordPress'
-            // 404-gok-redirect stranden. Default = de kale URL.
+            // 404-gok-redirect stranden. Een KALE link is echter ook niet
+            // genoeg meer: de voorkeur-redirect (Frontend::
+            // maybe_redirect_to_preferred_language) zou die meteen terug naar
+            // de cookie-taal sturen. ?lang= maakt de keuze expliciet — de
+            // server onthoudt hem en redirect door naar de kale canonieke URL.
             if ($lang_code === Settings::get_default_language()) {
-                return $base_url;
+                $sep = strpos($base_url, '?') !== false ? '&' : '?';
+                return $base_url . $sep . 'lang=' . rawurlencode($lang_code);
             }
 
             // Parse the base URL and prepend /lang_code/

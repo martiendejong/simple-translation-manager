@@ -53,6 +53,19 @@ class Frontend {
 
         // Term translations
         add_filter('get_term', [__CLASS__, 'filter_term'], 10, 2);
+
+        // Language preference (URL routing mode): send a bare default-language
+        // URL to the visitor's explicitly chosen language, and canonicalize
+        // ?lang= / /{default}/-prefixed URLs. Priority 2: AFTER the handlers
+        // that own their own URLs and exit (visit-platform ShortLinks and
+        // Maintenance/Passport/Preview run at 0-1), BEFORE redirect_canonical
+        // (10) — so a short link still resolves and a prefixed URL is never
+        // stripped back first.
+        add_action('template_redirect', [__CLASS__, 'maybe_redirect_to_preferred_language'], 2);
+
+        // Mirror the stm_lang cookie into localStorage and restore it after
+        // cookie expiry (assets/language-preference.js).
+        add_action('wp_enqueue_scripts', [__CLASS__, 'enqueue_language_preference_script']);
     }
 
     /**
@@ -80,23 +93,28 @@ class Frontend {
     }
 
     /**
-     * Whether the ?lang= cookie has already been (re)written during this
-     * request. get_current_language() runs once per post being rendered
-     * (once per get_permalink()/get_the_title() call in a search results
-     * or archive loop), so without this guard a single request can call
-     * setcookie() a dozen-plus times with an identical value. On this
-     * host's PHP-FPM/IIS front end that many repeated Set-Cookie headers
-     * on one response makes the reverse proxy treat the response as
-     * invalid and return a 502 — see the 869ebjzzc REST search crash.
+     * False until the stm_lang cookie has been (re)written during this
+     * request, then the language code it was written with.
+     * remember_language_choice() runs from template_redirect only (see
+     * maybe_redirect_to_preferred_language()), so this is a safety net
+     * rather than the primary guard it used to be: when the write still sat
+     * in get_requested_language(), a search/archive loop called it once per
+     * post (via get_permalink()/get_the_title()) and a single request could
+     * emit a dozen-plus identical Set-Cookie headers. On this host's
+     * PHP-FPM/IIS front end that makes the reverse proxy treat the response
+     * as invalid and return a 502 — see the 869ebjzzc REST search crash.
+     *
+     * @var string|false
      */
     private static $cookie_written = false;
 
     /**
-     * Read the requested language code from the rewrite query var, the
-     * ?lang= GET param, or the persisted cookie — without yet checking
-     * whether that language may actually be shown.
+     * The language the request itself asks for — the rewrite query var
+     * (/fr/topic/...) or the ?lang= GET param — or '' when it names none
+     * in a valid format. Says nothing about whether that language is active
+     * and never touches the cookie.
      */
-    private static function get_requested_language() {
+    private static function get_explicit_language_request() {
         // Priority 1: WordPress query var set by rewrite rules (/fr/topic/...)
         $from_query = get_query_var( 'lang', '' );
         if ( $from_query && Security::validate_language_code( $from_query ) ) {
@@ -109,18 +127,40 @@ class Frontend {
             // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- same public language link as the line above
             $lang = sanitize_text_field( wp_unslash( $_GET['lang'] ) );
             if ( Security::validate_language_code( $lang ) ) {
-                self::remember_language_choice( $lang );
                 return $lang;
             }
         }
 
-        // [STM-DN-10] In URL routing mode the URL structure is authoritative: if neither a
-        // rewrite query var nor an explicit ?lang= param is present, we are on
-        // a default-language URL (e.g. /). The cookie must NOT override this —
-        // otherwise returning to / after visiting /en/ stays in English because
-        // the stm_lang=en cookie lingers.
+        return '';
+    }
+
+    /**
+     * Read the requested language code from the rewrite query var, the
+     * ?lang= GET param, or the persisted cookie — without yet checking
+     * whether that language may actually be shown.
+     *
+     * Pure read: this runs from content filters (once per post in a loop),
+     * from REST handlers that echo the page's ?lang= back, and for inactive
+     * or garbage codes, none of which may move the stored preference. The
+     * cookie is only ever written by remember_language_choice(), called
+     * from maybe_redirect_to_preferred_language() at template_redirect.
+     */
+    private static function get_requested_language() {
+        $explicit = self::get_explicit_language_request();
+        if ( '' !== $explicit ) {
+            return $explicit;
+        }
+
+        // [STM-DN-10] In URL routing mode the URL structure stays authoritative for
+        // RENDERING: without a rewrite query var or ?lang= this is a
+        // default-language URL and it renders the default language. The
+        // cookie is not consulted here — maybe_redirect_to_preferred_language()
+        // honors it instead, by 302'ing the whole request to the preferred
+        // /{lang}/ URL before anything renders. The cookie is also no longer
+        // reset to the default on every bare URL: it now means "last
+        // EXPLICITLY chosen language" (via a /{lang}/ URL, ?lang=, or a
+        // typed /{default}/ prefix), and only those paths may write it.
         if ( Settings::is_url_routing_enabled() ) {
-            self::remember_language_choice( Settings::get_default_language() );
             return '';
         }
 
@@ -136,23 +176,292 @@ class Frontend {
     }
 
     /**
-     * [STM-DN-11] Persist the ?lang= choice in a cookie — at most once per request, and
-     * only when it is actually possible to send a header. Both guards exist
-     * because this is called from inside content filters (the_title,
-     * post_type_link, ...) that WordPress runs once per post in a loop, not
-     * once per request. Never on REST API calls, which are programmatic
-     * rather than user navigation.
+     * Whether this request is a visitor navigating to a page — the only
+     * kind of request that may act on or persist a language preference.
+     * Shared by the preference redirect and the cookie write so the two can
+     * never disagree. Must run after the main query is parsed
+     * (template_redirect or later): is_robots()/is_feed()/is_preview() are
+     * not valid earlier.
+     *
+     * Not a navigation: wp-admin, REST/AJAX/cron (programmatic — the React
+     * front-end sends ?lang=<page language> on every REST call), non-GET/
+     * HEAD methods, robots/feeds, WP and Elementor previews, and core
+     * sitemaps (which list canonical URLs per language already).
+     */
+    private static function is_navigation_request() {
+        if ( is_admin() ) {
+            return false;
+        }
+        if ( ( defined( 'REST_REQUEST' ) && REST_REQUEST ) || wp_doing_ajax() || wp_doing_cron() ) {
+            return false;
+        }
+
+        $method = isset( $_SERVER['REQUEST_METHOD'] ) ? strtoupper( sanitize_text_field( wp_unslash( $_SERVER['REQUEST_METHOD'] ) ) ) : 'GET';
+        if ( 'GET' !== $method && 'HEAD' !== $method ) {
+            return false;
+        }
+        if ( is_robots() || is_feed() || is_preview() || is_customize_preview() || self::is_elementor_preview() ) {
+            return false;
+        }
+        if ( '' !== get_query_var( 'sitemap', '' ) ) {
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * Whether this is the Elementor editor's preview iframe
+     * (/?elementor-preview={post}&ver=...). WP's is_preview() only knows
+     * ?preview=true, so without this an editor whose browser holds an
+     * stm_lang cookie would get the redirected twin in the editor iframe.
+     * The query arg is checked first because it is present on the iframe
+     * request regardless of who sends it; Elementor's own check, when the
+     * plugin is loaded, covers the authenticated editor case.
+     */
+    private static function is_elementor_preview() {
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- read-only presence check, no action taken on the value.
+        if ( isset( $_GET['elementor-preview'] ) ) {
+            return true;
+        }
+
+        if ( class_exists( '\Elementor\Plugin' ) && isset( \Elementor\Plugin::$instance->preview ) ) {
+            return (bool) \Elementor\Plugin::$instance->preview->is_preview_mode();
+        }
+
+        return false;
+    }
+
+    /**
+     * [STM-DN-11] Persist an explicit language choice in the stm_lang cookie.
+     *
+     * Only an ACTIVE language, on a page navigation (is_navigation_request()),
+     * moves the stored preference: a stray ?lang=xx / ?lang=en-US from a
+     * crafted or tracking-tagged link, or a REST call echoing the page's
+     * language, must not wipe a visitor's stored taalkeuze. Written at most
+     * once per request and only while a header can still be sent.
      */
     private static function remember_language_choice( $lang ) {
-        if ( self::$cookie_written || headers_sent() ) {
+        if ( false !== self::$cookie_written || headers_sent() ) {
             return;
         }
-        if ( defined( 'REST_REQUEST' ) && REST_REQUEST ) {
+        if ( ! self::is_active_language( $lang ) || ! self::is_navigation_request() ) {
             return;
         }
 
-        self::$cookie_written = true;
-        setcookie( self::LANG_COOKIE, $lang, time() + ( 86400 * 30 ), '/' );
+        self::$cookie_written = $lang;
+        setcookie( 'stm_lang', $lang, [
+            'expires'  => time() + ( 86400 * 365 ),
+            'path'     => '/',
+            'secure'   => is_ssl(),
+            'samesite' => 'Lax',
+        ] );
+    }
+
+    /**
+     * Whether $code is one of the active languages. Unlike
+     * is_language_visible() this never grants the authenticated-preview
+     * exception — redirects must only ever target publicly reachable
+     * languages.
+     */
+    private static function is_active_language( $code ) {
+        if ( '' === $code ) {
+            return false;
+        }
+
+        foreach ( Database::get_languages() as $language ) {
+            if ( $language->code === $code ) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Strip a leading /{lang}/ segment (any active language or the default)
+     * off a site-relative path.
+     */
+    private static function strip_language_prefix( $path ) {
+        $segments = explode( '/', ltrim( (string) $path, '/' ), 2 );
+        $first    = $segments[0];
+
+        if ( '' !== $first && ( $first === Settings::get_default_language() || self::is_active_language( $first ) ) ) {
+            return '/' . ( isset( $segments[1] ) ? $segments[1] : '' );
+        }
+
+        return '' === $path ? '/' : $path;
+    }
+
+    /**
+     * template_redirect callback: persist an explicit /{lang}/ URL or ?lang=
+     * visit and perform the language-preference redirect decided by
+     * get_language_preference_redirect().
+     */
+    public static function maybe_redirect_to_preferred_language() {
+        // The ONLY place a language choice is persisted: here headers can
+        // still be sent, whereas a content filter (the_title/post_type_link)
+        // runs mid-output, once per post, and on REST calls too.
+        // remember_language_choice() ignores inactive codes and anything
+        // that is not a plain page navigation.
+        $redirect = self::get_language_preference_redirect();
+
+        if ( $redirect && ! headers_sent() ) {
+            // The redirect target IS the choice (?lang=, typed /{default}/
+            // prefix) or the already stored preference (bare URL).
+            self::remember_language_choice( $redirect['lang'] );
+            wp_safe_redirect( $redirect['url'], 302, 'STM' );
+            exit;
+        }
+
+        // No redirect: visiting a /{lang}/ URL (or ?lang= in query-param
+        // mode, which never redirects) is still an explicit choice.
+        $explicit = self::get_explicit_language_request();
+        if ( '' !== $explicit ) {
+            self::remember_language_choice( $explicit );
+        }
+    }
+
+    /**
+     * Decide whether this request should be redirected for language
+     * preference, and to where. URL routing mode only. Three cases:
+     *
+     *  1. ?lang=xx — explicit choice: persist, then redirect to the
+     *     canonical URL for that language (prefixed path for a non-default
+     *     language, the bare path for the default). This is how the
+     *     language switcher's default-language link works: a plain bare
+     *     link would immediately bounce back to the cookie language, so it
+     *     carries ?lang={default} to make the choice explicit.
+     *  2. /{default}/... — STM never generates these (the default language
+     *     has no rewrite rules; bare URLs ARE the default), but a typed or
+     *     shared one is still an explicit choice: persist and redirect to
+     *     the bare equivalent instead of letting it 404.
+     *  3. A bare URL with no explicit language and a stored non-default
+     *     preference (stm_lang cookie): redirect to the same path under
+     *     /{lang}/. An explicit language in the URL always wins over the
+     *     cookie, so deep links and hreflang alternates are never hijacked;
+     *     bots never send the cookie, so crawling is unaffected.
+     *
+     * Returns ['url' => absolute target, 'lang' => code] or null. Split from
+     * maybe_redirect_to_preferred_language() so the decision is unit-testable
+     * without the exit.
+     */
+    public static function get_language_preference_redirect() {
+        if ( ! Settings::is_url_routing_enabled() || ! self::is_navigation_request() ) {
+            return null;
+        }
+
+        $default     = Settings::get_default_language();
+        $request_uri = isset( $_SERVER['REQUEST_URI'] ) ? (string) wp_unslash( $_SERVER['REQUEST_URI'] ) : '/';
+        $parsed      = wp_parse_url( $request_uri );
+        $path        = isset( $parsed['path'] ) && '' !== $parsed['path'] ? $parsed['path'] : '/';
+        $query       = isset( $parsed['query'] ) ? $parsed['query'] : '';
+
+        // Path relative to the WordPress home path (subdirectory installs).
+        $home_path = rtrim( (string) wp_parse_url( home_url( '/' ), PHP_URL_PATH ), '/' );
+        $rel       = ( '' !== $home_path && 0 === strpos( $path, $home_path ) ) ? substr( $path, strlen( $home_path ) ) : $path;
+        if ( '' === $rel ) {
+            $rel = '/';
+        }
+
+        // Case 1: explicit ?lang= — redirect to that language's canonical URL.
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- read-only language lookup, validated against the active languages; no state change.
+        if ( isset( $_GET['lang'] ) ) {
+            // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- same read-only lookup.
+            $lang = sanitize_text_field( wp_unslash( $_GET['lang'] ) );
+            if ( ! Security::validate_language_code( $lang ) || ! self::is_active_language( $lang ) ) {
+                return null; // unknown/inactive: render as-is (preview flow handles its own case)
+            }
+
+            $bare       = self::strip_language_prefix( $rel );
+            $target_rel = ( $lang === $default ) ? $bare : '/' . $lang . $bare;
+
+            parse_str( $query, $params );
+            unset( $params['lang'] );
+            $url = home_url( $target_rel );
+            if ( ! empty( $params ) ) {
+                $url .= '?' . http_build_query( $params );
+            }
+
+            return [ 'lang' => $lang, 'url' => $url ];
+        }
+
+        $segments = explode( '/', ltrim( $rel, '/' ), 2 );
+        $first    = $segments[0];
+
+        // Case 2: a typed /{default}/... URL — explicit default choice.
+        if ( '' !== $first && $first === $default ) {
+            $url = home_url( self::strip_language_prefix( $rel ) );
+            if ( '' !== $query ) {
+                $url .= '?' . $query;
+            }
+
+            return [ 'lang' => $default, 'url' => $url ];
+        }
+
+        // Explicit language already in the URL (matched rewrite rule or an
+        // active-language first segment): the URL wins, never redirect.
+        if ( '' !== get_query_var( 'lang', '' ) || self::is_active_language( $first ) ) {
+            return null;
+        }
+
+        // Case 3: bare URL + stored preference.
+        if ( ! isset( $_COOKIE['stm_lang'] ) ) {
+            return null;
+        }
+        $preferred = sanitize_text_field( wp_unslash( $_COOKIE['stm_lang'] ) );
+        if ( ! Security::validate_language_code( $preferred ) || $preferred === $default || ! self::is_active_language( $preferred ) ) {
+            return null;
+        }
+        // A 404 stays a 404 — don't bounce it into the prefixed twin 404.
+        if ( is_404() ) {
+            return null;
+        }
+
+        $url = home_url( '/' . $preferred . $rel );
+        if ( '' !== $query ) {
+            $url .= '?' . $query;
+        }
+
+        return [ 'lang' => $preferred, 'url' => $url ];
+    }
+
+    /**
+     * Front-end helper that mirrors the stm_lang cookie into localStorage
+     * and restores it from localStorage when the cookie has expired or been
+     * cleared — so a language choice survives long absences. Only loaded in
+     * URL routing mode with more than one active language.
+     */
+    public static function enqueue_language_preference_script() {
+        if ( ! Settings::is_url_routing_enabled() ) {
+            return;
+        }
+
+        $languages = Database::get_languages();
+        if ( count( $languages ) <= 1 ) {
+            return;
+        }
+
+        wp_enqueue_script(
+            'stm-language-preference',
+            STM_PLUGIN_URL . 'assets/language-preference.js',
+            [],
+            STM_VERSION,
+            true
+        );
+
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- read-only presence check, no action taken on the value.
+        $explicit = '' !== get_query_var( 'lang', '' ) || isset( $_GET['lang'] );
+        wp_add_inline_script(
+            'stm-language-preference',
+            'window.stmLangPreference = ' . wp_json_encode( [
+                'current'     => self::get_current_language(),
+                'defaultLang' => Settings::get_default_language(),
+                'active'      => array_values( wp_list_pluck( $languages, 'code' ) ),
+                'explicit'    => $explicit,
+            ] ) . ';',
+            'before'
+        );
     }
 
     /**
@@ -499,6 +808,24 @@ class Frontend {
 
             $post = get_post( $post_id );
             if ( ! $post || $post->post_name === '' ) {
+                continue;
+            }
+
+            // A translated PAGE slug never arrives as 'pagename': with
+            // verbose page rules WP::parse_request() only accepts the
+            // page rule when get_page_by_path() finds the matched path,
+            // which a translated slug never is. The request falls through
+            // to the post rule ('name=...'), and swapping the value alone
+            // then makes WP query post_type=post for a page -> 404
+            // (/en/boat-rental-giethoorn/, task 3615). Hand it over as a
+            // page request instead, with the page's full hierarchical path.
+            if ( 'name' === $key && 'page' === $post->post_type ) {
+                unset( $qv['name'] );
+                $qv['pagename'] = function_exists( 'get_page_uri' ) ? (string) get_page_uri( $post ) : $post->post_name;
+                if ( '' === $qv['pagename'] ) {
+                    $qv['pagename'] = $post->post_name;
+                }
+                unset( $qv['error'] );
                 continue;
             }
 

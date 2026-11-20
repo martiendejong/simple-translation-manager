@@ -68,7 +68,7 @@ class Sitemap_Provider extends \WP_Sitemaps_Provider {
     private function post_types(): array {
         $types = get_post_types( [ 'public' => true ], 'names' );
         unset( $types['attachment'] );
-        return array_values( $types );
+        return array_values( (array) apply_filters( 'stm_sitemap_post_types', array_values( $types ) ) );
     }
 
     public function get_object_subtypes() {
@@ -105,6 +105,18 @@ class Sitemap_Provider extends \WP_Sitemaps_Provider {
         // picked up here too, instead of listing the original slug under
         // the language prefix.
         foreach ( $query->posts as $post ) {
+            /**
+             * Filters whether a post is listed in the language sitemaps.
+             * Default true: output is unchanged unless something hooks this
+             * (e.g. a site excluding noindex posts).
+             *
+             * @param bool     $include Whether to list the post.
+             * @param \WP_Post $post    The post.
+             */
+            if ( ! apply_filters( 'stm_sitemap_include_post', true, $post ) ) {
+                continue;
+            }
+
             $base_permalink = Frontend::get_base_permalink( $post );
             if ( ! $base_permalink ) {
                 continue;
