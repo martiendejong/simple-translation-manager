@@ -10,7 +10,8 @@
  * - stm_languages: Available languages (en, nl, fr, etc.)
  * - stm_strings: Translatable strings with context
  * - stm_translations: Actual translations per language
- * - stm_post_translations: Dynamic content translations (posts/pages/CPT fields)
+ * - stm_post_translations: Dynamic content translations (posts/pages/CPT fields);
+ *   source_hash/status/stale track which source text each one was made from (see SourceSync)
  * - stm_post_associations: Links translated post versions (translation groups)
  * - stm_term_translations: Category/tag translations
  * - stm_field_value_translations: Shared translations for standardized field values
@@ -102,12 +103,16 @@ class Database {
                 field_name varchar(100) NOT NULL,
                 language_code varchar(10) NOT NULL,
                 translation text NOT NULL,
+                source_hash char(32) DEFAULT NULL,
+                status varchar(20) DEFAULT NULL,
+                stale tinyint(1) NOT NULL DEFAULT 0,
                 created_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 updated_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                 PRIMARY KEY (id),
                 UNIQUE KEY post_field_lang (post_id, field_name, language_code),
                 KEY post_id (post_id),
-                KEY language_code (language_code)
+                KEY language_code (language_code),
+                KEY stale (stale)
             ) {$charset_collate};";
 
             // Table 5: Post Associations (links translated versions)

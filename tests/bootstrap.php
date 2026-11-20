@@ -64,6 +64,7 @@ require_once $pluginDir . 'class-settings.php';
 require_once $pluginDir . 'class-database.php';
 require_once $pluginDir . 'class-string-scanner.php';
 require_once $pluginDir . 'class-cache.php';
+require_once $pluginDir . 'class-source-sync.php';
 require_once $pluginDir . 'class-api.php';
 require_once $pluginDir . 'class-post-editor.php';
 require_once $pluginDir . 'class-frontend.php';

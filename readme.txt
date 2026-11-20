@@ -4,7 +4,7 @@ Tags: translation, multilingual, i18n, language switcher, rest api
 Requires at least: 6.0
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 1.3.2
+Stable tag: 1.4.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -141,6 +141,15 @@ translate, the source and target language code, and your API key, to
 2. Elementor in-editor translation panel.
 
 == Changelog ==
+
+= 1.4.0 =
+* New: translations now remember which source text they were made from (`source_hash`), who made them
+  (`status`: machine, reviewed or approved) and whether the source has changed since (`stale`). When a post is
+  saved, translations whose source changed are flagged instead of silently staying live as if current.
+* New: opt-in background retranslation (option `stm_auto_retranslate`). It only overwrites machine or legacy
+  translations; reviewed and approved ones stay flagged for a person.
+* New: WP-CLI `wp stm stale`, `wp stm stamp-baseline` and `wp stm retranslate-stale`.
+* Existing translations have an unknown age and are not flagged until `wp stm stamp-baseline` is run.
 
 = 1.3.2 =
 * WordPress.org readiness: checked with the official Plugin Check (static and runtime checks).

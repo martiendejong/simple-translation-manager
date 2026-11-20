@@ -237,6 +237,111 @@ class CLI {
 
         \WP_CLI::line("");
     }
+
+    /**
+     * List translations whose source text changed after they were made
+     *
+     * ## OPTIONS
+     *
+     * [--post=<id>]
+     * : Only this post
+     *
+     * [--scan]
+     * : Re-compare every hashed translation with its current source first. Use after
+     *   changes that bypass save_post (imports, direct database edits).
+     *
+     * [--format=<format>]
+     * : table, json, csv or count (default: table)
+     *
+     * ## EXAMPLES
+     *
+     *     wp stm stale
+     *     wp stm stale --scan --format=count
+     */
+    public function stale($args, $assoc_args) {
+        global $wpdb;
+        $post_id = isset($assoc_args['post']) ? (int) $assoc_args['post'] : 0;
+
+        if (isset($assoc_args['scan'])) {
+            if ($post_id) {
+                SourceSync::refresh_stale_flags($post_id);
+            } else {
+                // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- reads the plugin's own table wp_stm_post_translations (no WordPress API for custom tables); WP-CLI maintenance command
+                $ids = $wpdb->get_col("SELECT DISTINCT post_id FROM {$wpdb->prefix}stm_post_translations WHERE source_hash IS NOT NULL");
+                foreach ($ids as $id) {
+                    SourceSync::refresh_stale_flags((int) $id);
+                }
+            }
+        }
+
+        $rows = SourceSync::get_stale($post_id);
+        \WP_CLI\Utils\format_items($assoc_args['format'] ?? 'table', $rows, ['post_id', 'field_name', 'language_code', 'status']);
+    }
+
+    /**
+     * Stamp the current source hash on legacy translations that have none
+     *
+     * Rows made before source tracking existed have an unknown age and are never
+     * flagged stale. Run this once when you are sure they are up to date; from then
+     * on a source change flags them.
+     *
+     * ## OPTIONS
+     *
+     * [--post=<id>]
+     * : Only this post
+     *
+     * [--dry-run]
+     * : Count the rows without writing
+     *
+     * ## EXAMPLES
+     *
+     *     wp stm stamp-baseline --dry-run
+     *     wp stm stamp-baseline
+     */
+    public function stamp_baseline($args, $assoc_args) {
+        $post_id = isset($assoc_args['post']) ? (int) $assoc_args['post'] : 0;
+        $dry_run = isset($assoc_args['dry-run']);
+
+        $count = SourceSync::stamp_baseline($post_id, $dry_run);
+        if (!$dry_run && $count) {
+            Cache::flush_all();
+        }
+        \WP_CLI::success(($dry_run ? 'Would stamp ' : 'Stamped ') . $count . ' translation row(s).');
+    }
+
+    /**
+     * Retranslate stale machine/legacy translations from their current source
+     *
+     * Reviewed and approved translations are never overwritten; they stay stale for a human.
+     *
+     * ## OPTIONS
+     *
+     * [--post=<id>]
+     * : Only this post (default: every post with stale rows)
+     *
+     * ## EXAMPLES
+     *
+     *     wp stm retranslate-stale
+     *     wp stm retranslate-stale --post=123
+     */
+    public function retranslate_stale($args, $assoc_args) {
+        $post_id = isset($assoc_args['post']) ? (int) $assoc_args['post'] : 0;
+        $ids = $post_id ? [$post_id] : array_values(array_unique(array_map(function ($row) {
+            return (int) $row['post_id'];
+        }, SourceSync::get_stale())));
+
+        $totals = ['retranslated' => 0, 'skipped' => 0, 'errors' => 0];
+        foreach ($ids as $id) {
+            $result = SourceSync::retranslate_post($id);
+            $totals['retranslated'] += $result['retranslated'];
+            $totals['skipped'] += $result['skipped'];
+            $totals['errors'] += count($result['errors']);
+            foreach ($result['errors'] as $error) {
+                \WP_CLI::warning("Post $id: $error");
+            }
+        }
+        \WP_CLI::success("Retranslated {$totals['retranslated']}, left for review {$totals['skipped']}, failed {$totals['errors']}.");
+    }
 }
 
 \WP_CLI::add_command('stm', 'STM\CLI');

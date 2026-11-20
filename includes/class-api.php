@@ -578,6 +578,9 @@ class API {
         $language_code = sanitize_text_field($request['language_code'] ?? '');
         $field = sanitize_text_field($request['field'] ?? '');
         $translation = Security::sanitize_translation($request['translation'] ?? '');
+        // Who made this text: callers that translate automatically send nothing (machine);
+        // a person saving their own wording sends reviewed/approved.
+        $status = sanitize_text_field($request['status'] ?? SourceSync::STATUS_MACHINE);
 
         if (!get_post($post_id)) {
             return new \WP_Error('not_found', 'Post not found', ['status' => 404, 'stm_diag' => 'STM-E-API-SAVE-POST-TRANSLATION-NOT-FOUND']);
@@ -604,18 +607,18 @@ class API {
             // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- writes the plugin's own table wp_stm_post_translations (no WordPress API for custom tables); Cache::invalidate_post() drops the cached copies right after the write
             $wpdb->update(
                 $table,
-                ['translation' => $translation, 'updated_at' => current_time('mysql')],
+                array_merge(['translation' => $translation, 'updated_at' => current_time('mysql')], SourceSync::stamp($post_id, $field, $status)),
                 ['id' => $existing]
             );
             // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
         } else {
             // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery -- writes the plugin's own table wp_stm_post_translations (no WordPress API for custom tables)
-            $wpdb->insert($table, [
+            $wpdb->insert($table, array_merge([
                 'post_id'       => $post_id,
                 'field_name'    => $field,
                 'language_code' => $language_code,
                 'translation'   => $translation,
-            ]);
+            ], SourceSync::stamp($post_id, $field, $status)));
             // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery
         }
 
@@ -1312,7 +1315,7 @@ class API {
      * @param string $lang_code Language code (e.g., 'nl', 'en')
      * @return array Result with success count and errors
      */
-    public static function save_post_translations($post_id, $translations, $lang_code) {
+    public static function save_post_translations($post_id, $translations, $lang_code, $status = SourceSync::STATUS_MACHINE) {
         global $wpdb;
         $table = $wpdb->prefix . 'stm_post_translations';
 
@@ -1333,9 +1336,9 @@ class API {
                 // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- writes the plugin's own table wp_stm_post_translations (no WordPress API for custom tables); Cache::invalidate_post() drops the cached copies right after the write
                 $result = $wpdb->update(
                     $table,
-                    ['translation' => $translation, 'updated_at' => current_time('mysql')],
+                    array_merge(['translation' => $translation, 'updated_at' => current_time('mysql')], SourceSync::stamp($post_id, $field, $status)),
                     ['id' => $existing],
-                    ['%s', '%s'],
+                    ['%s', '%s', '%s', '%s', '%d'],
                     ['%d']
                 );
                 // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
@@ -1344,13 +1347,13 @@ class API {
                 // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery -- writes the plugin's own table wp_stm_post_translations (no WordPress API for custom tables)
                 $result = $wpdb->insert(
                     $table,
-                    [
+                    array_merge([
                         'post_id' => $post_id,
                         'field_name' => $field,
                         'language_code' => $lang_code,
                         'translation' => $translation
-                    ],
-                    ['%d', '%s', '%s', '%s']
+                    ], SourceSync::stamp($post_id, $field, $status)),
+                    ['%d', '%s', '%s', '%s', '%s', '%s', '%d']
                 );
                 // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery
             }

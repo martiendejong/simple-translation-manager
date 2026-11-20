@@ -156,6 +156,14 @@ class FakeWpdb {
 
         if ($whereRaw !== '') {
             foreach (preg_split('/\s+AND\s+/i', $whereRaw) as $cond) {
+                if (preg_match('/^(\w+)\s+IS\s+(NOT\s+)?NULL$/i', trim($cond), $nm)) {
+                    $col     = $nm[1];
+                    $wantSet = !empty($nm[2]);
+                    $rows = array_values(array_filter($rows, function ($row) use ($col, $wantSet) {
+                        return (($row[$col] ?? null) !== null) === $wantSet;
+                    }));
+                    continue;
+                }
                 if (!preg_match('/^(\w+)\s*=\s*(.+)$/', trim($cond), $cm)) {
                     continue;
                 }

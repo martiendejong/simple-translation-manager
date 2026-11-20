@@ -329,13 +329,22 @@ class PostEditor {
                     }
 
                     // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- reads the plugin's own table wp_stm_post_translations (no WordPress API for custom tables); read-before-write: needs the current row to choose update or insert, a cached copy could create a duplicate
-                    $existing = $wpdb->get_var($wpdb->prepare(
-                        "SELECT id FROM {$wpdb->prefix}stm_post_translations WHERE post_id = %d AND field_name = %s AND language_code = %s",
+                    $existing_row = $wpdb->get_row($wpdb->prepare(
+                        "SELECT id, translation FROM {$wpdb->prefix}stm_post_translations WHERE post_id = %d AND field_name = %s AND language_code = %s",
                         $post_id,
                         $field_name,
                         $lang_code
                     ));
                     // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+                    $existing = $existing_row ? $existing_row->id : 0;
+
+                    // The metabox posts every field on every save. A value the person did not
+                    // touch must keep its source hash and status, otherwise saving a post whose
+                    // source just changed would stamp the NEW source on the OLD translation and
+                    // hide that it is stale (SourceSync flags it right after, at priority 20).
+                    if ($existing_row && (string) $existing_row->translation === (string) $value) {
+                        continue;
+                    }
 
                     // Empty value — delete existing row if present
                     if (empty($value)) {
@@ -346,12 +355,13 @@ class PostEditor {
                         continue;
                     }
 
-                    $data = [
+                    // Typed or edited by a person in the metabox: reviewed, made from the source as it is now.
+                    $data = array_merge([
                         'post_id' => $post_id,
                         'field_name' => $field_name,
                         'language_code' => $lang_code,
                         'translation' => $value,
-                    ];
+                    ], SourceSync::stamp($post_id, $field_name, SourceSync::STATUS_REVIEWED));
 
                     if ($existing) {
                         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- writes the plugin's own table wp_stm_post_translations (no WordPress API for custom tables); Cache::invalidate_post() drops the cached copies right after the write

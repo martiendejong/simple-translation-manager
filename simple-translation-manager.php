@@ -3,7 +3,7 @@
  * Plugin Name: Simple Translation Manager
  * Plugin URI: https://martiendejong.nl
  * Description: Lightweight multilingual plugin with database storage and WordPress caching
- * Version: 1.3.2
+ * Version: 1.4.0
  * Author: Martien de Jong
  * Author URI: https://martiendejong.nl
  * License: GPLv2 or later
@@ -22,7 +22,7 @@ if (!defined('ABSPATH')) {
 }
 
 // Plugin constants
-define('STM_VERSION', '1.3.2');
+define('STM_VERSION', '1.4.0');
 define('STM_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('STM_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('STM_PLUGIN_FILE', __FILE__);
@@ -55,6 +55,7 @@ require_once STM_PLUGIN_DIR . 'includes/class-language-switcher.php';
 require_once STM_PLUGIN_DIR . 'includes/class-import-export.php';
 require_once STM_PLUGIN_DIR . 'includes/class-translation-memory.php';
 require_once STM_PLUGIN_DIR . 'includes/class-auto-translate.php';
+require_once STM_PLUGIN_DIR . 'includes/class-source-sync.php';
 require_once STM_PLUGIN_DIR . 'includes/class-dashboard.php';
 require_once STM_PLUGIN_DIR . 'includes/class-hreflang.php';
 require_once STM_PLUGIN_DIR . 'includes/class-sitemap.php';
@@ -271,6 +272,7 @@ function stm_init() {
     STM\ImportExport::init();
     STM\TranslationMemory::init();
     STM\AutoTranslate::init();
+    STM\SourceSync::init();
     STM\Dashboard::init();
     STM\Hreflang::init();
     STM\Sitemap::init();

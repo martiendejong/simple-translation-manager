@@ -52,6 +52,8 @@ class PostEditorCrudTest extends TestCase {
         Functions\when('get_option')->justReturn(false);
         Functions\when('update_option')->justReturn(true);
         Functions\when('__')->returnArg(1);
+        // SourceSync stamps the current source hash on every translation write.
+        Functions\when('get_post')->justReturn((object) ['ID' => 7, 'post_title' => 'Bron', 'post_content' => 'Bron', 'post_excerpt' => '', 'post_name' => 'bron']);
 
         // stm_translations_nonce check inside PostEditor::save_translations()
         $_POST['stm_translations_nonce'] = 'valid-nonce';
