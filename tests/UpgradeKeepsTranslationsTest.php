@@ -6,7 +6,7 @@
 /**
  * PHPUnit tests: installing or updating the plugin keeps stored translations
  * (task 5182). Database::maybe_upgrade() / create_tables() only hand additive
- * CREATE TABLE IF NOT EXISTS statements to dbDelta(), activation only
+ * CREATE TABLE statements to dbDelta(), activation only
  * inserts languages that are missing, and a failing schema step is logged
  * with its diagnostic code instead of taking the site down.
  *
@@ -83,7 +83,9 @@ class UpgradeKeepsTranslationsTest extends TestCase {
         $statements = $GLOBALS['stm_test_dbdelta_log'];
         $this->assertCount(7, $statements, 'one dbDelta call per STM table');
         foreach ($statements as $sql) {
-            $this->assertMatchesRegularExpression('/^CREATE TABLE IF NOT EXISTS wp_stm_[a-z_]+ \(/', ltrim($sql));
+            // wp_stm_post_translations has no IF NOT EXISTS: dbDelta() skips such statements, so it could never add
+            // the later columns (source_hash, status, stale) to an existing table.
+            $this->assertMatchesRegularExpression('/^CREATE TABLE (IF NOT EXISTS )?wp_stm_[a-z_]+ \(/', ltrim($sql));
             $this->assertDoesNotMatchRegularExpression('/\b(DROP|TRUNCATE|DELETE|RENAME)\b/i', $sql, 'an update must never remove or rewrite data');
         }
         $this->assertSame(STM_VERSION, $this->options[Database::OPTION_DB_VERSION], 'schema version is recorded after the upgrade');
@@ -126,5 +128,21 @@ class UpgradeKeepsTranslationsTest extends TestCase {
 
         $this->assertStringContainsString('[STM] [STM-E-DB-CREATE-TABLES-SCHEMA]', $log);
         $this->assertStringContainsString('simulated dbDelta failure', $log);
+    }
+
+    public function test_post_translations_statement_is_one_dbdelta_can_alter() {
+        $this->options[Database::OPTION_DB_VERSION] = '1.0.0';
+        Database::maybe_upgrade();
+        $sql = '';
+        foreach ($GLOBALS['stm_test_dbdelta_log'] as $s) {
+            if (strpos($s, 'stm_post_translations') !== false) {
+                $sql = ltrim($s);
+            }
+        }
+        $this->assertNotSame('', $sql);
+        // dbDelta() takes the word after CREATE TABLE as the table name; with IF NOT EXISTS it reads "IF"
+        // and skips the statement, so the source_hash/status/stale columns never reach an existing site.
+        $this->assertDoesNotMatchRegularExpression('/^CREATE TABLE IF NOT EXISTS/i', $sql);
+        $this->assertStringContainsString('source_hash char(32)', $sql);
     }
 }
