@@ -4,7 +4,7 @@ Tags: translation, multilingual, i18n, language switcher, rest api
 Requires at least: 6.0
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 1.5.0
+Stable tag: 1.5.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -141,6 +141,11 @@ translate, the source and target language code, and your API key, to
 2. Elementor in-editor translation panel.
 
 == Changelog ==
+
+= 1.5.1 =
+* Fixed: on MySQL/MariaDB the new `source_hash`, `status` and `stale` columns were never added to an existing
+  `stm_post_translations` table, because the table definition started with `IF NOT EXISTS`, which WordPress'
+  `dbDelta()` skips. Upgrading sites now get the columns (found on weerzienmara.nl; the SQLite drop-in hid it).
 
 = 1.5.0 =
 * Merged the Port of Giethoorn fork back into STM so every site can run the plain plugin:

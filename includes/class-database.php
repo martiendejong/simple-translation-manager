@@ -97,7 +97,11 @@ class Database {
             ) {$charset_collate};";
 
             // Table 4: Post/Page Translations
-            $sql_post_translations = "CREATE TABLE IF NOT EXISTS {$wpdb->prefix}stm_post_translations (
+            // No IF NOT EXISTS here on purpose: dbDelta() reads "IF" as the table name and then skips the
+            // statement, so columns added to this table later (source_hash/status/stale) would never reach an
+            // existing site. Without it dbDelta still creates the table when missing and only ever ADDS
+            // columns and indexes (found on MariaDB, weerzienmara.nl, 2026-11-21).
+            $sql_post_translations = "CREATE TABLE {$wpdb->prefix}stm_post_translations (
                 id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
                 post_id bigint(20) unsigned NOT NULL,
                 field_name varchar(100) NOT NULL,
