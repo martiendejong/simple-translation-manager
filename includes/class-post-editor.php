@@ -370,6 +370,7 @@ class PostEditor {
                         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery -- writes the plugin's own table wp_stm_post_translations (no WordPress API for custom tables)
                         $wpdb->insert($table, $data);
                     }
+                    do_action('stm_translation_saved', $post_id, $lang_code, $field_name, $value, SourceSync::STATUS_REVIEWED);
                 }
             }
 
