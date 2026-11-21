@@ -3,7 +3,7 @@
  * Plugin Name: Simple Translation Manager
  * Plugin URI: https://martiendejong.nl
  * Description: Lightweight multilingual plugin with database storage and WordPress caching
- * Version: 1.5.2
+ * Version: 1.6.0
  * Author: Martien de Jong
  * Author URI: https://martiendejong.nl
  * License: GPLv2 or later
@@ -22,7 +22,7 @@ if (!defined('ABSPATH')) {
 }
 
 // Plugin constants
-define('STM_VERSION', '1.5.2');
+define('STM_VERSION', '1.6.0');
 define('STM_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('STM_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('STM_PLUGIN_FILE', __FILE__);
@@ -60,6 +60,7 @@ require_once STM_PLUGIN_DIR . 'includes/class-dashboard.php';
 require_once STM_PLUGIN_DIR . 'includes/class-hreflang.php';
 require_once STM_PLUGIN_DIR . 'includes/class-sitemap.php';
 require_once STM_PLUGIN_DIR . 'includes/class-seo-god-integration.php';
+require_once STM_PLUGIN_DIR . 'includes/class-seo-god-faq-sync.php';
 require_once STM_PLUGIN_DIR . 'includes/class-elementor-integration.php';
 require_once STM_PLUGIN_DIR . 'includes/class-pods-integration.php';
 
@@ -278,6 +279,7 @@ function stm_init() {
     STM\Hreflang::init();
     STM\Sitemap::init();
     STM\SeoGodIntegration::init();
+    STM\SeoGodFaqSync::init();
     STM\ElementorIntegration::init();
     STM\PodsIntegration::init();
 }

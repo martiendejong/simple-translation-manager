@@ -267,7 +267,22 @@ class SourceSync {
                 continue;
             }
 
-            $out = call_user_func($translator, $text, $source, $row['language_code'], $row['field_name'], (int) $post_id);
+            /**
+             * Lets an integration translate a field that is not one plain string (a list of
+             * FAQs, for example). Return null to use the default translator.
+             *
+             * @param array|null $result     shaped like AutoTranslate::translate()
+             * @param string     $text       current source text of the field
+             * @param string     $source     source language
+             * @param string     $target     target language
+             * @param string     $field      field name
+             * @param int        $post_id
+             * @param callable   $translator the translator this run uses
+             */
+            $out = apply_filters('stm_translate_field', null, $text, $source, $row['language_code'], $row['field_name'], (int) $post_id, $translator);
+            if ($out === null) {
+                $out = call_user_func($translator, $text, $source, $row['language_code'], $row['field_name'], (int) $post_id);
+            }
             if (empty($out['success'])) {
                 $result['errors'][] = $row['language_code'] . '/' . $row['field_name'] . ': ' . ($out['error'] ?? 'unknown error');
                 continue;
@@ -284,6 +299,8 @@ class SourceSync {
                 ['id' => $row['id']]
             );
             $result['retranslated']++;
+            /** Fires after a translation row was written (see also API and the post editor). */
+            do_action('stm_translation_saved', (int) $post_id, $row['language_code'], $row['field_name'], $translation, self::STATUS_MACHINE);
         }
 
         if ($result['retranslated']) {

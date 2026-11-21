@@ -623,6 +623,7 @@ class API {
         }
 
         Cache::invalidate_post($post_id, $field);
+        do_action('stm_translation_saved', $post_id, $language_code, $field, $translation, $status);
 
         return rest_ensure_response(['success' => true]);
     }
@@ -1360,6 +1361,7 @@ class API {
 
             if ($result !== false) {
                 $success++;
+                do_action('stm_translation_saved', $post_id, $lang_code, $field, $translation, $status);
             } else {
                 $errors[] = "Failed to save $field: " . $wpdb->last_error;
                 // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- logs a failed database operation (not debug output); the message carries a stable [STM-E-...] diagnostic code so a site owner can report it

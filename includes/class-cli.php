@@ -342,6 +342,64 @@ class CLI {
         }
         \WP_CLI::success("Retranslated {$totals['retranslated']}, left for review {$totals['skipped']}, failed {$totals['errors']}.");
     }
+
+    /**
+     * Keep the SEO God FAQ translations in line with the default-language FAQs
+     *
+     * Takes over language sets that already exist in SEO God, translates the languages that
+     * have none and refreshes the stale machine translations. Reviewed and approved
+     * translations are left for a person.
+     *
+     * ## OPTIONS
+     *
+     * [--post=<id>]
+     * : Only this post
+     *
+     * [--adopt]
+     * : First take over the existing `_seo_god_faqs_{lang}` sets as translations stamped with the
+     *   current default set. Only on your word that they are up to date.
+     *
+     * [--adopt-status=<status>]
+     * : Status for adopted sets: machine, reviewed or approved (default: machine)
+     *
+     * [--no-translate]
+     * : Do not call the translation provider; only adopt and flag stale
+     *
+     * [--dry-run]
+     * : With --adopt, count without writing
+     *
+     * ## EXAMPLES
+     *
+     *     wp stm seo-god-faqs --adopt --adopt-status=reviewed
+     *     wp stm seo-god-faqs --post=10
+     */
+    public function seo_god_faqs($args, $assoc_args) {
+        $ids = isset($assoc_args['post']) ? [(int) $assoc_args['post']] : SeoGodFaqSync::posts_with_faqs();
+        $status = $assoc_args['adopt-status'] ?? SourceSync::STATUS_MACHINE;
+        if (!SourceSync::valid_status($status)) {
+            \WP_CLI::error('--adopt-status must be machine, reviewed or approved.');
+        }
+
+        $totals = ['adopted' => 0, 'created' => 0, 'retranslated' => 0, 'skipped' => 0, 'errors' => 0];
+        foreach ($ids as $id) {
+            if (isset($assoc_args['adopt'])) {
+                $totals['adopted'] += SeoGodFaqSync::adopt_existing($id, $status, isset($assoc_args['dry-run']));
+            }
+            SourceSync::refresh_stale_flags($id);
+            if (isset($assoc_args['no-translate']) || isset($assoc_args['dry-run'])) {
+                continue;
+            }
+            $result = SeoGodFaqSync::sync_post($id);
+            $totals['created'] += $result['created'];
+            $totals['retranslated'] += $result['retranslated'];
+            $totals['skipped'] += $result['skipped'];
+            $totals['errors'] += count($result['errors']);
+            foreach ($result['errors'] as $error) {
+                \WP_CLI::warning("Post $id: $error");
+            }
+        }
+        \WP_CLI::success("Adopted {$totals['adopted']}, created {$totals['created']}, retranslated {$totals['retranslated']}, left for review {$totals['skipped']}, failed {$totals['errors']}.");
+    }
 }
 
 \WP_CLI::add_command('stm', 'STM\CLI');

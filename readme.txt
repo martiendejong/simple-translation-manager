@@ -4,7 +4,7 @@ Tags: translation, multilingual, i18n, language switcher, rest api
 Requires at least: 6.0
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 1.5.2
+Stable tag: 1.6.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -141,6 +141,16 @@ translate, the source and target language code, and your API key, to
 2. Elementor in-editor translation panel.
 
 == Changelog ==
+
+= 1.6.0 =
+* New: SEO God FAQs are translated and kept in sync like any other field. The FAQs of a post (`_seo_god_faqs`)
+  are one STM field with a source hash. When they change, by any route (meta box, front-end editing, SEO God API),
+  the translations are flagged stale; with auto-retranslate on, missing and stale machine translations are made
+  again in the background, reviewed ones wait for a person. A translation is projected into SEO God's own
+  `_seo_god_faqs_{lang}` key, so SEO God reads it without changes, and a language set edited in SEO God is taken
+  back as a reviewed translation. On the front end the FAQPage schema follows the current language.
+* New: `wp stm seo-god-faqs [--adopt]`.
+* New hooks: `stm_translate_field` (translate a field that is not one string) and `stm_translation_saved`.
 
 = 1.5.2 =
 * Fixed: "Preview in language" for a language that is not active yet showed the default language. WordPress'
