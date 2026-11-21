@@ -4,7 +4,7 @@ Tags: translation, multilingual, i18n, language switcher, rest api
 Requires at least: 6.0
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 1.5.1
+Stable tag: 1.5.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -141,6 +141,11 @@ translate, the source and target language code, and your API key, to
 2. Elementor in-editor translation panel.
 
 == Changelog ==
+
+= 1.5.2 =
+* Fixed: "Preview in language" for a language that is not active yet showed the default language. WordPress'
+  canonical redirect dropped `preview` from the link, and for a published post without a preview nonce (the front
+  page) core also switched `is_preview()` off. Editors now see the hidden language; visitors still never do.
 
 = 1.5.1 =
 * Fixed: on MySQL/MariaDB the new `source_hash`, `status` and `stale` columns were never added to an existing
