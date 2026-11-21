@@ -63,6 +63,12 @@ class Frontend {
         // stripped back first.
         add_action('template_redirect', [__CLASS__, 'maybe_redirect_to_preferred_language'], 2);
 
+        // WordPress's canonical redirect turns the preview link STM builds for a
+        // hidden language (/?page_id=91&preview=true&lang=en) into /slug/?lang=en and
+        // drops preview, so the editor's "Preview in language" showed the default
+        // language. Skip it for exactly that request.
+        add_filter('redirect_canonical', [__CLASS__, 'skip_canonical_redirect_for_language_preview'], 5);
+
         // Mirror the stm_lang cookie into localStorage and restore it after
         // cookie expiry (assets/language-preference.js).
         add_action('wp_enqueue_scripts', [__CLASS__, 'enqueue_language_preference_script']);
@@ -256,6 +262,30 @@ class Frontend {
             'secure'   => is_ssl(),
             'samesite' => 'Lax',
         ] );
+    }
+
+    /**
+     * redirect_canonical filter: leave a "preview in language" request for a
+     * hidden (inactive) language alone. Only an editor sees that language, and
+     * only on a ?preview=true&lang=xx request; every other request keeps WordPress's
+     * normal canonical redirect.
+     *
+     * @param string|false $redirect_url Where core wants to redirect to.
+     * @return string|false
+     */
+    public static function skip_canonical_redirect_for_language_preview( $redirect_url ) {
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- read-only check of the request; no state change.
+        if ( ! isset( $_GET['preview'], $_GET['lang'] ) ) {
+            return $redirect_url;
+        }
+
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- same read-only check.
+        $lang = sanitize_text_field( wp_unslash( $_GET['lang'] ) );
+        if ( ! Security::validate_language_code( $lang ) || self::is_active_language( $lang ) ) {
+            return $redirect_url;
+        }
+
+        return current_user_can( 'edit_posts' ) ? false : $redirect_url;
     }
 
     /**
@@ -487,7 +517,14 @@ class Frontend {
      * "Preview in language" cycler works for languages that aren't live yet.
      */
     private static function is_authorized_language_preview() {
-        if ( ! is_preview() ) {
+        // core's redirect_canonical() switches is_preview() back off for a PUBLISHED
+        // post whose preview link carries no nonce, which is what STM's own preview
+        // link is (the front page of weerzienmara.nl lost its preview that way).
+        // The request itself says "preview" and the edit-capability check below is
+        // what really gates this, so do not depend on that flag alone.
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- read-only presence check; access is decided by current_user_can() below.
+        $preview_requested = isset( $_GET['preview'] ) && 'true' === sanitize_text_field( wp_unslash( $_GET['preview'] ) );
+        if ( ! is_preview() && ! $preview_requested ) {
             return false;
         }
 
